@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
     Dialog,
     DialogContent,
@@ -68,8 +69,43 @@ export interface DismissalMonitorEmployee {
     assignments?: any[];
 }
 
+export interface CompletedDismissalEmployee {
+    id: string;
+    name: string;
+    role?: { id: string; name: string } | null;
+    company?: { id: string; name: string } | null;
+    admissionDate: any;
+    dismissalDate: any;
+    dismissalReason: string;
+    dismissalNotes?: string;
+    paymentDeadline?: any;
+    finalizedBy: string;
+    finalizedAt: any;
+    postoLabel: string;
+    attachment?: {
+        fileName: string;
+        fileData: string;
+    } | null;
+}
+
+export interface CancelledDismissalEmployee {
+    id: string;
+    employeeId: string;
+    name: string;
+    role?: { id: string; name: string } | null;
+    company?: { id: string; name: string } | null;
+    situation?: { name: string; color?: string } | null;
+    status: string;
+    cancelledBy: string;
+    cancelledAt: any;
+    details: string;
+    postoLabel: string;
+}
+
 interface DismissalMonitorTableProps {
     employees: DismissalMonitorEmployee[];
+    completedEmployees?: CompletedDismissalEmployee[];
+    cancelledEmployees?: CancelledDismissalEmployee[];
 }
 
 export function getProcessBadgeStyle(type: string) {
@@ -80,7 +116,7 @@ export function getProcessBadgeStyle(type: string) {
     if (t.includes("aviso") || t.includes("dispensa") || t.includes("pedido")) {
         return { bg: "#fffbeb", color: "#d97706" }; // Amber/Orange
     }
-    if (t.includes("abandono")) {
+    if (t.includes("abandono") || t.includes("justa causa")) {
         return { bg: "#fef2f2", color: "#ef4444" }; // Red
     }
     if (t.includes("ativo")) {
@@ -89,7 +125,22 @@ export function getProcessBadgeStyle(type: string) {
     return { bg: "#f8fafc", color: "#64748b" }; // Slate/Grey
 }
 
-export function DismissalMonitorTable({ employees }: DismissalMonitorTableProps) {
+function safeFormatDate(d: any, pattern: string = "dd/MM/yyyy"): string {
+    if (!d) return "-";
+    try {
+        const dateObj = typeof d === "string" ? new Date(d) : d;
+        if (isNaN(dateObj.getTime())) return "-";
+        return format(dateObj, pattern);
+    } catch {
+        return "-";
+    }
+}
+
+export function DismissalMonitorTable({ 
+    employees, 
+    completedEmployees = [], 
+    cancelledEmployees = [] 
+}: DismissalMonitorTableProps) {
     const router = useRouter();
     const [selectedEmployee, setSelectedEmployee] = useState<DismissalMonitorEmployee | null>(null);
     const [loadingAction, setLoadingAction] = useState(false);
@@ -160,9 +211,58 @@ export function DismissalMonitorTable({ employees }: DismissalMonitorTableProps)
     };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs whitespace-nowrap">
+        <div className="space-y-4">
+            <Tabs defaultValue="active" className="w-full space-y-4">
+                {/* ── BARRA DE SELEÇÃO DE ABAS ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200/80 shadow-xs">
+                    <TabsList className="bg-slate-100/90 p-1 rounded-xl h-11 border border-slate-200/60 flex items-center gap-1">
+                        <TabsTrigger 
+                            value="active" 
+                            className="rounded-lg font-bold text-xs px-4 py-2 flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-sm transition-all"
+                        >
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Em Andamento</span>
+                            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-amber-100/80 text-amber-800 font-bold border-amber-200">
+                                {employees.length}
+                            </Badge>
+                        </TabsTrigger>
+
+                        <TabsTrigger 
+                            value="completed" 
+                            className="rounded-lg font-bold text-xs px-4 py-2 flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-emerald-800 data-[state=active]:shadow-sm transition-all"
+                        >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Concluídos / Desligados</span>
+                            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-emerald-100/80 text-emerald-800 font-bold border-emerald-200">
+                                {completedEmployees.length}
+                            </Badge>
+                        </TabsTrigger>
+
+                        <TabsTrigger 
+                            value="cancelled" 
+                            className="rounded-lg font-bold text-xs px-4 py-2 flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-slate-800 data-[state=active]:shadow-sm transition-all"
+                        >
+                            <Ban className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Cancelados</span>
+                            <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-slate-200 text-slate-700 font-bold border-slate-300">
+                                {cancelledEmployees.length}
+                            </Badge>
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <div className="text-xs text-slate-500 font-medium px-3 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span>Total no sistema: <strong>{employees.length + completedEmployees.length + cancelledEmployees.length}</strong> registros</span>
+                    </div>
+                </div>
+
+                {/* ══════════════════════════════════════════════════════════
+                    ABA 1: EM ANDAMENTO
+                ══════════════════════════════════════════════════════════ */}
+                <TabsContent value="active" className="m-0 focus-visible:outline-none">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs whitespace-nowrap">
                     <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
                         <tr>
                             <th className="px-4 py-3.5">Colaborador</th>
@@ -351,6 +451,303 @@ export function DismissalMonitorTable({ employees }: DismissalMonitorTableProps)
                     </tbody>
                 </table>
             </div>
+        </div>
+    </TabsContent>
+
+    {/* ══════════════════════════════════════════════════════════
+        ABA 2: CONCLUÍDOS / DESLIGADOS
+    ══════════════════════════════════════════════════════════ */}
+    <TabsContent value="completed" className="m-0 focus-visible:outline-none">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                        <tr>
+                            <th className="px-4 py-3.5">Colaborador</th>
+                            <th className="px-4 py-3.5">Cargo / Função</th>
+                            <th className="px-4 py-3.5">Empresa / Último Posto</th>
+                            <th className="px-4 py-3.5">Motivo da Saída</th>
+                            <th className="px-3 py-3.5 text-center">Admissão</th>
+                            <th className="px-3 py-3.5 text-center">Data Rescisão</th>
+                            <th className="px-3 py-3.5 text-center">Prazo Pgto</th>
+                            <th className="px-4 py-3.5">Finalizado Por</th>
+                            <th className="px-4 py-3.5">Finalizado Em</th>
+                            <th className="px-4 py-3.5 text-center">Documentos</th>
+                            <th className="px-4 py-3.5 text-center">Ficha</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {completedEmployees.length === 0 ? (
+                            <tr>
+                                <td colSpan={11} className="px-4 py-12 text-center text-slate-400">
+                                    Nenhum colaborador desligado encontrado nos filtros selecionados.
+                                </td>
+                            </tr>
+                        ) : (
+                            completedEmployees.map((emp) => {
+                                const badgeStyle = getProcessBadgeStyle(emp.dismissalReason);
+                                return (
+                                    <tr 
+                                        key={emp.id} 
+                                        className="hover:bg-slate-50/80 transition-colors group"
+                                    >
+                                        {/* 1. Nome do Colaborador */}
+                                        <td className="px-4 py-3">
+                                            <div className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
+                                                {emp.name}
+                                            </div>
+                                            {emp.dismissalNotes && (
+                                                <p className="text-[10px] text-slate-400 font-normal truncate max-w-[200px]" title={emp.dismissalNotes}>
+                                                    Nota: {emp.dismissalNotes}
+                                                </p>
+                                            )}
+                                        </td>
+
+                                        {/* 2. Cargo / Função */}
+                                        <td className="px-4 py-3">
+                                            <span className="text-slate-600 font-medium">
+                                                {emp.role?.name || "-"}
+                                            </span>
+                                        </td>
+
+                                        {/* 3. Empresa / Último Posto */}
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-col gap-0.5 max-w-[160px]">
+                                                <span 
+                                                    className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded w-fit truncate border border-slate-200/60"
+                                                    title={emp.company?.name || "S/ Empresa"}
+                                                >
+                                                    {emp.company?.name || "S/ Empresa"}
+                                                </span>
+                                                <span 
+                                                    className="text-[11px] text-slate-500 font-semibold truncate"
+                                                    title={emp.postoLabel}
+                                                >
+                                                    {emp.postoLabel}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* 4. Motivo da Saída */}
+                                        <td className="px-4 py-3">
+                                            <span
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs"
+                                                style={{
+                                                    backgroundColor: badgeStyle.bg,
+                                                    color: badgeStyle.color,
+                                                    borderColor: `${badgeStyle.color}35`
+                                                }}
+                                            >
+                                                <span
+                                                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                                                    style={{ backgroundColor: badgeStyle.color }}
+                                                />
+                                                {emp.dismissalReason}
+                                            </span>
+                                        </td>
+
+                                        {/* 5. Admissão */}
+                                        <td className="px-3 py-3 text-center">
+                                            <span className="text-slate-500 font-medium">
+                                                {safeFormatDate(emp.admissionDate)}
+                                            </span>
+                                        </td>
+
+                                        {/* 6. Data Rescisão */}
+                                        <td className="px-3 py-3 text-center">
+                                            <span className="text-slate-900 font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                {safeFormatDate(emp.dismissalDate)}
+                                            </span>
+                                        </td>
+
+                                        {/* 7. Prazo de Pagamento */}
+                                        <td className="px-3 py-3 text-center">
+                                            {emp.paymentDeadline ? (
+                                                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                    {safeFormatDate(emp.paymentDeadline)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 font-normal">-</span>
+                                            )}
+                                        </td>
+
+                                        {/* 8. Finalizado Por */}
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                                                <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                                <span className="truncate max-w-[130px]" title={emp.finalizedBy}>
+                                                    {emp.finalizedBy}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* 9. Finalizado Em */}
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-1.5 text-slate-500 font-medium">
+                                                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                <span>
+                                                    {safeFormatDate(emp.finalizedAt, "dd/MM/yyyy HH:mm")}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* 10. Documentos & Anexos */}
+                                        <td className="px-4 py-3 text-center">
+                                            {emp.attachment ? (
+                                                <ResignationLetterDownloadButton
+                                                    fileName={emp.attachment.fileName}
+                                                    fileData={emp.attachment.fileData}
+                                                />
+                                            ) : (
+                                                <span className="text-slate-300 text-xs italic">Sem anexo</span>
+                                            )}
+                                        </td>
+
+                                        {/* 11. Ficha do Colaborador */}
+                                        <td className="px-4 py-3 text-center">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => window.open(`/admin/employees/${emp.id}`, "_blank")}
+                                                className="h-8 px-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs"
+                                                title="Abrir ficha cadastral do colaborador"
+                                            >
+                                                <ExternalLink className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </TabsContent>
+
+    {/* ══════════════════════════════════════════════════════════
+        ABA 3: CANCELADOS / REVERTIDOS
+    ══════════════════════════════════════════════════════════ */}
+    <TabsContent value="cancelled" className="m-0 focus-visible:outline-none">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                        <tr>
+                            <th className="px-4 py-3.5">Colaborador</th>
+                            <th className="px-4 py-3.5">Cargo / Função</th>
+                            <th className="px-4 py-3.5">Empresa / Posto Atual</th>
+                            <th className="px-4 py-3.5 text-center">Situação Atual</th>
+                            <th className="px-4 py-3.5">Cancelado Por</th>
+                            <th className="px-4 py-3.5">Cancelado Em</th>
+                            <th className="px-4 py-3.5">Detalhes do Registro</th>
+                            <th className="px-4 py-3.5 text-center">Ficha</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {cancelledEmployees.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                                    Nenhum processo de desligamento cancelado nos filtros selecionados.
+                                </td>
+                            </tr>
+                        ) : (
+                            cancelledEmployees.map((emp) => (
+                                <tr 
+                                    key={emp.id} 
+                                    className="hover:bg-slate-50/80 transition-colors group"
+                                >
+                                    {/* 1. Nome do Colaborador */}
+                                    <td className="px-4 py-3">
+                                        <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                            {emp.name}
+                                        </div>
+                                    </td>
+
+                                    {/* 2. Cargo / Função */}
+                                    <td className="px-4 py-3">
+                                        <span className="text-slate-600 font-medium">
+                                            {emp.role?.name || "-"}
+                                        </span>
+                                    </td>
+
+                                    {/* 3. Empresa / Posto Atual */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-0.5 max-w-[160px]">
+                                            <span 
+                                                className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded w-fit truncate border border-slate-200/60"
+                                                title={emp.company?.name || "S/ Empresa"}
+                                            >
+                                                {emp.company?.name || "S/ Empresa"}
+                                            </span>
+                                            <span 
+                                                className="text-[11px] text-slate-500 font-semibold truncate"
+                                                title={emp.postoLabel}
+                                            >
+                                                {emp.postoLabel}
+                                            </span>
+                                        </div>
+                                    </td>
+
+                                    {/* 4. Situação Atual */}
+                                    <td className="px-4 py-3 text-center">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            {emp.situation?.name || emp.status || "Ativo"}
+                                        </span>
+                                    </td>
+
+                                    {/* 5. Cancelado Por */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            <span className="truncate max-w-[140px]" title={emp.cancelledBy}>
+                                                {emp.cancelledBy}
+                                            </span>
+                                        </div>
+                                    </td>
+
+                                    {/* 6. Cancelado Em */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1.5 text-slate-500 font-medium">
+                                            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            <span>
+                                                {safeFormatDate(emp.cancelledAt, "dd/MM/yyyy HH:mm")}
+                                            </span>
+                                        </div>
+                                    </td>
+
+                                    {/* 7. Detalhes / Motivo */}
+                                    <td className="px-4 py-3">
+                                        <span 
+                                            className="text-xs text-slate-600 block max-w-[280px] truncate"
+                                            title={emp.details}
+                                        >
+                                            {emp.details}
+                                        </span>
+                                    </td>
+
+                                    {/* 8. Ficha do Colaborador */}
+                                    <td className="px-4 py-3 text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => window.open(`/admin/employees/${emp.employeeId}`, "_blank")}
+                                            className="h-8 px-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg text-xs"
+                                            title="Abrir ficha cadastral do colaborador"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </TabsContent>
+</Tabs>
 
             {/* ── MODAL DE AÇÕES DO DESLIGAMENTO ── */}
             <Dialog open={!!selectedEmployee} onOpenChange={(open) => !open && setSelectedEmployee(null)}>

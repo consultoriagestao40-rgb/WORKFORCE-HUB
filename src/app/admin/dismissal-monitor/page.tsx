@@ -356,6 +356,154 @@ function getProcessBadgeStyle(type: string) {
     return { bg: "#f8fafc", color: "#64748b" }; // Slate/Grey
 }
 
+async function getCompletedDismissals(companyId?: string, search?: string) {
+    const where: any = {
+        situation: {
+            name: 'Desligado'
+        }
+    };
+
+    if (companyId && companyId !== 'all') {
+        where.companyId = companyId;
+    }
+
+    if (search) {
+        where.name = { contains: search, mode: 'insensitive' };
+    }
+
+    const employees = await prisma.employee.findMany({
+        where,
+        select: {
+            id: true,
+            name: true,
+            admissionDate: true,
+            dismissalReason: true,
+            dismissalNotes: true,
+            extraFields: true,
+            updatedAt: true,
+            company: { select: { id: true, name: true } },
+            role: { select: { id: true, name: true } },
+            assignments: {
+                orderBy: { endDate: 'desc' },
+                take: 1,
+                include: { posto: { include: { client: true } } }
+            }
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 300
+    });
+
+    const empIds = employees.map((e: any) => e.id);
+    const finalLogs = empIds.length > 0 ? await prisma.log.findMany({
+        where: {
+            employeeId: { in: empIds },
+            action: 'DESLIGAMENTO_FINAL'
+        },
+        include: { user: { select: { name: true, email: true } } },
+        orderBy: { timestamp: 'desc' }
+    }) : [];
+
+    const finalLogMap = new Map<string, { finalizedBy: string; finalizedAt: Date; details?: string }>();
+    for (const l of finalLogs) {
+        if (l.employeeId && !finalLogMap.has(l.employeeId)) {
+            finalLogMap.set(l.employeeId, {
+                finalizedBy: l.user?.name || l.user?.email || "Sistema",
+                finalizedAt: l.timestamp,
+                details: l.details
+            });
+        }
+    }
+
+    return employees.map((emp: any) => {
+        const extra = (emp.extraFields as any) || {};
+        const proc = extra.dismissalProcess || {};
+        const logInfo = finalLogMap.get(emp.id);
+        const lastAssignment = emp.assignments?.[0];
+        const postoLabel = lastAssignment?.posto?.client?.name 
+            ? lastAssignment.posto.client.name 
+            : (lastAssignment?.posto ? "Posto Desvinculado" : "Sem Posto / Rotativo");
+
+        const dismissalDate = logInfo?.finalizedAt || proc.lastWorkingDay || proc.endDate || emp.updatedAt;
+
+        return {
+            id: emp.id,
+            name: emp.name,
+            role: emp.role,
+            company: emp.company,
+            admissionDate: emp.admissionDate,
+            dismissalDate,
+            dismissalReason: emp.dismissalReason || proc.type || "Rescisão",
+            dismissalNotes: emp.dismissalNotes || logInfo?.details || "",
+            paymentDeadline: proc.paymentDeadline || null,
+            finalizedBy: logInfo?.finalizedBy || extra.finalizedByName || "Gestor / DP",
+            finalizedAt: logInfo?.finalizedAt || emp.updatedAt,
+            postoLabel,
+            attachment: proc.attachment || null
+        };
+    });
+}
+
+async function getCancelledDismissals(companyId?: string, search?: string) {
+    const cancelLogs = await prisma.log.findMany({
+        where: {
+            action: 'DESVINCULACAO_CANCELADA'
+        },
+        include: {
+            user: { select: { name: true, email: true } },
+            employee: {
+                select: {
+                    id: true,
+                    name: true,
+                    admissionDate: true,
+                    status: true,
+                    company: { select: { id: true, name: true } },
+                    role: { select: { id: true, name: true } },
+                    situation: { select: { name: true, color: true } },
+                    assignments: {
+                        where: { endDate: null },
+                        include: { posto: { include: { client: true } } }
+                    }
+                }
+            }
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 150
+    });
+
+    return cancelLogs
+        .filter((l: any) => l.employee)
+        .filter((l: any) => {
+            if (companyId && companyId !== 'all') {
+                if (l.employee.company?.id !== companyId) return false;
+            }
+            if (search) {
+                const q = search.toLowerCase();
+                if (!l.employee.name.toLowerCase().includes(q)) return false;
+            }
+            return true;
+        })
+        .map((l: any) => {
+            const currentAssignment = l.employee.assignments?.[0];
+            const postoLabel = currentAssignment?.posto?.client?.name 
+                ? currentAssignment.posto.client.name 
+                : "Sem Posto / Rotativo";
+
+            return {
+                id: l.id,
+                employeeId: l.employee.id,
+                name: l.employee.name,
+                role: l.employee.role,
+                company: l.employee.company,
+                situation: l.employee.situation,
+                status: l.employee.status,
+                cancelledBy: l.user?.name || l.user?.email || "Sistema",
+                cancelledAt: l.timestamp,
+                details: l.details,
+                postoLabel
+            };
+        });
+}
+
 export default async function DismissalMonitorPage({ 
     searchParams 
 }: { 
@@ -371,6 +519,8 @@ export default async function DismissalMonitorPage({
     });
 
     const employees = await getDismissalProcessData(companyId, search);
+    const completedEmployees = await getCompletedDismissals(companyId, search);
+    const cancelledEmployees = await getCancelledDismissals(companyId, search);
 
     const { dismissalAlerts, dismissalAlertUserId, systemUsers } = (await getGlobalAlerts()) as any;
     
@@ -460,7 +610,11 @@ export default async function DismissalMonitorPage({
 
             <DashboardFilters companies={companies} clients={[]} />
 
-            <DismissalMonitorTable employees={employees} />
+            <DismissalMonitorTable 
+                employees={employees} 
+                completedEmployees={completedEmployees}
+                cancelledEmployees={cancelledEmployees}
+            />
         </div>
     );
 }
