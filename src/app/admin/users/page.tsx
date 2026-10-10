@@ -28,7 +28,7 @@ export default async function UsersPage() {
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">Gestão de Acessos</h1>
                     <p className="text-slate-500 font-medium mt-1">Gerencie usuários e permissões do sistema</p>
                 </div>
-                <UserDialog clients={clientsList} />
+                <UserDialog clients={clientsList} allUsers={users} />
             </div>
 
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-xl">
@@ -56,12 +56,13 @@ export default async function UsersPage() {
                                 <TableHead>Nome / Email</TableHead>
                                 <TableHead>Usuário</TableHead>
                                 <TableHead>Perfil</TableHead>
+                                <TableHead>Gestor Imediato (N1)</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Ações</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {users.map((user) => (
+                            {users.map((user: any) => (
                                 <TableRow key={user.id} className="hover:bg-slate-50/50 border-slate-50">
                                     <TableCell>
                                         <div className="font-semibold text-slate-900">{user.name}</div>
@@ -81,6 +82,18 @@ export default async function UsersPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
+                                        {user.manager ? (
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-semibold text-slate-800">{user.manager.name}</span>
+                                                <span className="text-[10px] text-slate-400 font-mono uppercase tracking-tight">{user.manager.role}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-slate-400 italic">
+                                                {user.role === 'ADMIN' ? 'Direção Geral' : 'Sem superior'}
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
                                         <Badge variant={user.isActive ? "default" : "destructive"} className={user.isActive ? "bg-emerald-500 hover:bg-emerald-600" : ""}>
                                             {user.isActive ? "Ativo" : "Inativo"}
                                         </Badge>
@@ -90,6 +103,7 @@ export default async function UsersPage() {
                                             <UserDialog
                                                 user={user}
                                                 clients={clientsList}
+                                                allUsers={users}
                                                 trigger={
                                                     <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50">
                                                         <Edit2 className="w-4 h-4" />

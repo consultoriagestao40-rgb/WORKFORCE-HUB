@@ -22,6 +22,8 @@ interface User {
     role: string;
     isActive: boolean;
     clientIds?: string[];
+    managerId?: string | null;
+    manager?: { id: string; name: string; role: string } | null;
 }
 
 interface Client {
@@ -32,16 +34,18 @@ interface Client {
 interface UserDialogProps {
     user?: User; // If provided, edit mode
     clients?: Client[];
+    allUsers?: { id: string; name: string; username: string; role: string }[];
     trigger?: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }
 
-export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: UserDialogProps) {
+export function UserDialog({ user, clients = [], allUsers = [], trigger, open, onOpenChange }: UserDialogProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [internalOpen, setInternalOpen] = useState(false);
     const [selectedRole, setSelectedRole] = useState<string>(user?.role || "SUPERVISOR");
     const [selectedClients, setSelectedClients] = useState<string[]>(user?.clientIds || []);
+    const [selectedManagerId, setSelectedManagerId] = useState<string>(user?.managerId || "NONE");
 
     const isEdit = !!user;
 
@@ -49,9 +53,11 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
         if (user) {
             setSelectedRole(user.role);
             setSelectedClients(user.clientIds || []);
+            setSelectedManagerId(user.managerId || "NONE");
         } else {
             setSelectedRole("SUPERVISOR");
             setSelectedClients([]);
+            setSelectedManagerId("NONE");
         }
     }, [user, open, internalOpen]);
 
@@ -65,6 +71,8 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
                     formData.append("clientIds", id);
                 });
             }
+
+            formData.set("managerId", selectedManagerId);
 
             if (isEdit) {
                 formData.append("id", user!.id);
@@ -95,6 +103,8 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
     const isOpen = open !== undefined ? open : internalOpen;
     const setOpen = onOpenChange || setInternalOpen;
 
+    const availableManagers = allUsers.filter(u => !user || u.id !== user.id);
+
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
@@ -107,7 +117,7 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
                 </DialogTrigger>
             )}
 
-            <DialogContent className="sm:max-w-[450px]">
+            <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? "Editar Usuário" : "Novo Usuário"}</DialogTitle>
                 </DialogHeader>
@@ -159,6 +169,41 @@ export function UserDialog({ user, clients = [], trigger, open, onOpenChange }: 
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {selectedRole !== "CLIENTE" && (
+                        <div className="space-y-1.5 p-3 rounded-xl border border-indigo-100 bg-indigo-50/40">
+                            <div className="flex items-center justify-between">
+                                <Label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                                    <span>Gestor Imediato (Superior N1)</span>
+                                </Label>
+                                <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">
+                                    Hierarquia
+                                </span>
+                            </div>
+                            <Select 
+                                value={selectedManagerId}
+                                onValueChange={setSelectedManagerId}
+                            >
+                                <SelectTrigger className="h-10 text-xs border-indigo-200 bg-white shadow-sm">
+                                    <SelectValue placeholder="Selecione o gestor imediato..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="NONE">
+                                        <span className="text-slate-500 font-medium">Nenhum (Direção Geral / Sem Superior)</span>
+                                    </SelectItem>
+                                    {availableManagers.map(mgr => (
+                                        <SelectItem key={mgr.id} value={mgr.id}>
+                                            <span className="font-semibold text-slate-800">{mgr.name}</span>
+                                            <span className="text-[11px] text-slate-500 ml-1.5">({mgr.role})</span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-[11px] text-slate-500 leading-tight">
+                                Define quem é o superior imediato responsável por receber e aprovar solicitações de alçada N1 criadas por este usuário.
+                            </p>
+                        </div>
+                    )}
 
                     {selectedRole === "CLIENTE" && (
                         <div className="space-y-2 border border-slate-100 p-3 rounded-lg bg-slate-50/50">

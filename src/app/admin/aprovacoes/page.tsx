@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import React from "react";
 import { getCurrentUser } from "@/lib/auth";
-import { getApprovalRequests, getApprovalMetrics } from "@/actions/approvals";
+import { getApprovalRequests, getApprovalMetrics, getApprovalWorkflowRules } from "@/actions/approvals";
+import { getUsers } from "@/app/actions";
 import { ApprovalsHub } from "@/components/admin/approvals/ApprovalsHub";
 import { BackButton } from "@/components/admin/BackButton";
 import { CheckSquare } from "lucide-react";
@@ -14,9 +15,11 @@ export default async function AprovacoesPage() {
         redirect("/login");
     }
 
-    const [requests, metrics] = await Promise.all([
+    const [requests, metrics, rules, users] = await Promise.all([
         getApprovalRequests(),
-        getApprovalMetrics()
+        getApprovalMetrics(),
+        getApprovalWorkflowRules(),
+        getUsers()
     ]);
 
     return (
@@ -48,6 +51,9 @@ export default async function AprovacoesPage() {
                 metrics={metrics}
                 userRole={user.role}
                 userName={user.name}
+                currentUserId={user.id}
+                rules={rules as any}
+                allUsers={users}
             />
         </div>
     );

@@ -1,11 +1,11 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getCurrentUserRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { SecullumApiClient } from "@/lib/secullum";
 import { getBenefitsConfig } from "@/actions/benefits";
-import { ApprovalType, ApprovalStatus } from "@prisma/client";
+import { ApprovalType, ApprovalStatus, SystemRole } from "@prisma/client";
 
 /**
  * Retorna as configurações do cliente Secullum
@@ -190,10 +190,22 @@ export async function createApprovalRequest(data: {
         }
     }
 
+    // Buscar regra de alçada para o tipo
+    const rule = await prisma.approvalWorkflowRule.findUnique({
+        where: { type: data.type }
+    });
+
+    const n1Required = data.n1Required !== undefined ? data.n1Required : (rule ? rule.n1Enabled : true);
+    const n2Required = data.n2Required !== undefined ? data.n2Required : (rule ? rule.n2Enabled : true);
+
+    const initialStatus = n1Required 
+        ? ApprovalStatus.PENDENTE_N1 
+        : (n2Required ? ApprovalStatus.PENDENTE_N2 : ApprovalStatus.APROVADO);
+
     const request = await prisma.approvalRequest.create({
         data: {
             type: data.type,
-            status: ApprovalStatus.PENDENTE_N1,
+            status: initialStatus,
             title: data.title,
             description: data.description || null,
             employeeId: data.employeeId || null,
@@ -207,8 +219,8 @@ export async function createApprovalRequest(data: {
             snapshotCurrent: data.snapshotCurrent || null,
             snapshotProposed: data.snapshotProposed,
             executionPayload: data.executionPayload,
-            n1Required: data.n1Required !== undefined ? data.n1Required : true,
-            n2Required: data.n2Required !== undefined ? data.n2Required : true,
+            n1Required,
+            n2Required,
         }
     });
 
@@ -251,8 +263,48 @@ export async function processApprovalDecision(
 
         const now = new Date();
 
+        // Buscar regra de alçada configurada para o tipo de solicitação
+        const rule = await prisma.approvalWorkflowRule.findUnique({
+            where: { type: request.type }
+        });
+
         // 1. Processamento NÍVEL 1 (N1)
         if (request.status === ApprovalStatus.PENDENTE_N1) {
+            let canApproveN1 = false;
+            if (user.role === 'ADMIN') {
+                canApproveN1 = true;
+            } else if (rule?.n1ApproverType === "DIRECT_MANAGER") {
+                if (request.requesterId) {
+                    const requester = await prisma.user.findUnique({
+                        where: { id: request.requesterId },
+                        select: { managerId: true }
+                    });
+                    if (requester?.managerId === user.id) {
+                        canApproveN1 = true;
+                    }
+                }
+                // Se o solicitante não possui gestor imediato cadastrado, COORD_RH pode deliberar
+                if (!canApproveN1 && user.role === 'COORD_RH') {
+                    canApproveN1 = true;
+                }
+            } else if (rule?.n1ApproverType === "ROLE") {
+                if (user.role === (rule.n1TargetRole || 'COORD_RH')) {
+                    canApproveN1 = true;
+                }
+            } else if (rule?.n1ApproverType === "SPECIFIC_USER") {
+                if (user.id === rule.n1TargetUserId) {
+                    canApproveN1 = true;
+                }
+            } else {
+                if (user.role === 'ADMIN' || user.role === 'COORD_RH') {
+                    canApproveN1 = true;
+                }
+            }
+
+            if (!canApproveN1) {
+                throw new Error("Você não possui permissão/alçada para deliberar nesta solicitação no Nível 1 (N1).");
+            }
+
             if (decision === "REPROVAR") {
                 await prisma.approvalRequest.update({
                     where: { id: requestId },
@@ -334,6 +386,22 @@ export async function processApprovalDecision(
 
         // 2. Processamento NÍVEL 2 (N2)
         if (request.status === ApprovalStatus.PENDENTE_N2) {
+            let canApproveN2 = false;
+            if (user.role === 'ADMIN') {
+                canApproveN2 = true;
+            } else if (rule?.n2ApproverType === "SPECIFIC_USER") {
+                if (user.id === rule.n2TargetUserId) {
+                    canApproveN2 = true;
+                }
+            } else if (rule?.n2ApproverType === "ROLE") {
+                if (user.role === (rule.n2TargetRole || 'ADMIN')) {
+                    canApproveN2 = true;
+                }
+            }
+
+            if (!canApproveN2) {
+                throw new Error("Você não possui permissão/alçada para deliberar nesta solicitação no Nível 2 (N2).");
+            }
             if (decision === "REPROVAR") {
                 await prisma.approvalRequest.update({
                     where: { id: requestId },
@@ -598,4 +666,157 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
         });
         return { success: false, error: err.message };
     }
+}
+
+/**
+ * Regras padrão de aprovação por tipo de solicitação
+ */
+const DEFAULT_RULES = [
+    {
+        type: ApprovalType.DESLIGAMENTO,
+        name: "Desligamento e Rescisão",
+        description: "Demissões e desligamentos solicitados pela operação",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: true,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.FERIAS,
+        name: "Programação de Férias",
+        description: "Agendamento e concessão de férias de colaboradores",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: true,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.MUDANCA_POSTO,
+        name: "Mudança de Posto / Cliente",
+        description: "Transferência de colaborador entre postos ou clientes",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: true,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.MUDANCA_HORARIO,
+        name: "Mudança de Horário de Trabalho",
+        description: "Alteração de jornada ou faixa horária contratual",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: false,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.MUDANCA_ESCALA,
+        name: "Mudança de Escala (12x36 / Semanal)",
+        description: "Alteração da escala de trabalho e revezamento",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: false,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.AJUSTE_SALARIAL,
+        name: "Ajuste Salarial / Promoção",
+        description: "Alteração de remuneração ou cargo do colaborador",
+        n1Enabled: true,
+        n1ApproverType: "DIRECT_MANAGER",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: true,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    },
+    {
+        type: ApprovalType.OUTROS,
+        name: "Outras Solicitações Operacionais",
+        description: "Demandas gerais da operação com necessidade de alçada",
+        n1Enabled: true,
+        n1ApproverType: "ROLE",
+        n1TargetRole: SystemRole.COORD_RH,
+        n2Enabled: true,
+        n2ApproverType: "ROLE",
+        n2TargetRole: SystemRole.ADMIN,
+    }
+];
+
+export async function getApprovalWorkflowRules() {
+    let existingRules = await prisma.approvalWorkflowRule.findMany({
+        orderBy: { name: 'asc' }
+    });
+
+    // Se alguma regra padrão não existir, inicializar
+    for (const def of DEFAULT_RULES) {
+        const found = existingRules.find(r => r.type === def.type);
+        if (!found) {
+            const created = await prisma.approvalWorkflowRule.create({
+                data: def
+            });
+            existingRules.push(created);
+        }
+    }
+
+    return existingRules;
+}
+
+export async function saveApprovalWorkflowRule(data: {
+    type: ApprovalType;
+    name?: string;
+    description?: string;
+    n1Enabled: boolean;
+    n1ApproverType: string;
+    n1TargetRole?: SystemRole | null;
+    n1TargetUserId?: string | null;
+    n2Enabled: boolean;
+    n2ApproverType: string;
+    n2TargetRole?: SystemRole | null;
+    n2TargetUserId?: string | null;
+}) {
+    const role = await getCurrentUserRole();
+    if (role !== 'ADMIN') {
+        throw new Error("Apenas administradores podem configurar alçadas de aprovação.");
+    }
+
+    const updated = await prisma.approvalWorkflowRule.upsert({
+        where: { type: data.type },
+        update: {
+            n1Enabled: data.n1Enabled,
+            n1ApproverType: data.n1ApproverType,
+            n1TargetRole: data.n1TargetRole || null,
+            n1TargetUserId: data.n1TargetUserId || null,
+            n2Enabled: data.n2Enabled,
+            n2ApproverType: data.n2ApproverType,
+            n2TargetRole: data.n2TargetRole || null,
+            n2TargetUserId: data.n2TargetUserId || null,
+            ...(data.name ? { name: data.name } : {}),
+            ...(data.description ? { description: data.description } : {}),
+        },
+        create: {
+            type: data.type,
+            name: data.name || String(data.type),
+            description: data.description || null,
+            n1Enabled: data.n1Enabled,
+            n1ApproverType: data.n1ApproverType,
+            n1TargetRole: data.n1TargetRole || null,
+            n1TargetUserId: data.n1TargetUserId || null,
+            n2Enabled: data.n2Enabled,
+            n2ApproverType: data.n2ApproverType,
+            n2TargetRole: data.n2TargetRole || null,
+            n2TargetUserId: data.n2TargetUserId || null,
+        }
+    });
+
+    revalidatePath("/admin/aprovacoes");
+    return { success: true, rule: updated };
 }

@@ -54,6 +54,11 @@ model User {
   approvalRequestsRequested  ApprovalRequest[]           @relation("ApprovalRequestedBy")
   approvalRequestsN1         ApprovalRequest[]           @relation("ApprovalN1By")
   approvalRequestsN2         ApprovalRequest[]           @relation("ApprovalN2By")
+
+  // Subordinação Hierárquica
+  managerId                  String?
+  manager                    User?                       @relation("UserSubordination", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates               User[]                      @relation("UserSubordination")
 }
 
 model Log {
@@ -1496,5 +1501,27 @@ model ApprovalRequest {
   @@index([clientId])
   @@index([requesterId])
   @@index([createdAt])
+}
+
+model ApprovalWorkflowRule {
+  id             String        @id @default(uuid())
+  type           ApprovalType  @unique
+  name           String
+  description    String?
+
+  // Nível 1 (N1 - Operacional)
+  n1Enabled      Boolean       @default(true)
+  n1ApproverType String        @default("DIRECT_MANAGER") // "DIRECT_MANAGER" | "ROLE" | "SPECIFIC_USER"
+  n1TargetRole   SystemRole?   @default(COORD_RH)
+  n1TargetUserId String?
+
+  // Nível 2 (N2 - Diretoria / Financeiro)
+  n2Enabled      Boolean       @default(true)
+  n2ApproverType String        @default("ROLE") // "ROLE" | "SPECIFIC_USER"
+  n2TargetRole   SystemRole?   @default(ADMIN)
+  n2TargetUserId String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 

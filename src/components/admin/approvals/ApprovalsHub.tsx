@@ -15,12 +15,15 @@ import {
     Briefcase, 
     Eye, 
     Check, 
-    X 
+    X,
+    SlidersHorizontal,
+    GitBranch
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { processApprovalDecision } from "@/actions/approvals";
 import { toast } from "sonner";
+import { WorkflowRulesConfig, WorkflowRuleData } from "./WorkflowRulesConfig";
 import {
     Dialog,
     DialogContent,
@@ -87,9 +90,20 @@ interface ApprovalsHubProps {
     };
     userRole?: string;
     userName?: string;
+    currentUserId?: string;
+    rules?: WorkflowRuleData[];
+    allUsers?: { id: string; name: string; username: string; role: string }[];
 }
 
-export function ApprovalsHub({ initialRequests, metrics: initialMetrics }: ApprovalsHubProps) {
+export function ApprovalsHub({ 
+    initialRequests, 
+    metrics: initialMetrics,
+    userRole,
+    userName,
+    currentUserId,
+    rules = [],
+    allUsers = []
+}: ApprovalsHubProps) {
     const [requests, setRequests] = useState<ApprovalRequestItem[]>(initialRequests);
     const [metrics] = useState(initialMetrics);
     const [selectedTab, setSelectedTab] = useState<string>("PENDING_ALL");
@@ -417,11 +431,28 @@ export function ApprovalsHub({ initialRequests, metrics: initialMetrics }: Appro
                     >
                         Todas
                     </button>
+                    <button
+                        onClick={() => setSelectedTab("CONFIG_WORKFLOW")}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 border border-indigo-200/50 ${
+                            selectedTab === "CONFIG_WORKFLOW" 
+                                ? "bg-indigo-600 text-white shadow-sm" 
+                                : "text-indigo-700 bg-indigo-50/60 hover:bg-indigo-100"
+                        }`}
+                    >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        Alçadas N1/N2
+                    </button>
                 </div>
             </div>
 
-            {/* Listagem de Cards de Aprovação */}
-            {filteredRequests.length === 0 ? (
+            {/* Visualização de Alçadas N1/N2 ou Cards de Aprovação */}
+            {selectedTab === "CONFIG_WORKFLOW" ? (
+                <WorkflowRulesConfig 
+                    initialRules={rules} 
+                    allUsers={allUsers} 
+                    isAdmin={userRole === 'ADMIN'} 
+                />
+            ) : filteredRequests.length === 0 ? (
                 <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
                     <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                     <h3 className="text-base font-bold text-slate-700">Nenhuma solicitação encontrada</h3>

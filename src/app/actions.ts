@@ -2452,7 +2452,12 @@ export async function logout() {
 
 export async function getUsers() {
     return await prisma.user.findMany({
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
+        include: {
+            manager: {
+                select: { id: true, name: true, role: true }
+            }
+        }
     });
 }
 
@@ -2710,6 +2715,7 @@ export async function createUser(formData: FormData) {
     const role = formData.get("role") as any;
     const clientIds = formData.getAll("clientIds") as string[];
     const phone = formData.get("phone") as string;
+    const managerId = (formData.get("managerId") as string) || null;
 
     const hashedPassword = await hashPassword(password);
 
@@ -2720,6 +2726,7 @@ export async function createUser(formData: FormData) {
             username,
             password: hashedPassword,
             role,
+            managerId: managerId && managerId !== "NONE" ? managerId : null,
             isActive: true,
             clientIds,
             phone
@@ -2741,11 +2748,13 @@ export async function updateUser(formData: FormData) {
     const password = formData.get("password") as string;
     const clientIds = formData.getAll("clientIds") as string[];
     const phone = formData.get("phone") as string;
+    const managerId = (formData.get("managerId") as string) || null;
 
     const updateData: any = {
         name,
         email,
         role,
+        managerId: managerId && managerId !== "NONE" ? managerId : null,
         isActive,
         clientIds,
         phone
