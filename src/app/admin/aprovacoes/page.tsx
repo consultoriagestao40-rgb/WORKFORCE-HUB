@@ -20,22 +20,22 @@ export default async function AprovacoesPage() {
     ]);
 
     return (
-        <div className="p-6 md:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen">
+        <div className="space-y-6">
             {/* Top Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <BackButton fallbackUrl="/admin" />
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-sm">
+                    <BackButton fallbackUrl="/admin" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-slate-200" />
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
                         <CheckSquare className="w-5 h-5 stroke-[2.5]" />
                     </div>
                     <div>
-                        <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                            Menu de Aprovações
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold text-slate-800">Menu de Aprovações</h1>
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                                 Alçada N1 / N2 + Secullum
                             </span>
-                        </h1>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        </div>
+                        <p className="text-slate-500 text-sm">
                             Deliberação de postos, escalas, horários, desligamentos e férias com integração direta ao ponto
                         </p>
                     </div>

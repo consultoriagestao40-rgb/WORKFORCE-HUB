@@ -131,7 +131,8 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/atestados" icon={FileText} label="Gestão de Atestados" colorClass="text-sky-400 font-bold" badge={atestadosPendentes} />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/epi" icon={Shirt} label="EPIs & Uniformes" colorClass="text-amber-400" />
-                <NavLink href="/admin/aprovacoes" icon={CheckSquare} label="Menu de Aprovações" colorClass="text-emerald-400 font-bold" badge={aprovacoesPendentes} />
+                <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
+                <NavLink href="/admin/aprovacoes" icon={CheckSquare} label="Menu de Aprovações" colorClass="text-emerald-500 font-bold" badge={aprovacoesPendentes} />
                 <NavLink href="/admin/occurrences" icon={AlertCircle} label="Livro de Ocorrências" colorClass="text-red-400" />
                 <NavLink href="/admin/roster" icon={Calendar} label="Escalas" />
                 <NavLink href="/admin/dimensionamento" icon={BarChart} label="Dimensionamento" />
