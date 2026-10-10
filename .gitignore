@@ -28,3 +28,4 @@ ts-debug.log*
 .env
 .env*
 .onvio-session/
+scratch/

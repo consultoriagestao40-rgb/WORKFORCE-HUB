@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse, CheckSquare } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -19,24 +19,32 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
     const role = user?.role;
     const isSupervisor = role === "SUPERVISOR";
     const [atestadosPendentes, setAtestadosPendentes] = useState(0);
+    const [aprovacoesPendentes, setAprovacoesPendentes] = useState(0);
 
-    // Busca o número de atestados pendentes de validação
+    // Busca o número de atestados e aprovações pendentes de validação
     useEffect(() => {
         if (isSupervisor) return;
-        const fetchCount = async () => {
+        const fetchCounts = async () => {
             try {
-                const res = await fetch("/api/admin/atestados/count", { cache: "no-store" });
-                if (res.ok) {
-                    const data = await res.json();
-                    setAtestadosPendentes(data.count || 0);
+                const [resAtestados, resAprovacoes] = await Promise.all([
+                    fetch("/api/admin/atestados/count", { cache: "no-store" }),
+                    fetch("/api/admin/approvals/count", { cache: "no-store" })
+                ]);
+                if (resAtestados.ok) {
+                    const dataAtestados = await resAtestados.json();
+                    setAtestadosPendentes(dataAtestados.count || 0);
+                }
+                if (resAprovacoes.ok) {
+                    const dataAprov = await resAprovacoes.json();
+                    setAprovacoesPendentes(dataAprov.count || 0);
                 }
             } catch {
                 // silencioso
             }
         };
-        fetchCount();
+        fetchCounts();
         // Atualiza a cada 60 segundos
-        const interval = setInterval(fetchCount, 60000);
+        const interval = setInterval(fetchCounts, 60000);
         return () => clearInterval(interval);
     }, [isSupervisor]);
 
@@ -123,7 +131,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/atestados" icon={FileText} label="Gestão de Atestados" colorClass="text-sky-400 font-bold" badge={atestadosPendentes} />
                 <NavLink href="/admin/disciplinary" icon={Scale} label="Gestão de Medidas" colorClass="text-rose-500" />
                 <NavLink href="/admin/epi" icon={Shirt} label="EPIs & Uniformes" colorClass="text-amber-400" />
-                <NavLink href="/admin/requests" icon={Inbox} label="Central de Solicitações" colorClass="text-orange-400" />
+                <NavLink href="/admin/aprovacoes" icon={CheckSquare} label="Menu de Aprovações" colorClass="text-emerald-400 font-bold" badge={aprovacoesPendentes} />
                 <NavLink href="/admin/occurrences" icon={AlertCircle} label="Livro de Ocorrências" colorClass="text-red-400" />
                 <NavLink href="/admin/roster" icon={Calendar} label="Escalas" />
                 <NavLink href="/admin/dimensionamento" icon={BarChart} label="Dimensionamento" />

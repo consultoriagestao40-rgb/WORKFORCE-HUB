@@ -1311,6 +1311,32 @@ export async function unassignEmployee(formData: FormData) {
             }
         }
 
+        // Sincronização Secullum caso haja desligamento/rescisão associada
+        if (terminationDate || situation.name.toLowerCase().includes("rescis") || situation.name.toLowerCase().includes("demit")) {
+            try {
+                const { getBenefitsConfig } = await import("@/actions/benefits");
+                const { SecullumApiClient } = await import("@/lib/secullum");
+                const config = await getBenefitsConfig();
+                if (config?.secullumApiToken && config?.secullumCompanyId && currentAssignment.employee.cpf) {
+                    const secClient = new SecullumApiClient(
+                        config.secullumApiToken,
+                        config.secullumCompanyId,
+                        config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br"
+                    );
+                    const dStr = terminationDate || new Date().toISOString().split("T")[0];
+                    await secClient.lancarDemissao({
+                        cpf: currentAssignment.employee.cpf,
+                        employeeName: currentAssignment.employee.name,
+                        numeroFolha: undefined,
+                        dataDemissao: dStr,
+                        motivo: observation || "Desligamento"
+                    });
+                }
+            } catch (secErr) {
+                console.error("[unassignEmployee] Erro ao sincronizar rescisão no Secullum:", secErr);
+            }
+        }
+
         revalidatePath(`/admin/clients`);
         revalidatePath("/admin");
         revalidatePath("/admin/employees");
@@ -2131,6 +2157,36 @@ export async function addVacation(formData: FormData) {
     });
 
     await processVacationReturns().catch((err) => console.error("Error processing vacation returns after create:", err));
+
+    // Integração automática com Secullum (Ponto): Lança afastamento por férias
+    try {
+        const { getBenefitsConfig } = await import("@/actions/benefits");
+        const { SecullumApiClient } = await import("@/lib/secullum");
+        const config = await getBenefitsConfig();
+        if (config?.secullumApiToken && config?.secullumCompanyId) {
+            const secClient = new SecullumApiClient(
+                config.secullumApiToken,
+                config.secullumCompanyId,
+                config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br"
+            );
+            const empForSecullum = await prisma.employee.findUnique({
+                where: { id: employeeId },
+                select: { cpf: true, name: true }
+            });
+            if (empForSecullum?.cpf) {
+                await secClient.lancarFerias({
+                    cpf: empForSecullum.cpf,
+                    employeeName: empForSecullum.name,
+                    numeroFolha: undefined,
+                    inicio: startDateStr,
+                    fim: endDateStr,
+                    observacoes: notes || "Férias cadastradas no WFH"
+                });
+            }
+        }
+    } catch (secErr) {
+        console.error("[addVacation] Erro ao sincronizar férias com Secullum:", secErr);
+    }
 
     // Dispatch WhatsApp Notification for Scheduled Vacation
     try {
@@ -3789,6 +3845,38 @@ export async function initiateEmployeeDismissalProcess(data: {
             }
         } catch (notifErr) {
             console.error("[initiateDismissalProcess] Non-fatal notification error:", notifErr);
+        }
+
+        // Integração Secullum: Se for Processo de Rescisão, sincroniza data de demissão no Ponto
+        if (data.processType === "Processo de Rescisão" || data.unassignImmediately) {
+            try {
+                const { getBenefitsConfig } = await import("@/actions/benefits");
+                const { SecullumApiClient } = await import("@/lib/secullum");
+                const config = await getBenefitsConfig();
+                if (config?.secullumApiToken && config?.secullumCompanyId) {
+                    const secClient = new SecullumApiClient(
+                        config.secullumApiToken,
+                        config.secullumCompanyId,
+                        config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br"
+                    );
+                    const empForSecullum = await prisma.employee.findUnique({
+                        where: { id: data.employeeId },
+                        select: { cpf: true, name: true }
+                    });
+                    if (empForSecullum?.cpf) {
+                        const dStr = data.startDate || new Date().toISOString().split("T")[0];
+                        await secClient.lancarDemissao({
+                            cpf: empForSecullum.cpf,
+                            employeeName: empForSecullum.name,
+                            numeroFolha: undefined,
+                            dataDemissao: dStr,
+                            motivo: data.dismissalSubType || "Processo de Rescisão"
+                        });
+                    }
+                }
+            } catch (secErr) {
+                console.error("[initiateDismissalProcess] Erro ao sincronizar rescisão no Secullum:", secErr);
+            }
         }
 
         revalidatePath("/admin/employees");

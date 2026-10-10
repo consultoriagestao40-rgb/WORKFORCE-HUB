@@ -51,6 +51,9 @@ model User {
   validatedCertificates      MedicalCertificate[]  @relation("AtestadoValidator")
   punchAdjustmentsRequested  AttendancePunchAdjustment[] @relation("PunchAdjustmentRequestedBy")
   punchAdjustmentsResolved   AttendancePunchAdjustment[] @relation("PunchAdjustmentResolvedBy")
+  approvalRequestsRequested  ApprovalRequest[]           @relation("ApprovalRequestedBy")
+  approvalRequestsN1         ApprovalRequest[]           @relation("ApprovalN1By")
+  approvalRequestsN2         ApprovalRequest[]           @relation("ApprovalN2By")
 }
 
 model Log {
@@ -105,6 +108,7 @@ model Client {
   pops                PopDocument[]
   monthlyDocumentRequirements MonthlyDocumentRequirement[]
   punchAdjustments           AttendancePunchAdjustment[]
+  approvalRequests           ApprovalRequest[]
 
   @@index([companyId])
 }
@@ -164,6 +168,7 @@ model Posto {
   workRoutines      WorkRoutine[]
   pops              PopDocument[]
   punchAdjustments  AttendancePunchAdjustment[]
+  approvalRequests  ApprovalRequest[]
 
   @@index([clientId])
 }
@@ -279,6 +284,7 @@ model Employee {
   hrTickets              HrTicket[]
   medicalCertificates    MedicalCertificate[]
   punchAdjustments       AttendancePunchAdjustment[]
+  approvalRequests       ApprovalRequest[]
 }
 
 model BenefitsConfig {
@@ -1405,3 +1411,90 @@ model PunchInconsistencyIgnore {
   @@unique([employeeId, date])
   @@index([date])
 }
+
+enum ApprovalType {
+  MUDANCA_POSTO
+  MUDANCA_ESCALA
+  MUDANCA_HORARIO
+  DESLIGAMENTO
+  FERIAS
+  AJUSTE_SALARIAL
+  OUTROS
+}
+
+enum ApprovalStatus {
+  PENDENTE_N1
+  PENDENTE_N2
+  APROVADO
+  REPROVADO
+  CANCELADO
+}
+
+model ApprovalRequest {
+  id                  String         @id @default(uuid())
+  type                ApprovalType
+  status              ApprovalStatus @default(PENDENTE_N1)
+  title               String
+  description         String?        @db.Text
+
+  // Relações operacionais
+  employeeId          String?
+  employeeName        String?
+  clientId            String?
+  clientName          String?
+  postoId             String?
+  postoName           String?
+
+  // Solicitante
+  requesterId         String?
+  requesterName       String
+  requestedAt         DateTime       @default(now())
+
+  // Dados da alteração (Antes x Proposto)
+  snapshotCurrent     Json?          // Estado antes da alteração
+  snapshotProposed    Json           // Como ficará após a aprovação
+  executionPayload    Json?          // Parâmetros técnicos para execução automática
+
+  // Nível 1 (N1 - Coordenação / Gestão Operacional)
+  n1Required          Boolean        @default(true)
+  n1ApproverId        String?
+  n1ApproverName      String?
+  n1ApprovedAt        DateTime?
+  n1Decision          String?        // APROVADO, REPROVADO
+  n1Feedback          String?        @db.Text
+
+  // Nível 2 (N2 - Gerência / Diretoria / RH)
+  n2Required          Boolean        @default(true)
+  n2ApproverId        String?
+  n2ApproverName      String?
+  n2ApprovedAt        DateTime?
+  n2Decision          String?        // APROVADO, REPROVADO
+  n2Feedback          String?        @db.Text
+
+  // Efetivação do Sistema e Sincronização Secullum
+  appliedAt           DateTime?
+  appliedBy           String?
+  secullumSynced      Boolean        @default(false)
+  secullumSyncedAt    DateTime?
+  secullumLog         String?        @db.Text
+  errorMessage        String?        @db.Text
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  // Relações
+  employee            Employee?      @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  client              Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  posto               Posto?         @relation(fields: [postoId], references: [id], onDelete: SetNull)
+  requester           User?          @relation("ApprovalRequestedBy", fields: [requesterId], references: [id], onDelete: SetNull)
+  n1Approver          User?          @relation("ApprovalN1By", fields: [n1ApproverId], references: [id], onDelete: SetNull)
+  n2Approver          User?          @relation("ApprovalN2By", fields: [n2ApproverId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([type])
+  @@index([employeeId])
+  @@index([clientId])
+  @@index([requesterId])
+  @@index([createdAt])
+}
+

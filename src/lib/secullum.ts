@@ -843,5 +843,168 @@ export class SecullumApiClient {
             resolvedCpf
         };
     }
+
+    /**
+     * Lança afastamento de Férias para o colaborador no Secullum.
+     * Endpoint: POST /IntegracaoExterna/FuncionariosAfastamentos
+     */
+    async lancarFerias(params: {
+        cpf: string;
+        employeeName?: string;
+        numeroFolha?: string;
+        inicio: string; // YYYY-MM-DD
+        fim: string;    // YYYY-MM-DD
+        observacoes?: string;
+    }): Promise<{ success: boolean; message: string; details?: any }> {
+        let cleanCpf = params.cpf.replace(/\D/g, "");
+        const funcSecullum = await this.findFuncionario({
+            cpf: cleanCpf,
+            nome: params.employeeName,
+            numeroFolha: params.numeroFolha
+        });
+        if (funcSecullum?.Cpf) {
+            cleanCpf = funcSecullum.Cpf.replace(/\D/g, "");
+        }
+
+        const res = await this.lancarAfastamento({
+            cpf: cleanCpf,
+            numeroFolha: params.numeroFolha,
+            inicio: params.inicio,
+            fim: params.fim,
+            motivo: "Férias Regulamentares",
+            justificativaNome: "FÉRIAS"
+        });
+
+        return res;
+    }
+
+    /**
+     * Lança a data de Demissão e inativa o colaborador no Secullum.
+     * Endpoint: POST /IntegracaoExterna/Funcionarios (atualiza dados cadastrais)
+     */
+    async lancarDemissao(params: {
+        cpf: string;
+        employeeName?: string;
+        numeroFolha?: string;
+        dataDemissao: string; // YYYY-MM-DD
+        motivo?: string;
+    }): Promise<{ success: boolean; message: string }> {
+        try {
+            let cleanCpf = params.cpf.replace(/\D/g, "");
+            const funcSecullum = await this.findFuncionario({
+                cpf: cleanCpf,
+                nome: params.employeeName,
+                numeroFolha: params.numeroFolha
+            });
+
+            if (!funcSecullum || !funcSecullum.Id) {
+                return {
+                    success: false,
+                    message: "Colaborador não localizado na base do Secullum Ponto Web."
+                };
+            }
+
+            const cleanData = params.dataDemissao.includes("T") ? params.dataDemissao.split("T")[0] : params.dataDemissao;
+            const headers = await this.getHeaders();
+            const url = `${this.baseUrl}/IntegracaoExterna/Funcionarios`;
+
+            const updatePayload: Record<string, any> = {
+                ...funcSecullum,
+                Demissao: `${cleanData}T00:00:00`,
+                demissao: `${cleanData}T00:00:00`,
+                Invisivel: true,
+                invisivel: true
+            };
+
+            const res = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(updatePayload),
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                return {
+                    success: false,
+                    message: `Secullum retornou erro ao registrar demissão (${res.status}): ${text}`
+                };
+            }
+
+            return {
+                success: true,
+                message: `Demissão registrada no Secullum em ${cleanData} com sucesso.`
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: `Erro na comunicação com Secullum ao lançar demissão: ${error.message || error}`
+            };
+        }
+    }
+
+    /**
+     * Atualiza o horário / escala de trabalho do funcionário no Secullum.
+     * Endpoint: POST /IntegracaoExterna/Funcionarios
+     */
+    async atualizarHorarioFuncionario(params: {
+        cpf: string;
+        employeeName?: string;
+        numeroFolha?: string;
+        horarioNumero: number;
+    }): Promise<{ success: boolean; message: string }> {
+        try {
+            let cleanCpf = params.cpf.replace(/\D/g, "");
+            const funcSecullum = await this.findFuncionario({
+                cpf: cleanCpf,
+                nome: params.employeeName,
+                numeroFolha: params.numeroFolha
+            });
+
+            if (!funcSecullum || !funcSecullum.Id) {
+                return {
+                    success: false,
+                    message: "Colaborador não localizado na base do Secullum Ponto Web."
+                };
+            }
+
+            const headers = await this.getHeaders();
+            const url = `${this.baseUrl}/IntegracaoExterna/Funcionarios`;
+
+            const updatePayload: Record<string, any> = {
+                ...funcSecullum,
+                Horario: {
+                    Numero: params.horarioNumero
+                },
+                HorarioNumero: params.horarioNumero,
+                horarioNumero: params.horarioNumero
+            };
+
+            const res = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(updatePayload),
+                cache: "no-store"
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                return {
+                    success: false,
+                    message: `Secullum retornou erro ao alterar horário (${res.status}): ${text}`
+                };
+            }
+
+            return {
+                success: true,
+                message: `Horário ${params.horarioNumero} atualizado no Secullum com sucesso.`
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: `Erro na comunicação com Secullum ao alterar horário: ${error.message || error}`
+            };
+        }
+    }
 }
 
