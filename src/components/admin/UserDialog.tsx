@@ -34,7 +34,7 @@ interface Client {
 interface UserDialogProps {
     user?: User; // If provided, edit mode
     clients?: Client[];
-    allUsers?: { id: string; name: string; username: string; role: string }[];
+    allUsers?: { id: string; name: string; username: string; role: string; isActive?: boolean }[];
     trigger?: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -103,7 +103,7 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
     const isOpen = open !== undefined ? open : internalOpen;
     const setOpen = onOpenChange || setInternalOpen;
 
-    const availableManagers = allUsers.filter(u => !user || u.id !== user.id);
+    const availableManagers = allUsers.filter(u => (!user || u.id !== user.id) && u.isActive !== false);
 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
