@@ -292,6 +292,7 @@ export async function processManagerWhatsAppResponse(params: {
  */
 export async function checkPunchAgainstSecullum(adjustmentId: string) {
     try {
+        const user = await getCurrentUser().catch(() => null);
         const adj = await prisma.attendancePunchAdjustment.findUnique({
             where: { id: adjustmentId },
             include: { employee: true }
@@ -311,39 +312,98 @@ export async function checkPunchAgainstSecullum(adjustmentId: string) {
         }
 
         const client = new SecullumApiClient(token, bankId, apiUrl);
-        const dateStr = adj.date.toISOString().split("T")[0];
-
-        const batidas = await client.getBatidas(dateStr, dateStr);
+        const { dateStr } = spDateParts(adj.date);
         const cleanCpf = adj.employee.cpf.replace(/\D/g, "");
 
-        const empBatidas = batidas.filter(b => {
-            const bCpf = b.Funcionario?.NumeroPis || ""; // fallback ou CPF se vier
-            return b.FuncionarioId && (b.Entrada1 || b.Saida1 || b.Entrada2 || b.Saida2);
-        });
-
-        // Também buscar cálculos do dia específico para o CPF
-        const calcData = await client.getCalculos(cleanCpf, dateStr, dateStr);
+        // 1. Buscar registro detalhado do cartão ponto do colaborador nesta data
+        const registro = await client.getRegistroDoDia(cleanCpf, dateStr).catch(() => null);
 
         let detectedPunchTimes: string[] = [];
-        if (calcData && Array.isArray(calcData.Dias)) {
-            for (const dia of calcData.Dias) {
-                if (dia.Data && dia.Data.startsWith(dateStr)) {
-                    if (dia.Entrada1) detectedPunchTimes.push(`E1: ${dia.Entrada1}`);
-                    if (dia.Saida1) detectedPunchTimes.push(`S1: ${dia.Saida1}`);
-                    if (dia.Entrada2) detectedPunchTimes.push(`E2: ${dia.Entrada2}`);
-                    if (dia.Saida2) detectedPunchTimes.push(`S2: ${dia.Saida2}`);
+
+        if (registro) {
+            const cols = [
+                { key: "Entrada1", label: "E1" },
+                { key: "Saida1", label: "S1" },
+                { key: "Entrada2", label: "E2" },
+                { key: "Saida2", label: "S2" },
+                { key: "Entrada3", label: "E3" },
+                { key: "Saida3", label: "S3" },
+            ];
+            for (const col of cols) {
+                const val = registro[col.key];
+                if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val.trim())) {
+                    detectedPunchTimes.push(`${col.label}: ${val.trim()}`);
                 }
             }
         }
 
-        const hasPunch = detectedPunchTimes.length > 0;
+        // 2. Se não encontrou no registro, consultar o endpoint Calcular
+        if (detectedPunchTimes.length === 0) {
+            const calcData = await client.getCalculos(cleanCpf, dateStr, dateStr).catch(() => null);
+            if (calcData) {
+                if (Array.isArray(calcData.Linhas) && Array.isArray(calcData.Colunas)) {
+                    for (const linha of calcData.Linhas) {
+                        if (String(linha.Key || "").startsWith(dateStr) && Array.isArray(linha.Value)) {
+                            calcData.Colunas.forEach((colName: string, idx: number) => {
+                                const val = linha.Value[idx];
+                                if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val.trim())) {
+                                    if (/Entrada\s*1/i.test(colName)) detectedPunchTimes.push(`E1: ${val.trim()}`);
+                                    else if (/Sa[ií]da\s*1/i.test(colName)) detectedPunchTimes.push(`S1: ${val.trim()}`);
+                                    else if (/Entrada\s*2/i.test(colName)) detectedPunchTimes.push(`E2: ${val.trim()}`);
+                                    else if (/Sa[ií]da\s*2/i.test(colName)) detectedPunchTimes.push(`S2: ${val.trim()}`);
+                                    else if (/Entrada\s*3/i.test(colName)) detectedPunchTimes.push(`E3: ${val.trim()}`);
+                                    else if (/Sa[ií]da\s*3/i.test(colName)) detectedPunchTimes.push(`S3: ${val.trim()}`);
+                                }
+                            });
+                        }
+                    }
+                } else if (Array.isArray(calcData.Dias)) {
+                    for (const dia of calcData.Dias) {
+                        if (dia.Data && dia.Data.startsWith(dateStr)) {
+                            if (dia.Entrada1) detectedPunchTimes.push(`E1: ${dia.Entrada1}`);
+                            if (dia.Saida1) detectedPunchTimes.push(`S1: ${dia.Saida1}`);
+                            if (dia.Entrada2) detectedPunchTimes.push(`E2: ${dia.Entrada2}`);
+                            if (dia.Saida2) detectedPunchTimes.push(`S2: ${dia.Saida2}`);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Dia incompleto (quantidade ímpar de batidas, ex: E1, S1, E2 sem a saída final): a batida
+        // existente não resolve o ajuste, então NÃO descarta.
+        const isIncompleteDay = detectedPunchTimes.length % 2 === 1;
+        const hasPunch = detectedPunchTimes.length > 0 && !isIncompleteDay;
+
+        let updatedAdj = null;
+        if (hasPunch) {
+            const punchSummary = detectedPunchTimes.join(" | ");
+            updatedAdj = await prisma.attendancePunchAdjustment.update({
+                where: { id: adjustmentId },
+                data: {
+                    status: "DISCARDED_OFFLINE_FOUND",
+                    secullumStatus: "SUCESSO",
+                    secullumResponseLog: `Batidas detectadas no Secullum: ${punchSummary}`,
+                    resolvedByUserId: user?.id || null,
+                    resolvedAt: new Date(),
+                    notes: adj.notes ? `${adj.notes} | Batidas offline detectadas no Secullum (${punchSummary})` : `Batidas offline detectadas no Secullum (${punchSummary})`,
+                    updatedAt: new Date()
+                }
+            });
+            revalidatePath("/admin/punch-adjustments");
+            revalidatePath("/admin/operations");
+            revalidatePath("/admin/requests");
+        }
 
         return {
             hasPunch,
             punches: detectedPunchTimes,
             message: hasPunch 
                 ? `Batida encontrada no Secullum: ${detectedPunchTimes.join(" | ")}`
-                : "Nenhuma batida registrada no Secullum nesta data."
+                : isIncompleteDay
+                    ? `Dia incompleto no Secullum (${detectedPunchTimes.join(" | ")}). Ajuste mantido para lançamento.`
+                    : "Nenhuma batida registrada no Secullum nesta data.",
+            adjustment: updatedAdj
         };
     } catch (error: any) {
         console.error("[checkPunchAgainstSecullum] Erro:", error);
@@ -444,20 +504,87 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
             if (!registro) {
                 try {
                     const calc = await client.getCalculos(adj.employee.cpf.replace(/\D/g, ""), dateStr, dateStr);
-                    const d = Array.isArray(calc?.Dias) ? calc.Dias.find((x: any) => String(x.Data || "").startsWith(dateStr)) : null;
-                    for (const c of Object.keys(existing)) {
-                        const v = d?.[c];
-                        existing[c] = typeof v === "string" && /^\d{1,2}:\d{2}/.test(v) ? v : null;
+                    if (Array.isArray(calc?.Linhas) && Array.isArray(calc?.Colunas)) {
+                        for (const linha of calc.Linhas) {
+                            if (String(linha.Key || "").startsWith(dateStr) && Array.isArray(linha.Value)) {
+                                calc.Colunas.forEach((colName: string, idx: number) => {
+                                    const val = linha.Value[idx];
+                                    if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val.trim())) {
+                                        if (/Entrada\s*1/i.test(colName)) existing["Entrada1"] = val.trim();
+                                        else if (/Sa[ií]da\s*1/i.test(colName)) existing["Saida1"] = val.trim();
+                                        else if (/Entrada\s*2/i.test(colName)) existing["Entrada2"] = val.trim();
+                                        else if (/Sa[ií]da\s*2/i.test(colName)) existing["Saida2"] = val.trim();
+                                        else if (/Entrada\s*3/i.test(colName)) existing["Entrada3"] = val.trim();
+                                        else if (/Sa[ií]da\s*3/i.test(colName)) existing["Saida3"] = val.trim();
+                                    }
+                                });
+                            }
+                        }
+                    } else if (Array.isArray(calc?.Dias)) {
+                        const d = calc.Dias.find((x: any) => String(x.Data || "").startsWith(dateStr));
+                        for (const c of Object.keys(existing)) {
+                            const v = d?.[c];
+                            existing[c] = typeof v === "string" && /^\d{1,2}:\d{2}/.test(v) ? v : null;
+                        }
                     }
                 } catch (e) {
                     console.warn("[approve] Não foi possível ler batidas existentes:", e);
                 }
             }
 
+            // Batida deslocada: colaborador não bateu o retorno do intervalo e o Secullum colocou a
+            // saída em Entrada2 (E1, S1, E2 preenchidos e S2 vazio). Move a saída para Saida2 e libera
+            // Entrada2 para o ajuste lançar o retorno do intervalo.
+            const needsReturn = adj.punchScope === "INTERVALO" || adj.punchScope === "TODOS" || fallbackColumn === "Entrada2";
+            if (needsReturn && existing["Entrada1"] && existing["Saida1"] && existing["Entrada2"] && !existing["Saida2"]) {
+                const swap = await client.trocarColunaBatida({
+                    cpf: adj.employee.cpf,
+                    data: dateStr,
+                    colunaOrigem: "Entrada2",
+                    colunaDestino: "Saida2"
+                });
+                if (!swap.success) {
+                    return fail(`Batida de saída está em Entrada2 e não foi possível movê-la para Saída 2: ${swap.message}`);
+                }
+                existing["Saida2"] = existing["Entrada2"];
+                existing["Entrada2"] = null;
+            }
+
             const plan = planPunches({ scheduleDay: dia, scope: adj.punchScope, fallbackColumn, existing });
             if (plan.error) return fail(`${plan.error}${horario ? ` (horário "${horario.descricao}")` : ""}`);
+            
             if (plan.punches.length === 0) {
-                return fail(`Nada a lançar: as marcações já existem no cartão (${plan.skipped.join(", ")}).`);
+                // Se todas as marcações já existem no cartão ponto do Secullum, finalizar como SUCESSO!
+                if (plan.skipped.length > 0) {
+                    const existingDetails = plan.skipped
+                        .map(c => `${c.replace("Entrada", "E").replace("Saida", "S")}: ${existing[c] || "OK"}`)
+                        .join(" | ");
+                    const successMsg = `Marcações já constavam no cartão ponto do Secullum (${existingDetails}).`;
+
+                    const updated = await prisma.attendancePunchAdjustment.update({
+                        where: { id: adjustmentId },
+                        data: {
+                            status: "APPROVED_SYNCED",
+                            resolvedByUserId: user?.id || null,
+                            resolvedAt: new Date(),
+                            secullumStatus: "SUCESSO",
+                            secullumResponseLog: JSON.stringify({ message: successMsg, existing: existingDetails }),
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    revalidatePath("/admin/punch-adjustments");
+                    revalidatePath("/admin/operations");
+                    revalidatePath("/admin/requests");
+
+                    return {
+                        success: true,
+                        message: `Marcações já identificadas no Secullum (${existingDetails}). Ajuste finalizado com sucesso!`,
+                        adjustment: updated
+                    };
+                }
+
+                return fail(`Nada a lançar: nenhuma marcação aplicável para esta data.`);
             }
 
             const done: string[] = [];

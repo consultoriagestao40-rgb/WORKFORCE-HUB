@@ -188,9 +188,15 @@ export default function PunchAdjustmentsClient({
         try {
             const res = await checkPunchAgainstSecullum(item.id);
             if (res.hasPunch) {
-                toast.warning(`⚡ Batida Offline Detectada! ${res.message}`, {
+                toast.success(`⚡ Batida Detectada no Secullum! (${(res.punches || []).join(" | ")}). Movido para Batidas Offline.`, {
                     duration: 7000
                 });
+                setAdjustments(prev => prev.map(a => a.id === item.id ? {
+                    ...a,
+                    status: "DISCARDED_OFFLINE_FOUND",
+                    secullumStatus: "SUCESSO",
+                    secullumResponseLog: res.message ?? null
+                } : a));
             } else {
                 toast.info(`✅ Confirmado: ${res.message || "Nenhuma batida encontrada"}`);
             }
@@ -207,10 +213,21 @@ export default function PunchAdjustmentsClient({
         try {
             const res = await approveAndSyncPunchAdjustment(id);
             if (res.success) {
-                toast.success(`✅ Gravado no Secullum: ${res.message}`, { duration: 8000 });
-                setAdjustments(prev => prev.map(a => a.id === id ? { ...a, status: "APPROVED_SYNCED", requestedTime: (res as any).adjustment?.requestedTime ?? a.requestedTime } : a));
+                toast.success(`✅ ${res.message || "Gravado no Secullum com sucesso!"}`, { duration: 8000 });
+                setAdjustments(prev => prev.map(a => a.id === id ? { 
+                    ...a, 
+                    status: "APPROVED_SYNCED", 
+                    secullumStatus: "SUCESSO",
+                    secullumResponseLog: res.message ?? null,
+                    requestedTime: (res as any).adjustment?.requestedTime ?? a.requestedTime 
+                } : a));
             } else {
                 toast.error(res.message || "Erro ao injetar ajuste no Secullum.");
+                setAdjustments(prev => prev.map(a => a.id === id ? {
+                    ...a,
+                    secullumStatus: "ERRO",
+                    secullumResponseLog: res.message ?? null
+                } : a));
             }
         } catch {
             toast.error("Erro de conexão ao aprovar ajuste.");
