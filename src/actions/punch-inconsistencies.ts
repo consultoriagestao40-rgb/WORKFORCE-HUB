@@ -774,3 +774,70 @@ export async function resendPunchAdjustmentToManager(adjustmentId: string): Prom
         return { success: false, message: error.message || "Erro ao reenviar." };
     }
 }
+
+/** Justificativas ativas do Secullum para o RH lançar/abonar direto pelo modal do colaborador. */
+export async function listLaunchJustifications(): Promise<{ success: boolean; items: Array<{ codigo: string; descricao: string; abonar: boolean }>; message?: string }> {
+    try {
+        const user = await getCurrentUser().catch(() => null);
+        if (!user) return { success: false, items: [], message: "Usuário não autenticado." };
+        const client = await getSecullumClient();
+        if (!client) return { success: false, items: [], message: "Secullum não configurado em Benefícios." };
+        const list = await client.getJustificativas();
+        const items = list
+            .filter((j: any) => !j.Desativar && (j.NomeAbreviado || "").trim())
+            .map((j: any) => ({
+                codigo: String(j.NomeAbreviado).trim(),
+                descricao: String(j.NomeCompleto || j.NomeAbreviado).trim(),
+                abonar: Boolean(j.Ajuste)
+            }))
+            .sort((a: any, b: any) => a.descricao.localeCompare(b.descricao));
+        return { success: true, items };
+    } catch (error: any) {
+        return { success: false, items: [], message: error.message || "Erro ao listar justificativas." };
+    }
+}
+
+/**
+ * Lança uma justificativa/abono (ex: Feriado, Abono, Atestado) direto no cartão do Secullum,
+ * nas jornadas do dia que ainda não têm batida.
+ */
+export async function launchDirectJustification(params: {
+    employeeId: string;
+    date: string; // YYYY-MM-DD
+    codigo: string;
+    abonar: boolean;
+    observacao?: string;
+    expectedGroups?: number[];
+}): Promise<{ success: boolean; message: string }> {
+    try {
+        const user = await getCurrentUser().catch(() => null);
+        if (!user) return { success: false, message: "Usuário não autenticado." };
+        const client = await getSecullumClient();
+        if (!client) return { success: false, message: "Secullum não configurado em Benefícios." };
+
+        const emp = await prisma.employee.findUnique({ where: { id: params.employeeId }, select: { cpf: true, name: true } });
+        if (!emp?.cpf) return { success: false, message: "Colaborador ou CPF não localizado." };
+        const cpf = emp.cpf.replace(/\D/g, "");
+
+        const cols = await client.getBatidasColunasDoDia(cpf, params.date);
+        const isTime = (v: any) => typeof v === "string" && /^\d{1,2}:\d{2}/.test(v.trim());
+        const candidates = params.expectedGroups && params.expectedGroups.length ? params.expectedGroups : [1, 2];
+        const grupos = candidates.filter(g => !(isTime(cols[`Entrada${g}`]) || isTime(cols[`Saida${g}`])));
+        if (grupos.length === 0) {
+            return { success: false, message: "Todas as jornadas deste dia já possuem batidas. Lance a batida faltante como batida manual." };
+        }
+
+        const res = await client.lancarJustificativaPonto({
+            cpf,
+            data: params.date,
+            justificativa: params.codigo,
+            observacoes: (params.observacao || `Lançado pelo RH ${user.name || "Admin"}`).slice(0, 200),
+            abonar: params.abonar,
+            grupos
+        });
+        if (res.success) revalidatePath("/admin/punch-adjustments");
+        return { success: res.success, message: res.message };
+    } catch (error: any) {
+        return { success: false, message: error.message || "Erro ao lançar justificativa." };
+    }
+}

@@ -9,6 +9,7 @@ import {
     CheckCircle2,
     Clock,
     EyeOff,
+    FileCheck2,
     Filter,
     Loader2,
     RotateCcw,
@@ -39,6 +40,8 @@ import {
     ignoreInconsistency,
     unignoreInconsistency,
     launchDirectManualPunch,
+    listLaunchJustifications,
+    launchDirectJustification,
     resendPunchAdjustmentToManager,
     type InconsistencyRow,
     type EmployeeTimecard,
@@ -129,6 +132,52 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
     const [directPunchTime, setDirectPunchTime] = useState("");
     const [directPunchReason, setDirectPunchReason] = useState("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
     const [isDirectPunching, setIsDirectPunching] = useState(false);
+
+    // Justificar / abonar / feriado direto no cartão (RH)
+    const [justDay, setJustDay] = useState<{ employeeId: string; employeeName: string; date: string; groups: number[] } | null>(null);
+    const [justList, setJustList] = useState<Array<{ codigo: string; descricao: string; abonar: boolean }>>([]);
+    const [justCode, setJustCode] = useState("");
+    const [justObs, setJustObs] = useState("");
+    const [isJustSaving, setIsJustSaving] = useState(false);
+
+    const openJustify = async (card: EmployeeTimecard, day: EmployeeDay) => {
+        const groups = [1, 2, 3].filter(g => day.expected[`Entrada${g}` as PunchColumn] || day.expected[`Saida${g}` as PunchColumn]);
+        setJustDay({ employeeId: card.employeeId, employeeName: card.employeeName, date: day.date, groups });
+        setJustObs("");
+        setJustCode("");
+        if (justList.length === 0) {
+            const res = await listLaunchJustifications();
+            if (res.success) setJustList(res.items);
+            else toast.error(res.message || "Erro ao carregar justificativas.");
+        }
+    };
+
+    const doJustify = async () => {
+        const sel = justList.find(j => j.codigo === justCode);
+        if (!justDay || !sel) return;
+        setIsJustSaving(true);
+        try {
+            const res = await launchDirectJustification({
+                employeeId: justDay.employeeId,
+                date: justDay.date,
+                codigo: sel.codigo,
+                abonar: sel.abonar,
+                observacao: justObs || undefined,
+                expectedGroups: justDay.groups
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setJustDay(null);
+                await runScan();
+            } else {
+                toast.error(`Erro ao lançar no Secullum: ${res.message}`);
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao lançar justificativa.");
+        } finally {
+            setIsJustSaving(false);
+        }
+    };
 
     const openDirectPunch = (r: InconsistencyRow) => {
         setDirectPunchRow(r);
@@ -924,6 +973,13 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="px-2 py-2 text-right whitespace-nowrap">
+                                                                {!(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
+                                                                    <Button size="sm" variant="outline" onClick={() => openJustify(card, day)}
+                                                                        className="h-8 mr-1.5 rounded-xl border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
+                                                                        title="Lançar abono, feriado ou outra justificativa no cartão do Secullum">
+                                                                        <FileCheck2 className="w-3.5 h-3.5" /> Abonar / Feriado
+                                                                    </Button>
+                                                                )}
                                                                 {r && r.pendingKind === "NOVO" && (
                                                                     <div className="flex items-center justify-end gap-1.5">
                                                                         <Button size="sm" variant="outline" disabled={isSending} onClick={() => openDirectPunch(r)}
@@ -1071,6 +1127,45 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                     <DialogFooter className="pt-2 border-t border-slate-100">
                         <Button variant="outline" onClick={() => setIgnoreRow(null)} className="rounded-xl text-xs">Cancelar</Button>
                         <Button id="btn-confirm-ignore" onClick={doIgnore} className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl px-5">Ignorar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Justificar / Abonar / Feriado direto no Secullum */}
+            <Dialog open={!!justDay} onOpenChange={o => !o && !isJustSaving && setJustDay(null)}>
+                <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
+                            <FileCheck2 className="w-5 h-5 text-orange-600" /> Abonar / Feriado / Justificar
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            {justDay && <><b>{justDay.employeeName}</b> — {fmtDate(justDay.date)}. Lançado direto no cartão do Secullum nas jornadas sem batida.</>}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3.5 py-2">
+                        <div>
+                            <Label className="text-xs font-bold text-slate-700 mb-1 block">Justificativa</Label>
+                            <Select value={justCode} onValueChange={setJustCode}>
+                                <SelectTrigger className="w-full rounded-xl"><SelectValue placeholder={justList.length ? "Selecione..." : "Carregando..."} /></SelectTrigger>
+                                <SelectContent>
+                                    {justList.map(j => (
+                                        <SelectItem key={j.codigo} value={j.codigo}>{j.descricao} ({j.codigo}){j.abonar ? " · abona" : ""}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label className="text-xs font-bold text-slate-700 mb-1 block">Observação</Label>
+                            <Input value={justObs} onChange={e => setJustObs(e.target.value)} placeholder="Ex: feriado, abono autorizado pelo gestor" className="h-10 rounded-xl text-xs" />
+                        </div>
+                    </div>
+                    <DialogFooter className="pt-2 border-t border-slate-100">
+                        <Button variant="outline" onClick={() => setJustDay(null)} disabled={isJustSaving} className="rounded-xl text-xs">Cancelar</Button>
+                        <Button onClick={doJustify} disabled={isJustSaving || !justCode}
+                            className="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer">
+                            {isJustSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            Gravar no Secullum
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
