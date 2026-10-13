@@ -852,7 +852,7 @@ export default function PunchAdjustmentsClient({
                                                             className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm rounded-lg flex items-center gap-1.5"
                                                         >
                                                             <Check className="w-3.5 h-3.5" />
-                                                            <span>{approvingId === item.id ? "Gravando..." : "Aprovar no Secullum"}</span>
+                                                            <span>{approvingId === item.id ? "Gravando..." : item.secullumReasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar Falta no Secullum" : "Aprovar no Secullum"}</span>
                                                         </Button>
                                                     )}
 

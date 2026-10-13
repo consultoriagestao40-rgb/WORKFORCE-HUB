@@ -36,7 +36,18 @@ export type InconsistencyRow = {
     actual: Partial<Record<PunchColumn, string>>;
     missing: PunchColumn[];
     status: "NOVO" | "ENVIADO" | "IGNORADO";
-    adjustment: { id: string; code: string; status: string; secullumStatus: string | null; sendCount: number; lastSentAt: string | null } | null;
+    adjustment: {
+        id: string;
+        code: string;
+        status: string;
+        secullumStatus: string | null;
+        sendCount: number;
+        lastSentAt: string | null;
+        requestedByName: string | null;   // quem solicitou o ajuste (gestor/líder)
+        requestedAt: string | null;       // data da solicitação
+        reasonName: string | null;        // motivo do ajuste
+        requestedTime: string | null;     // marcação solicitada
+    } | null;
     ignored: { reason: string | null; userName: string | null } | null;
     /** Pendência de ponto na folha: não enviada, aguardando resposta do gestor ou aguardando RH */
     pending: boolean;
@@ -179,8 +190,16 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
         const rangeEnd = new Date(`${end}T23:59:59-03:00`);
         const [adjustments, ignores] = await Promise.all([
             prisma.attendancePunchAdjustment.findMany({
-                where: { date: { gte: new Date(rangeStart.getTime() - 86400000), lte: new Date(rangeEnd.getTime() + 86400000) } },
-                select: { id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true, sendCount: true, lastSentAt: true },
+                where: {
+                    date: { gte: new Date(rangeStart.getTime() - 86400000), lte: new Date(rangeEnd.getTime() + 86400000) },
+                    // Descarte automático por data de corte da rotina NÃO resolve a pendência de ponto
+                    NOT: { status: "DISCARDED_OFFLINE_FOUND", notes: { contains: "anterior ao início oficial" } }
+                },
+                select: {
+                    id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true,
+                    sendCount: true, lastSentAt: true, requestedByName: true, requestedAt: true,
+                    secullumReasonName: true, requestedTime: true
+                },
                 orderBy: { createdAt: "desc" }
             }),
             (prisma as any).punchInconsistencyIgnore.findMany({ where: { date: { gte: start, lte: end } } })
@@ -314,7 +333,11 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                     status: adj.status,
                     secullumStatus: adj.secullumStatus,
                     sendCount: adj.sendCount ?? 0,
-                    lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null
+                    lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null,
+                    requestedByName: adj.requestedByName || null,
+                    requestedAt: adj.requestedAt ? adj.requestedAt.toISOString() : null,
+                    reasonName: adj.secullumReasonName || null,
+                    requestedTime: adj.requestedTime || null
                 } : null,
                 ignored: ign ? { reason: ign.reason, userName: ign.userName } : null,
                 pending: pend.pending,
@@ -388,7 +411,11 @@ export async function dispatchInconsistencies(
             const dayStart = new Date(`${item.date}T00:00:00-03:00`);
             const dayEnd = new Date(`${item.date}T23:59:59-03:00`);
             const existing = await prisma.attendancePunchAdjustment.findFirst({
-                where: { employeeId: item.employeeId, date: { gte: dayStart, lte: dayEnd } },
+                where: {
+                    employeeId: item.employeeId,
+                    date: { gte: dayStart, lte: dayEnd },
+                    NOT: { status: "DISCARDED_OFFLINE_FOUND", notes: { contains: "anterior ao início oficial" } }
+                },
                 select: { code: true }
             });
             if (existing) {

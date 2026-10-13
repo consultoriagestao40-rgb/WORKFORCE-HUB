@@ -44,6 +44,7 @@ import {
     type EmployeeTimecard,
     type EmployeeDay
 } from "@/actions/punch-inconsistencies";
+import { approveAndSyncPunchAdjustment } from "@/actions/punch-adjustments";
 import { COLUMN_LABEL, type PunchColumn } from "@/lib/punch-inconsistency";
 
 type Props = {
@@ -155,7 +156,18 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                     status: "ENVIADO",
                     pending: false,
                     pendingKind: null,
-                    adjustment: { id: "", code: "DIRETO", status: "APPROVED_SYNCED", secullumStatus: "SUCESSO", sendCount: 0, lastSentAt: null }
+                    adjustment: {
+                        id: "",
+                        code: "DIRETO",
+                        status: "APPROVED_SYNCED",
+                        secullumStatus: "SUCESSO",
+                        sendCount: 0,
+                        lastSentAt: null,
+                        requestedByName: "RH (lançamento direto)",
+                        requestedAt: new Date().toISOString(),
+                        reasonName: directPunchReason || "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
+                        requestedTime: `${COLUMN_LABEL[directPunchCol] || directPunchCol} ${directPunchTime}`
+                    }
                 } : r));
                 setDirectPunchRow(null);
             } else {
@@ -268,7 +280,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                         status: "PENDING_RESPONSE",
                         secullumStatus: null,
                         sendCount: out.ok ? 1 : 0,
-                        lastSentAt: out.ok ? new Date().toISOString() : null
+                        lastSentAt: out.ok ? new Date().toISOString() : null,
+                        requestedByName: null,
+                        requestedAt: null,
+                        reasonName: null,
+                        requestedTime: null
                     }
                 };
             }));
@@ -313,6 +329,34 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
 
     const selectedRows = rows.filter(r => selected.has(r.key));
     const selectedWithoutManager = selectedRows.filter(r => !r.managerHasPhone).length;
+
+    const [approvingKeys, setApprovingKeys] = useState<Set<string>>(new Set());
+    const doApprove = async (r: InconsistencyRow) => {
+        if (!r.adjustment?.id) return toast.error("Ajuste sem identificador. Atualize a busca e tente novamente.");
+        setApprovingKeys(prev => new Set(prev).add(r.key));
+        try {
+            const res = await approveAndSyncPunchAdjustment(r.adjustment.id);
+            if (!res.success) return toast.error(res.message || "Erro ao lançar no Secullum.");
+            toast.success(res.message || "Lançado no Secullum com sucesso!");
+            setRows(prev => prev.map(x => (x.key === r.key && x.adjustment ? {
+                ...x,
+                pending: false,
+                pendingKind: null,
+                adjustment: { ...x.adjustment, status: "APPROVED_SYNCED", secullumStatus: "SUCESSO" }
+            } : x)));
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao aprovar.");
+        } finally {
+            setApprovingKeys(prev => {
+                const next = new Set(prev);
+                next.delete(r.key);
+                return next;
+            });
+        }
+    };
+
+    const fmtDateTime = (iso: string | null | undefined) =>
+        iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", " às") : null;
 
     const doResend = async (r: InconsistencyRow) => {
         if (!r.adjustment?.id) return toast.error("Ajuste sem identificador. Atualize a busca e tente novamente.");
@@ -784,7 +828,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                     {cols.map(c => (
                                                         <TableHead key={c} className="text-center font-bold text-slate-700 text-[11px] uppercase px-1 w-20">{COLUMN_LABEL[c]}</TableHead>
                                                     ))}
-                                                    <TableHead className="min-w-[170px] font-bold text-slate-700 text-[11px] uppercase px-2">Situação</TableHead>
+                                                    <TableHead className="min-w-[280px] font-bold text-slate-700 text-[11px] uppercase px-2">Situação</TableHead>
                                                     <TableHead className="min-w-[230px] text-right font-bold text-slate-700 text-[11px] uppercase px-2">Ações</TableHead>
                                                 </TableRow>
                                             </TableHeader>
@@ -848,17 +892,29 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`} · não enviada
                                                                     </Badge>
                                                                 ) : (
-                                                                    <div className="flex flex-col gap-0.5">
-                                                                        <span className="font-mono text-[11px] font-bold text-indigo-700">#{r.adjustment?.code}</span>
+                                                                    <div className="flex flex-col gap-0.5 text-[11px] leading-snug">
                                                                         <div className="flex flex-wrap items-center gap-1">
+                                                                            <span className="font-mono font-bold text-indigo-700">#{r.adjustment?.code}</span>
                                                                             {adjBadge && <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${adjBadge.cls}`}>{adjBadge.label}</Badge>}
                                                                             {r.pendingKind === "AGUARDANDO_GESTOR" && sends > 0 && (
                                                                                 <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-indigo-50 text-indigo-700 border-indigo-200">{nth(sends)} envio</Badge>
                                                                             )}
                                                                         </div>
-                                                                        {r.adjustment?.lastSentAt && r.pendingKind === "AGUARDANDO_GESTOR" && (
-                                                                            <span className="text-[10px] text-slate-400">último: {new Date(r.adjustment.lastSentAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                                                                        )}
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">Solicitante: </span>
+                                                                            <span className="font-semibold">{r.adjustment?.requestedByName || (r.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r.managerName || "gestor"}` : "—")}</span>
+                                                                        </div>
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">Motivo: </span>
+                                                                            <span className="font-semibold">{r.adjustment?.reasonName || (r.pendingKind === "AGUARDANDO_GESTOR" ? "ainda não informado" : "—")}</span>
+                                                                            {r.adjustment?.requestedTime && r.adjustment.reasonName !== "FALTA CONFIRMADA PELO GESTOR" && (
+                                                                                <span className="text-slate-400"> · {r.adjustment.requestedTime}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">{r.adjustment?.requestedAt ? "Solicitado em: " : "Enviado ao gestor em: "}</span>
+                                                                            <span className="font-semibold">{fmtDateTime(r.adjustment?.requestedAt || r.adjustment?.lastSentAt) || "—"}</span>
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                             </TableCell>
@@ -896,17 +952,17 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                     </div>
                                                                 )}
                                                                 {r && r.pendingKind === "AGUARDANDO_RH" && (
-                                                                    <a href="/admin/punch-adjustments?tab=adjustments" className="text-xs font-bold text-sky-700 hover:underline inline-flex items-center gap-1">
-                                                                        Aprovar no Secullum →
-                                                                    </a>
+                                                                    <Button size="sm" disabled={approvingKeys.has(r.key)} onClick={() => doApprove(r)}
+                                                                        className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3 gap-1 cursor-pointer"
+                                                                        title="Lançar no cartão do Secullum">
+                                                                        {approvingKeys.has(r.key) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                                        {r.adjustment?.reasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar falta no Secullum" : "Aprovar no Secullum"}
+                                                                    </Button>
                                                                 )}
                                                                 {r && r.status === "IGNORADO" && (
                                                                     <Button size="sm" variant="outline" onClick={() => doUnignore(r)} className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100 cursor-pointer">
                                                                         <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
                                                                     </Button>
-                                                                )}
-                                                                {r && !r.pending && r.status === "ENVIADO" && (
-                                                                    <a href="/admin/punch-adjustments?tab=adjustments" className="text-xs font-bold text-slate-500 hover:underline">Ver ajuste →</a>
                                                                 )}
                                                             </TableCell>
                                                         </TableRow>

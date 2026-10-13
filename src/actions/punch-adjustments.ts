@@ -231,7 +231,10 @@ export async function processManagerWhatsAppResponse(params: {
             const updated = await prisma.attendancePunchAdjustment.update({
                 where: { id: adjustment.id },
                 data: {
-                    status: "CONFIRMED_ABSENCE",
+                    // Falta confirmada pelo gestor: segue para aprovação do RH, que lança a FALTA no cartão do Secullum
+                    status: "PENDING_AUDIT",
+                    secullumReasonId: "FALTA",
+                    secullumReasonName: "FALTA CONFIRMADA PELO GESTOR",
                     requestedByPhone: params.senderPhone,
                     requestedByName: params.senderName || matchingUser?.name || "Líder WhatsApp",
                     requestedByUserId: matchingUser?.id || null,
@@ -241,7 +244,7 @@ export async function processManagerWhatsAppResponse(params: {
                     updatedAt: new Date()
                 }
             });
-            return { success: true, status: "CONFIRMED_ABSENCE", adjustment: updated };
+            return { success: true, status: "PENDING_AUDIT", adjustment: updated };
         }
 
         // Caso de Ajuste: Buscar motivo do Secullum
@@ -442,10 +445,41 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
         // Abono (não trabalhou) => justificativa no cartão. Demais motivos (trabalhou e não registrou)
         // => incluir a BATIDA no horário cadastrado no Secullum, com variação de minutos.
         const isAbono = (adj.secullumReasonId || "").toUpperCase().includes("ABONO");
+        const isFalta = (adj.secullumReasonId || "").toUpperCase() === "FALTA";
         let res: { success: boolean; message: string; raw?: any };
         let insertedTime: string | null = null;
 
-        if (isAbono) {
+        if (isFalta) {
+            // Falta confirmada pelo gestor: lança a justificativa FALTA (sem abonar) nas jornadas sem batida
+            const cols = await client.getBatidasColunasDoDia(adj.employee.cpf, dateStr);
+            const registro = await client.getRegistroDoDia(adj.employee.cpf, dateStr).catch(() => null);
+            const hasG1 = !!(cols.Entrada1 || cols.Saida1);
+            const hasG2 = !!(cols.Entrada2 || cols.Saida2);
+            const hasG3 = !!(cols.Entrada3 || cols.Saida3);
+
+            const allowedGroups: number[] = [];
+            if (!hasG1) allowedGroups.push(1);
+            if (!hasG2) allowedGroups.push(2);
+            if (!hasG3 && (registro?.MemoriaEntrada3 || registro?.MemoriaSaida3)) allowedGroups.push(3);
+
+            if (allowedGroups.length === 0) {
+                const failMsg = "Não é possível lançar a Falta: o colaborador já possui batidas em todas as jornadas deste dia no Secullum.";
+                await prisma.attendancePunchAdjustment.update({
+                    where: { id: adjustmentId },
+                    data: { secullumStatus: "ERRO", secullumResponseLog: failMsg }
+                });
+                return { success: false, message: failMsg };
+            }
+
+            res = await client.lancarJustificativaPonto({
+                cpf: adj.employee.cpf,
+                data: dateStr,
+                justificativa: "FALTA",
+                observacoes: `Falta confirmada pelo gestor ${adj.requestedByName || ""} | Conf. RH ${user?.name || "Admin"}`.slice(0, 200),
+                abonar: false,
+                grupos: allowedGroups
+            });
+        } else if (isAbono) {
             const registro = await client.getRegistroDoDia(adj.employee.cpf, dateStr).catch(() => null);
             const isTimeVal = (v: any) => typeof v === "string" && /^\d{1,2}:\d{2}/.test(v.trim());
             
