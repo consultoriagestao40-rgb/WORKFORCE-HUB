@@ -833,14 +833,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {[...card.days].sort((a, b) => {
-                                                    const ra = a.rowKey ? rowByKey.get(a.rowKey) : null;
-                                                    const rb = b.rowKey ? rowByKey.get(b.rowKey) : null;
-                                                    const pa = ra?.pending ? 0 : 1;
-                                                    const pb = rb?.pending ? 0 : 1;
-                                                    if (pa !== pb) return pa - pb; // pendências no topo
-                                                    return a.date < b.date ? 1 : -1;
-                                                }).map((day: EmployeeDay) => {
+                                                {[...card.days].sort((a, b) => (a.date < b.date ? -1 : 1)).map((day: EmployeeDay) => {
                                                     const r = day.rowKey ? rowByKey.get(day.rowKey) || null : null;
                                                     const isPending = !!r?.pending;
                                                     const isSending = r ? sendingKeys.has(r.key) : false;
@@ -888,9 +881,14 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         {r.ignored?.reason && <span className="text-[10px] text-slate-400 max-w-[160px] truncate" title={r.ignored.reason}>{r.ignored.reason}</span>}
                                                                     </div>
                                                                 ) : r.pendingKind === "NOVO" ? (
-                                                                    <Badge variant="outline" className={`text-[10px] font-black w-fit ${r.kind === "SEM_BATIDAS" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                                                                        {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`} · não enviada
-                                                                    </Badge>
+                                                                    <div className="flex flex-col gap-0.5 text-[11px] leading-snug">
+                                                                        <Badge variant="outline" className={`text-[10px] font-black w-fit ${r.kind === "SEM_BATIDAS" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                                                                            {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`} · não enviada
+                                                                        </Badge>
+                                                                        <div className="text-slate-600"><span className="text-slate-400 font-semibold">Solicitante: </span><span className="font-semibold">—</span></div>
+                                                                        <div className="text-slate-600"><span className="text-slate-400 font-semibold">Motivo: </span><span className="font-semibold">—</span></div>
+                                                                        <div className="text-slate-600"><span className="text-slate-400 font-semibold">Solicitado em: </span><span className="font-semibold">—</span></div>
+                                                                    </div>
                                                                 ) : (
                                                                     <div className="flex flex-col gap-0.5 text-[11px] leading-snug">
                                                                         <div className="flex flex-wrap items-center gap-1">
