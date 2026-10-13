@@ -841,3 +841,159 @@ export async function launchDirectJustification(params: {
         return { success: false, message: error.message || "Erro ao lançar justificativa." };
     }
 }
+
+/**
+ * Lança múltiplas batidas manuais (ou todas as batidas faltantes/editadas do dia) diretamente no Secullum
+ * com motivo e auditoria no Hub.
+ */
+export async function launchDirectDayAdjustments(params: {
+    employeeId: string;
+    date: string; // YYYY-MM-DD
+    punches: Array<{ coluna: PunchColumn; hora: string }>;
+    motivo?: string;
+}): Promise<{ success: boolean; message: string; count?: number }> {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false, message: "Usuário não autenticado." };
+
+        const client = await getSecullumClient();
+        if (!client) return { success: false, message: "Secullum não configurado em Benefícios." };
+
+        if (!params.punches || params.punches.length === 0) {
+            return { success: false, message: "Nenhuma batida informada para lançar." };
+        }
+
+        const emp = await prisma.employee.findUnique({
+            where: { id: params.employeeId },
+            include: {
+                assignments: {
+                    where: { endDate: null },
+                    take: 1,
+                    include: { posto: { include: { client: true } } }
+                }
+            }
+        });
+        if (!emp || !emp.cpf) return { success: false, message: "Colaborador ou CPF não localizado." };
+
+        const cpfClean = emp.cpf.replace(/\D/g, "");
+        const cleanDate = params.date;
+        const motivo = params.motivo?.trim() || `Ajuste Direto RH (${user.name || "Admin"}) | Correção de batidas`;
+
+        let cols = await client.getBatidasColunasDoDia(cpfClean, cleanDate);
+        let successCount = 0;
+        const launchedList: string[] = [];
+        const errors: string[] = [];
+
+        // Ordena para lançar em ordem cronológica de jornada (E1, S1, E2, S2...)
+        const colOrder: PunchColumn[] = ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"];
+        const sortedPunches = [...params.punches].sort((a, b) => colOrder.indexOf(a.coluna) - colOrder.indexOf(b.coluna));
+
+        for (const p of sortedPunches) {
+            const hora = p.hora?.trim();
+            if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) continue;
+
+            // Se for Entrada2 e Entrada2 tiver marcação enquanto Saida2 está vazia, swap primeiro
+            if (p.coluna === "Entrada2" && cols.Entrada2 && !cols.Saida2) {
+                const swapRes = await client.trocarColunaBatida({
+                    cpf: cpfClean,
+                    data: cleanDate,
+                    colunaOrigem: "Entrada2",
+                    colunaDestino: "Saida2"
+                });
+                if (swapRes.success) {
+                    cols = await client.getBatidasColunasDoDia(cpfClean, cleanDate);
+                }
+            }
+
+            // Se já tem essa mesma hora na coluna, pula
+            if (cols[p.coluna] && cols[p.coluna]!.trim() === hora) {
+                successCount++;
+                launchedList.push(`${COLUMN_LABEL[p.coluna] || p.coluna} ${hora} (já constava)`);
+                continue;
+            }
+
+            const res = await client.lancarBatidaManual({
+                cpf: cpfClean,
+                data: cleanDate,
+                hora,
+                coluna: p.coluna,
+                motivo
+            });
+
+            if (res.success) {
+                successCount++;
+                launchedList.push(`${COLUMN_LABEL[p.coluna] || p.coluna} ${hora}`);
+                cols[p.coluna] = hora;
+            } else {
+                errors.push(`${COLUMN_LABEL[p.coluna] || p.coluna}: ${res.message}`);
+            }
+        }
+
+        if (successCount === 0) {
+            return { success: false, message: `Falha ao lançar batidas no Secullum: ${errors.join("; ")}` };
+        }
+
+        // Registrar / atualizar o ajuste no Hub
+        const dayStart = new Date(`${cleanDate}T00:00:00-03:00`);
+        const dayEnd = new Date(`${cleanDate}T23:59:59-03:00`);
+        const existingAdj = await prisma.attendancePunchAdjustment.findFirst({
+            where: { employeeId: emp.id, date: { gte: dayStart, lte: dayEnd } }
+        });
+
+        const posto = emp.assignments[0]?.posto;
+        const c = posto?.client;
+        const requestedSummary = launchedList.join(" · ");
+
+        if (existingAdj) {
+            await prisma.attendancePunchAdjustment.update({
+                where: { id: existingAdj.id },
+                data: {
+                    status: "APPROVED_SYNCED",
+                    secullumStatus: "SUCESSO",
+                    secullumReasonId: "AJUSTE_MANUAL",
+                    secullumReasonName: "AJUSTE MANUAL RH",
+                    requestedTime: requestedSummary,
+                    notes: motivo,
+                    secullumResponseLog: JSON.stringify({ launchedList, errors }),
+                    resolvedByUserId: user.id,
+                    resolvedAt: new Date()
+                }
+            });
+        } else {
+            const code = await generateAdjustmentCode();
+            await prisma.attendancePunchAdjustment.create({
+                data: {
+                    code,
+                    employeeId: emp.id,
+                    clientId: c?.id || null,
+                    postoId: posto?.id || null,
+                    date: new Date(`${cleanDate}T12:00:00-03:00`),
+                    punchType: "OUTRO",
+                    expectedTime: requestedSummary,
+                    requestedTime: requestedSummary,
+                    secullumReasonId: "AJUSTE_MANUAL",
+                    secullumReasonName: "AJUSTE MANUAL RH",
+                    notes: motivo,
+                    status: "APPROVED_SYNCED",
+                    secullumStatus: "SUCESSO",
+                    secullumResponseLog: JSON.stringify({ launchedList, errors }),
+                    source: "MANUAL_DIRECT",
+                    resolvedByUserId: user.id,
+                    resolvedAt: new Date()
+                }
+            });
+        }
+
+        revalidatePath("/admin/punch-inconsistencies");
+        revalidatePath("/admin/punch-adjustments");
+
+        return {
+            success: true,
+            count: successCount,
+            message: `${successCount} batida(s) gravada(s) no Secullum com sucesso! (${requestedSummary})${errors.length ? ` Falhas parciais: ${errors.join("; ")}` : ""}`
+        };
+    } catch (error: any) {
+        console.error("[launchDirectDayAdjustments] Erro:", error);
+        return { success: false, message: error.message || "Erro ao gravar batidas." };
+    }
+}

@@ -40,6 +40,7 @@ import {
     ignoreInconsistency,
     unignoreInconsistency,
     launchDirectManualPunch,
+    launchDirectDayAdjustments,
     listLaunchJustifications,
     launchDirectJustification,
     resendPunchAdjustmentToManager,
@@ -126,106 +127,128 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
     const [ignoreRow, setIgnoreRow] = useState<InconsistencyRow | null>(null);
     const [ignoreReason, setIgnoreReason] = useState(IGNORE_REASONS[0]);
 
-    // Lançamento Direto de Batida Manual pelo RH (Esquecimento sem incomodar gestor)
-    const [directPunchRow, setDirectPunchRow] = useState<InconsistencyRow | null>(null);
-    const [directPunchCol, setDirectPunchCol] = useState<PunchColumn>("Saida2");
-    const [directPunchTime, setDirectPunchTime] = useState("");
-    const [directPunchReason, setDirectPunchReason] = useState("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
-    const [isDirectPunching, setIsDirectPunching] = useState(false);
+    // Modal secundário: Tratativa Completa do Dia (Editar todas as batidas / Abonar / Feriado)
+    const [dayModal, setDayModal] = useState<{
+        card: EmployeeTimecard;
+        day: EmployeeDay;
+        row: InconsistencyRow | null;
+    } | null>(null);
+    const [dayModalTab, setDayModalTab] = useState<"PUNCHES" | "JUSTIFY">("PUNCHES");
+    const [dayPunches, setDayPunches] = useState<Record<string, string>>({});
+    const [dayPunchReason, setDayPunchReason] = useState("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
+    const [isDaySaving, setIsDaySaving] = useState(false);
 
-    // Justificar / abonar / feriado direto no cartão (RH)
-    const [justDay, setJustDay] = useState<{ employeeId: string; employeeName: string; date: string; groups: number[] } | null>(null);
+    // Justificativas ativas do Secullum
     const [justList, setJustList] = useState<Array<{ codigo: string; descricao: string; abonar: boolean }>>([]);
     const [justCode, setJustCode] = useState("");
     const [justObs, setJustObs] = useState("");
-    const [isJustSaving, setIsJustSaving] = useState(false);
 
-    const openJustify = async (card: EmployeeTimecard, day: EmployeeDay) => {
-        const groups = [1, 2, 3].filter(g => day.expected[`Entrada${g}` as PunchColumn] || day.expected[`Saida${g}` as PunchColumn]);
-        setJustDay({ employeeId: card.employeeId, employeeName: card.employeeName, date: day.date, groups });
+    const openDayTreatment = async (card: EmployeeTimecard, day: EmployeeDay) => {
+        const r = day.rowKey ? rowByKey.get(day.rowKey) || null : null;
+        
+        // Inicializa as 4 a 6 colunas de batida
+        const initialPunches: Record<string, string> = {};
+        for (const c of COLS) {
+            const val = day.actual[c];
+            const isTime = typeof val === "string" && /^\d{1,2}:\d{2}$/.test(val.trim());
+            if (isTime) {
+                initialPunches[c] = val.trim();
+            } else if (day.expected[c]) {
+                initialPunches[c] = day.expected[c]!;
+            } else {
+                initialPunches[c] = "";
+            }
+        }
+
+        setDayPunches(initialPunches);
+        setDayPunchReason("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
+        setDayModalTab("PUNCHES");
         setJustObs("");
         setJustCode("");
+        setDayModal({ card, day, row: r });
+
+        // Carrega justificativas em background se necessário
         if (justList.length === 0) {
-            const res = await listLaunchJustifications();
-            if (res.success) setJustList(res.items);
-            else toast.error(res.message || "Erro ao carregar justificativas.");
+            listLaunchJustifications().then(res => {
+                if (res.success && res.items.length) {
+                    setJustList(res.items);
+                }
+            }).catch(() => {});
         }
     };
 
-    const doJustify = async () => {
-        const sel = justList.find(j => j.codigo === justCode);
-        if (!justDay || !sel) return;
-        setIsJustSaving(true);
+    const doSaveDayPunches = async () => {
+        if (!dayModal) return;
+        const { card, day } = dayModal;
+
+        const punchesToSend: Array<{ coluna: PunchColumn; hora: string }> = [];
+        for (const [col, val] of Object.entries(dayPunches)) {
+            const h = val?.trim();
+            if (h && /^\d{1,2}:\d{2}$/.test(h)) {
+                punchesToSend.push({ coluna: col as PunchColumn, hora: h });
+            }
+        }
+
+        if (punchesToSend.length === 0) {
+            toast.error("Informe pelo menos um horário válido no formato HH:mm.");
+            return;
+        }
+
+        setIsDaySaving(true);
         try {
+            const res = await launchDirectDayAdjustments({
+                employeeId: card.employeeId,
+                date: day.date,
+                punches: punchesToSend,
+                motivo: dayPunchReason
+            });
+
+            if (res.success) {
+                toast.success(res.message);
+                setDayModal(null);
+                await runScan();
+            } else {
+                toast.error(`Erro ao gravar no Secullum: ${res.message}`);
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao gravar batidas.");
+        } finally {
+            setIsDaySaving(false);
+        }
+    };
+
+    const doSaveDayJustification = async () => {
+        if (!dayModal) return;
+        const { card, day } = dayModal;
+        const sel = justList.find(j => j.codigo === justCode);
+        if (!sel) {
+            toast.error("Selecione uma justificativa.");
+            return;
+        }
+
+        setIsDaySaving(true);
+        try {
+            const groups = [1, 2, 3].filter(g => day.expected[`Entrada${g}` as PunchColumn] || day.expected[`Saida${g}` as PunchColumn]);
             const res = await launchDirectJustification({
-                employeeId: justDay.employeeId,
-                date: justDay.date,
+                employeeId: card.employeeId,
+                date: day.date,
                 codigo: sel.codigo,
                 abonar: sel.abonar,
                 observacao: justObs || undefined,
-                expectedGroups: justDay.groups
+                expectedGroups: groups.length ? groups : [1, 2]
             });
+
             if (res.success) {
                 toast.success(res.message);
-                setJustDay(null);
+                setDayModal(null);
                 await runScan();
             } else {
-                toast.error(`Erro ao lançar no Secullum: ${res.message}`);
+                toast.error(`Erro ao lançar justificativa no Secullum: ${res.message}`);
             }
         } catch (e: any) {
             toast.error(e.message || "Erro ao lançar justificativa.");
         } finally {
-            setIsJustSaving(false);
-        }
-    };
-
-    const openDirectPunch = (r: InconsistencyRow) => {
-        setDirectPunchRow(r);
-        const firstMissing = (r.missing[0] || "Saida2") as PunchColumn;
-        setDirectPunchCol(firstMissing);
-        setDirectPunchTime(r.expected[firstMissing] || "08:00");
-        setDirectPunchReason("SEM REGISTRO DE PONTO (ESQUECIMENTO)");
-    };
-
-    const doDirectPunch = async () => {
-        if (!directPunchRow || !directPunchCol || !directPunchTime) return;
-        setIsDirectPunching(true);
-        try {
-            const res = await launchDirectManualPunch({
-                employeeId: directPunchRow.employeeId,
-                date: directPunchRow.date,
-                coluna: directPunchCol,
-                hora: directPunchTime,
-                motivo: directPunchReason
-            });
-            if (res.success) {
-                toast.success(res.message);
-                setRows(prev => prev.map(r => r.key === directPunchRow.key ? {
-                    ...r,
-                    status: "ENVIADO",
-                    pending: false,
-                    pendingKind: null,
-                    adjustment: {
-                        id: "",
-                        code: "DIRETO",
-                        status: "APPROVED_SYNCED",
-                        secullumStatus: "SUCESSO",
-                        sendCount: 0,
-                        lastSentAt: null,
-                        requestedByName: "RH (lançamento direto)",
-                        requestedAt: new Date().toISOString(),
-                        reasonName: directPunchReason || "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
-                        requestedTime: `${COLUMN_LABEL[directPunchCol] || directPunchCol} ${directPunchTime}`
-                    }
-                } : r));
-                setDirectPunchRow(null);
-            } else {
-                toast.error(`Erro ao lançar no Secullum: ${res.message}`);
-            }
-        } catch (err: any) {
-            toast.error(err.message || "Erro ao lançar batida manual.");
-        } finally {
-            setIsDirectPunching(false);
+            setIsDaySaving(false);
         }
     };
 
@@ -973,18 +996,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="px-2 py-2 text-right whitespace-nowrap">
-                                                                {!(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
-                                                                    <Button size="sm" variant="outline" onClick={() => openJustify(card, day)}
-                                                                        className="h-8 mr-1.5 rounded-xl border-orange-300 bg-orange-50 hover:bg-orange-100 text-orange-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
-                                                                        title="Lançar abono, feriado ou outra justificativa no cartão do Secullum">
-                                                                        <FileCheck2 className="w-3.5 h-3.5" /> Abonar / Feriado
-                                                                    </Button>
-                                                                )}
                                                                 {r && r.pendingKind === "NOVO" && (
                                                                     <div className="flex items-center justify-end gap-1.5">
-                                                                        <Button size="sm" variant="outline" disabled={isSending} onClick={() => openDirectPunch(r)}
+                                                                        <Button size="sm" variant="outline" disabled={isSending} onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
-                                                                            title="Lançar batida manual direto no Secullum (Esquecimento)">
+                                                                            title="Abrir tratativa completa do dia (editar batidas ou abonar/feriado)">
                                                                             <PlusCircle className="w-3.5 h-3.5 text-emerald-600" /> Lançar
                                                                         </Button>
                                                                         <Button size="sm" disabled={isSending} onClick={() => setConfirmItems([r])}
@@ -1000,9 +1016,9 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                 )}
                                                                 {r && r.pendingKind === "AGUARDANDO_GESTOR" && (
                                                                     <div className="flex items-center justify-end gap-1.5">
-                                                                        <Button size="sm" variant="outline" onClick={() => openDirectPunch(r)}
+                                                                        <Button size="sm" variant="outline" onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
-                                                                            title="Lançar batida manual direto no Secullum">
+                                                                            title="Abrir tratativa completa do dia (editar batidas ou abonar/feriado)">
                                                                             <PlusCircle className="w-3.5 h-3.5 text-emerald-600" /> Lançar
                                                                         </Button>
                                                                         <Button size="sm" disabled={isResending} onClick={() => doResend(r)}
@@ -1013,16 +1029,30 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                     </div>
                                                                 )}
                                                                 {r && r.pendingKind === "AGUARDANDO_RH" && (
-                                                                    <Button size="sm" disabled={approvingKeys.has(r.key)} onClick={() => doApprove(r)}
-                                                                        className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3 gap-1 cursor-pointer"
-                                                                        title="Lançar no cartão do Secullum">
-                                                                        {approvingKeys.has(r.key) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                                                        {r.adjustment?.reasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar falta no Secullum" : "Aprovar no Secullum"}
-                                                                    </Button>
+                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                        <Button size="sm" variant="outline" onClick={() => openDayTreatment(card, day)}
+                                                                            className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
+                                                                            title="Editar marcações deste dia antes de lançar">
+                                                                            <PlusCircle className="w-3.5 h-3.5 text-emerald-600" /> Editar
+                                                                        </Button>
+                                                                        <Button size="sm" disabled={approvingKeys.has(r.key)} onClick={() => doApprove(r)}
+                                                                            className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3 gap-1 cursor-pointer"
+                                                                            title="Lançar no cartão do Secullum">
+                                                                            {approvingKeys.has(r.key) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                                            {r.adjustment?.reasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar falta no Secullum" : "Aprovar no Secullum"}
+                                                                        </Button>
+                                                                    </div>
                                                                 )}
                                                                 {r && r.status === "IGNORADO" && (
                                                                     <Button size="sm" variant="outline" onClick={() => doUnignore(r)} className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100 cursor-pointer">
                                                                         <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
+                                                                    </Button>
+                                                                )}
+                                                                {!r && !(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
+                                                                    <Button size="sm" variant="ghost" onClick={() => openDayTreatment(card, day)}
+                                                                        className="h-7 text-[11px] text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg px-2 cursor-pointer"
+                                                                        title="Ajustar batidas ou abonar este dia">
+                                                                        Tratar
                                                                     </Button>
                                                                 )}
                                                             </TableCell>
@@ -1131,123 +1161,197 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 </DialogContent>
             </Dialog>
 
-            {/* Modal Justificar / Abonar / Feriado direto no Secullum */}
-            <Dialog open={!!justDay} onOpenChange={o => !o && !isJustSaving && setJustDay(null)}>
-                <DialogContent className="sm:max-w-md rounded-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
-                            <FileCheck2 className="w-5 h-5 text-orange-600" /> Abonar / Feriado / Justificar
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-500">
-                            {justDay && <><b>{justDay.employeeName}</b> — {fmtDate(justDay.date)}. Lançado direto no cartão do Secullum nas jornadas sem batida.</>}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3.5 py-2">
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 mb-1 block">Justificativa</Label>
-                            <Select value={justCode} onValueChange={setJustCode}>
-                                <SelectTrigger className="w-full rounded-xl"><SelectValue placeholder={justList.length ? "Selecione..." : "Carregando..."} /></SelectTrigger>
-                                <SelectContent>
-                                    {justList.map(j => (
-                                        <SelectItem key={j.codigo} value={j.codigo}>{j.descricao} ({j.codigo}){j.abonar ? " · abona" : ""}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label className="text-xs font-bold text-slate-700 mb-1 block">Observação</Label>
-                            <Input value={justObs} onChange={e => setJustObs(e.target.value)} placeholder="Ex: feriado, abono autorizado pelo gestor" className="h-10 rounded-xl text-xs" />
-                        </div>
-                    </div>
-                    <DialogFooter className="pt-2 border-t border-slate-100">
-                        <Button variant="outline" onClick={() => setJustDay(null)} disabled={isJustSaving} className="rounded-xl text-xs">Cancelar</Button>
-                        <Button onClick={doJustify} disabled={isJustSaving || !justCode}
-                            className="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer">
-                            {isJustSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                            Gravar no Secullum
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            {/* Modal Secundário: Tratativa Completa do Dia (Editar todas as batidas / Abonar / Feriado) */}
+            <Dialog open={!!dayModal} onOpenChange={o => !o && !isDaySaving && setDayModal(null)}>
+                <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl p-0">
+                    {dayModal && (() => {
+                        const { card, day, row } = dayModal;
+                        const useCols3 = Boolean(day.actual.Entrada3 || day.actual.Saida3 || day.expected.Entrada3 || day.expected.Saida3);
+                        const modalCols = useCols3 ? COLS : COLS.slice(0, 4);
+                        return (
+                            <>
+                                <DialogHeader className="px-6 pt-5 pb-4 border-b border-slate-100 bg-slate-50/50">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <DialogTitle className="flex items-center gap-2 text-slate-900 font-black text-lg">
+                                                <Clock className="w-5 h-5 text-indigo-600" />
+                                                Tratar Cartão de Ponto
+                                            </DialogTitle>
+                                            <DialogDescription className="text-xs text-slate-500 mt-1">
+                                                <b>{card.employeeName}</b> {card.folha ? `(Folha ${card.folha})` : ""} · {card.clientName || "Posto"} — <span className="font-bold text-slate-700">{fmtDate(day.date)} ({WEEKDAYS[day.weekday]})</span>
+                                            </DialogDescription>
+                                        </div>
+                                    </div>
 
-            {/* Modal Lançar Batida Manual Direto no Secullum (Esquecimento) */}
-            <Dialog open={!!directPunchRow} onOpenChange={o => !o && !isDirectPunching && setDirectPunchRow(null)}>
-                <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto rounded-2xl">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-slate-900 font-black">
-                            <PlusCircle className="w-5 h-5 text-emerald-600" />
-                            Lançar Batida Direto no Secullum
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-500">
-                            {directPunchRow && (
-                                <>
-                                    <b>{directPunchRow.employeeName}</b> ({directPunchRow.clientName || "Posto"}) — {fmtDate(directPunchRow.date)}
-                                    <span className="block mt-1 text-slate-600">
-                                        Esta batida será incluída imediatamente no cartão de ponto com o motivo <b>Esquecimento</b>, sem incomodar o gestor no WhatsApp.
-                                    </span>
-                                </>
-                            )}
-                        </DialogDescription>
-                    </DialogHeader>
+                                    {/* Tabs: Alternar entre Ajustar Batidas e Abonar/Feriado */}
+                                    <div className="flex gap-2 p-1 bg-slate-200/70 rounded-xl mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDayModalTab("PUNCHES")}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                                dayModalTab === "PUNCHES"
+                                                    ? "bg-white text-indigo-700 shadow-sm"
+                                                    : "text-slate-600 hover:text-slate-900"
+                                            }`}
+                                        >
+                                            <Clock className="w-4 h-4" />
+                                            Ajustar Marcações ({modalCols.length} batidas)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDayModalTab("JUSTIFY")}
+                                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                                                dayModalTab === "JUSTIFY"
+                                                    ? "bg-white text-orange-700 shadow-sm"
+                                                    : "text-slate-600 hover:text-slate-900"
+                                            }`}
+                                        >
+                                            <FileCheck2 className="w-4 h-4" />
+                                            Abonar / Feriado / Justificar
+                                        </button>
+                                    </div>
+                                </DialogHeader>
 
-                    {directPunchRow && (
-                        <div className="space-y-3.5 py-2">
-                            <div>
-                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Marcação a Incluir</Label>
-                                <Select value={directPunchCol} onValueChange={v => {
-                                    setDirectPunchCol(v as PunchColumn);
-                                    if (directPunchRow.expected[v as PunchColumn]) {
-                                        setDirectPunchTime(directPunchRow.expected[v as PunchColumn]!);
-                                    }
-                                }}>
-                                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {directPunchRow.missing.map(col => (
-                                            <SelectItem key={col} value={col}>
-                                                {COLUMN_LABEL[col] || col} (Previsto: {directPunchRow.expected[col] || "—"})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                <div className="px-6 py-4 space-y-4">
+                                    {dayModalTab === "PUNCHES" ? (
+                                        <div className="space-y-4">
+                                            <div className="text-xs text-slate-500 bg-indigo-50/60 border border-indigo-100 rounded-xl p-3">
+                                                Verifique ou ajuste os horários das batidas abaixo. Os horários faltantes já vêm sugeridos pela escala prevista. Ao gravar, as marcações serão sincronizadas diretamente no cartão do Secullum.
+                                            </div>
 
-                            <div>
-                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Horário da Batida (HH:mm)</Label>
-                                <Input
-                                    value={directPunchTime}
-                                    onChange={e => setDirectPunchTime(e.target.value)}
-                                    placeholder="HH:mm"
-                                    className="h-10 rounded-xl font-mono text-xs font-bold"
-                                />
-                                <span className="text-[11px] text-slate-400 mt-1 block">
-                                    Horário sugerido: <b>{directPunchRow.expected[directPunchCol] || "—"}</b>
-                                </span>
-                            </div>
+                                            {/* Grade com todas as batidas do dia */}
+                                            <div className={`grid gap-3 ${modalCols.length === 6 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+                                                {modalCols.map(col => {
+                                                    const actualVal = day.actual[col];
+                                                    const expectedVal = day.expected[col];
+                                                    const isMissing = row?.missing.includes(col);
+                                                    const hasActual = actualVal && /^\d{1,2}:\d{2}$/.test(actualVal.trim());
 
-                            <div>
-                                <Label className="text-xs font-bold text-slate-700 mb-1 block">Motivo</Label>
-                                <Input
-                                    value={directPunchReason}
-                                    onChange={e => setDirectPunchReason(e.target.value)}
-                                    className="h-10 rounded-xl text-xs"
-                                />
-                            </div>
-                        </div>
-                    )}
+                                                    return (
+                                                        <div key={col} className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 transition-all ${
+                                                            isMissing
+                                                                ? "bg-rose-50/30 border-rose-200"
+                                                                : hasActual
+                                                                    ? "bg-slate-50/70 border-slate-200"
+                                                                    : "bg-white border-slate-200"
+                                                        }`}>
+                                                            <div className="flex items-center justify-between gap-1">
+                                                                <span className="text-[11px] font-extrabold uppercase text-slate-700">
+                                                                    {COLUMN_LABEL[col] || col}
+                                                                </span>
+                                                                {hasActual ? (
+                                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] px-1 py-0">
+                                                                        Gravada
+                                                                    </Badge>
+                                                                ) : isMissing ? (
+                                                                    <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[9px] px-1 py-0">
+                                                                        Falta
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 text-[9px] px-1 py-0">
+                                                                        Prevista
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
 
-                    <DialogFooter className="pt-2 border-t border-slate-100">
-                        <Button variant="outline" onClick={() => setDirectPunchRow(null)} disabled={isDirectPunching} className="rounded-xl text-xs">
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={doDirectPunch}
-                            disabled={isDirectPunching}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer shadow-sm"
-                        >
-                            {isDirectPunching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                            Gravar no Secullum Agora
-                        </Button>
-                    </DialogFooter>
+                                                            <Input
+                                                                value={dayPunches[col] || ""}
+                                                                onChange={e => setDayPunches(prev => ({ ...prev, [col]: e.target.value }))}
+                                                                placeholder="--:--"
+                                                                className="h-10 text-center font-mono font-black text-sm tracking-wider rounded-xl bg-white shadow-sm border-slate-300 focus:border-indigo-500"
+                                                            />
+
+                                                            <div className="text-[10px] text-slate-400 text-center">
+                                                                Previsto: <b className="text-slate-600 font-mono">{expectedVal || "—"}</b>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {/* Motivo */}
+                                            <div className="pt-2">
+                                                <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Motivo da Inclusão / Ajuste</Label>
+                                                <Input
+                                                    value={dayPunchReason}
+                                                    onChange={e => setDayPunchReason(e.target.value)}
+                                                    placeholder="Ex: SEM REGISTRO DE PONTO (ESQUECIMENTO)"
+                                                    className="h-10 rounded-xl text-xs"
+                                                />
+                                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                                    Registrado no histórico da batida manual no Secullum e para auditoria do RH.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="text-xs text-orange-950 bg-orange-50 border border-orange-200/80 rounded-xl p-3.5 leading-relaxed">
+                                                <b className="font-black text-orange-900 block mb-0.5">Abono ou Feriado no Cartão de Ponto</b>
+                                                Selecione uma justificativa abaixo para abonar o dia inteiro no Secullum (ex: Feriado Nacional, Folga Compensatória, Abono Autorizado). A justificativa será lançada nas jornadas deste dia que estiverem sem batida.
+                                            </div>
+
+                                            <div>
+                                                <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Justificativa Cadastrada no Secullum</Label>
+                                                <Select value={justCode} onValueChange={setJustCode}>
+                                                    <SelectTrigger className="w-full h-10 rounded-xl"><SelectValue placeholder={justList.length ? "Selecione a justificativa..." : "Carregando justificativas..."} /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {justList.map(j => (
+                                                            <SelectItem key={j.codigo} value={j.codigo}>
+                                                                <span className="font-bold">{j.descricao}</span>
+                                                                <span className="text-slate-400 font-mono ml-2">({j.codigo})</span>
+                                                                {j.abonar && <span className="ml-2 text-emerald-600 text-[10px] font-bold">· Abona Horas</span>}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div>
+                                                <Label className="text-xs font-bold text-slate-700 mb-1.5 block">Observações (opcional)</Label>
+                                                <Input
+                                                    value={justObs}
+                                                    onChange={e => setJustObs(e.target.value)}
+                                                    placeholder="Ex: Feriado Nacional de 12 de Outubro / Autorizado pela gerência"
+                                                    className="h-10 rounded-xl text-xs"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <DialogFooter className="px-6 py-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sm:justify-between">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setDayModal(null)}
+                                        disabled={isDaySaving}
+                                        className="rounded-xl text-xs"
+                                    >
+                                        Cancelar
+                                    </Button>
+
+                                    {dayModalTab === "PUNCHES" ? (
+                                        <Button
+                                            onClick={doSaveDayPunches}
+                                            disabled={isDaySaving}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer shadow-sm"
+                                        >
+                                            {isDaySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                            Gravar Batidas no Secullum
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={doSaveDayJustification}
+                                            disabled={isDaySaving || !justCode}
+                                            className="bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl px-5 gap-1.5 cursor-pointer shadow-sm"
+                                        >
+                                            {isDaySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileCheck2 className="w-3.5 h-3.5" />}
+                                            Gravar Justificativa no Secullum
+                                        </Button>
+                                    )}
+                                </DialogFooter>
+                            </>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
         </div>
