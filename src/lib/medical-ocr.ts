@@ -169,7 +169,7 @@ REGRAS DE CLASSIFICAÇÃO:
 
 Observações importantes:
 - Retorne EXCLUSIVAMENTE o bloco JSON válido sem blocos markdown adicionais como \`\`\`json.
-- Datas devem estar estritamente no padrão ISO YYYY-MM-DD.`;
+- ATENÇÃO RIGOROSA COM DATAS: Os documentos no Brasil utilizam o padrão brasileiro DIA/MÊS/ANO (DD/MM/AAAA). Ao converter para YYYY-MM-DD, certifique-se de que o primeiro número é o DIA e o segundo é o MÊS (ex: 10/10/2026 -> 2026-10-10; 10/01/2026 -> 2026-01-10; 05/10/2026 -> 2026-10-05). NUNCA inverta dia e mês!`;
 
     const candidateModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
     let lastError = "";
