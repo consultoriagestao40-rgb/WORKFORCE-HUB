@@ -372,15 +372,15 @@ export async function launchDirectManualPunch(params: {
         const cleanDate = params.date;
         const motivo = params.motivo || `Ajuste Direto RH (${user.name || "Admin"}) | Esquecimento de batida`;
 
-        // Obter estado atual do dia no Secullum
-        const registro = await client.getRegistroDoDia(cpfClean, cleanDate).catch(() => null);
+        // Obter estado atual do dia no Secullum (registro diário ou, se indisponível, Calcular)
+        const cols = await client.getBatidasColunasDoDia(cpfClean, cleanDate);
         
         // 1. Tratamento inteligente de batida deslocada:
         // Caso clássico: O colaborador bateu 3 vezes (E1, S1 e a saída no fim do dia).
         // Como não bateu o almoço, o Secullum aloca a 3ª batida em Entrada2 e deixa Saida2 vazia.
         // Se estamos lançando Entrada2 (retorno do almoço) e Entrada2 já tem batida enquanto Saida2 está vazia:
-        if (params.coluna === "Entrada2" && registro?.Entrada2 && !registro?.Saida2) {
-            console.log(`[launchDirectManualPunch] Deslocando batida de Entrada2 (${registro.Entrada2}) para Saida2 antes de lançar...`);
+        if (params.coluna === "Entrada2" && cols.Entrada2 && !cols.Saida2) {
+            console.log(`[launchDirectManualPunch] Deslocando batida de Entrada2 (${cols.Entrada2}) para Saida2 antes de lançar...`);
             const swapRes = await client.trocarColunaBatida({
                 cpf: cpfClean,
                 data: cleanDate,
@@ -388,13 +388,13 @@ export async function launchDirectManualPunch(params: {
                 colunaDestino: "Saida2"
             });
             if (!swapRes.success) {
-                console.warn("[launchDirectManualPunch] Aviso ao trocar coluna:", swapRes.message);
+                return { success: false, message: `A saída (${cols.Entrada2}) está em Entrada 2 e não foi possível movê-la para Saída 2: ${swapRes.message}` };
             }
         }
 
         // 2. Se a batida exata já existe na coluna no Secullum (ex: tentativa anterior onde o Secullum gravou mas o Hub falhou):
         const alreadyHasExactPunch = Boolean(
-            registro && (registro[params.coluna] === params.hora || registro[params.coluna]?.trim() === params.hora.trim())
+            cols[params.coluna] && cols[params.coluna]!.trim() === params.hora.trim()
         );
 
         let resMessage = "Batida incluída com sucesso.";
@@ -415,7 +415,7 @@ export async function launchDirectManualPunch(params: {
 
             if (!res.success) {
                 // Se der erro de não poder sobrescrever, checa se a batida acabou entrando
-                const checkAgain = await client.getRegistroDoDia(cpfClean, cleanDate).catch(() => null);
+                const checkAgain = await client.getBatidasColunasDoDia(cpfClean, cleanDate).catch(() => null);
                 if (checkAgain && checkAgain[params.coluna]?.trim() === params.hora.trim()) {
                     resMessage = `Marcação ${COLUMN_LABEL[params.coluna] || params.coluna} (${params.hora}) confirmada no Secullum.`;
                 } else {

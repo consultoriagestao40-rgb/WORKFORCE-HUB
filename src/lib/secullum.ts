@@ -512,6 +512,39 @@ export class SecullumApiClient {
     }
 
     /**
+     * Batidas (Entrada1..Saida3) do dia de um colaborador. Usa o registro diário (Batidas) e, quando a API
+     * não o retorna para o colaborador, cai para o endpoint Calcular (mesma fonte do Cartão Ponto).
+     */
+    async getBatidasColunasDoDia(cpf: string, dateStr: string): Promise<Record<string, string | null>> {
+        const cols = ["Entrada1", "Saida1", "Entrada2", "Saida2", "Entrada3", "Saida3"];
+        const out: Record<string, string | null> = {};
+        cols.forEach(c => { out[c] = null; });
+        const isTimeVal = (v: any) => typeof v === "string" && /^\d{1,2}:\d{2}/.test(v.trim());
+
+        const registro = await this.getRegistroDoDia(cpf, dateStr).catch(() => null);
+        if (registro) {
+            for (const c of cols) if (isTimeVal(registro[c])) out[c] = String(registro[c]).trim();
+            return out;
+        }
+
+        const cleanCpf = cpf.replace(/\D/g, "");
+        const calc: any = await this.getCalculos(cleanCpf, dateStr, dateStr).catch(() => null);
+        if (Array.isArray(calc?.Linhas) && Array.isArray(calc?.Colunas)) {
+            for (const linha of calc.Linhas) {
+                if (String(linha.Key || "").startsWith(dateStr) && Array.isArray(linha.Value)) {
+                    calc.Colunas.forEach((colName: string, idx: number) => {
+                        const val = linha.Value[idx];
+                        if (!isTimeVal(val)) return;
+                        const m = /^(Entrada|Sa[ií]da)\s*([123])$/i.exec(String(colName).trim());
+                        if (m) out[`${/^entrada/i.test(m[1]) ? "Entrada" : "Saida"}${m[2]}`] = String(val).trim();
+                    });
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * Inclui uma batida manual no Cartão Ponto (ex: Entrada1 às 21:54)
      * Endpoint: POST /IntegracaoExterna/CartaoPonto/Manual
      */
