@@ -90,7 +90,8 @@ export function planPunches(params: {
     let columns: string[] = [];
     switch (params.scope) {
         case "ENTRADA":
-            columns = ["Entrada1"];
+            // "Só Entrada" respeita a coluna da ocorrência (ex: Entrada 2 = retorno do intervalo)
+            columns = [params.fallbackColumn && params.fallbackColumn.startsWith("Entrada") ? params.fallbackColumn : "Entrada1"];
             break;
         case "SAIDA": {
             const lastExit = ["Saida3", "Saida2", "Saida1"].find(c => sched(c));
