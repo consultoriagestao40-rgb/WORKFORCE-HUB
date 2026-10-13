@@ -1383,6 +1383,8 @@ model AttendancePunchAdjustment {
   isAccountManager      Boolean   @default(false)
   requestedAt           DateTime? // Momento em que o gestor solicitou o ajuste / confirmou a falta
   punchScope            String?   // ENTRADA, SAIDA, INTERVALO, TODOS (marcações a lançar no Secullum)
+  sendCount             Int       @default(0) // Quantas vezes o alerta foi enviado ao gestor (1º envio, 2º envio...)
+  lastSentAt            DateTime? // Data/hora do último envio ao gestor
   resolvedByUserId      String?
   resolvedAt            DateTime?
   secullumStatus        String?   // SUCESSO, ERRO, EXISTENTE_OFFLINE

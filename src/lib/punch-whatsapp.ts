@@ -301,9 +301,19 @@ export async function sendPunchAdjustmentWhatsAppAlert(
 📅 *Data:* ${dataFormatada} | *${adj.punchType === "SEM_BATIDAS" ? "Situação" : isMulti ? "Faltam" : "Marcação"}:* ${tipoText}
 ⏰ *Horário Previsto:* ${adj.expectedTime}`;
 
+        // Reenvio: informa em qual envio estamos (o 1º envio não leva marcação)
+        const attempt = (adj.sendCount || 0) + 1;
+        const attemptTag = attempt > 1 ? `🔁 *${attempt}º ENVIO — AINDA SEM RESPOSTA*\n` : "";
+        const registerSend = async () => {
+            await prisma.attendancePunchAdjustment.update({
+                where: { id: adjustmentId },
+                data: { sendCount: { increment: 1 }, lastSentAt: new Date() }
+            });
+        };
+
         // Sem gestor com WhatsApp cadastrado: avisa o grupo (texto) para alguém cadastrar/tratar
         if (!managerPhone) {
-            const fallbackMsg = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n${colabInfo}\n\n` +
+            const fallbackMsg = `${attemptTag}🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n${colabInfo}\n\n` +
                 `⚠️ *Contrato sem Gestor com WhatsApp cadastrado.* Cadastre o gestor do contrato (com telefone) no Workforce Hub para que ele receba o menu de tratativa no privado.`;
             const res = await sendZapiWithMentions({ target: groupTarget, message: fallbackMsg });
             if (res.success) {
@@ -316,12 +326,13 @@ export async function sendPunchAdjustmentWhatsAppAlert(
                         clientId: client?.id || adj.clientId || null
                     }
                 });
+                await registerSend();
             }
             return { success: res.success, zapiId: res.zapiId, message: "Sem gestor com telefone: aviso enviado ao grupo." };
         }
 
         const firstName = (manager?.name || "").split(" ")[0];
-        const fullMessage = `🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n` +
+        const fullMessage = `${attemptTag}🚨 *INCONSISTÊNCIA DE PONTO — #${adj.code}*\n\n` +
             `Olá${firstName ? ` ${firstName}` : ""}, você é o gestor deste contrato.\n\n` +
             `${colabInfo}\n\n_Toque no menu abaixo para definir a tratativa:_ 👇`;
 
@@ -348,6 +359,7 @@ export async function sendPunchAdjustmentWhatsAppAlert(
                     clientId: client?.id || adj.clientId || null
                 }
             });
+            await registerSend();
         }
 
         return sendRes;

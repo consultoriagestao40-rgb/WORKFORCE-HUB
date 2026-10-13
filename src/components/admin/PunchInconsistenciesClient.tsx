@@ -18,7 +18,10 @@ import {
     Sparkles,
     User,
     UserX,
-    PlusCircle
+    PlusCircle,
+    Users,
+    Repeat,
+    X
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,7 +39,10 @@ import {
     ignoreInconsistency,
     unignoreInconsistency,
     launchDirectManualPunch,
-    type InconsistencyRow
+    resendPunchAdjustmentToManager,
+    type InconsistencyRow,
+    type EmployeeTimecard,
+    type EmployeeDay
 } from "@/actions/punch-inconsistencies";
 import { COLUMN_LABEL, type PunchColumn } from "@/lib/punch-inconsistency";
 
@@ -97,7 +103,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
     const [endDate, setEndDate] = useState(period.end);
     const [managerFilter, setManagerFilter] = useState("ALL");
     const [clientFilter, setClientFilter] = useState("ALL");
-    const [statusFilter, setStatusFilter] = useState<"NOVO" | "ENVIADO" | "IGNORADO" | "ALL">("NOVO");
+    const [statusFilter, setStatusFilter] = useState<"NOVO" | "ENVIADO" | "IGNORADO" | "ALL">("ALL");
+    const [trafficFilter, setTrafficFilter] = useState<"ALL" | "RED" | "YELLOW" | "GREEN">("ALL");
+    const [employees, setEmployees] = useState<EmployeeTimecard[]>([]);
+    const [openEmployeeId, setOpenEmployeeId] = useState<string | null>(null);
+    const [resendingKeys, setResendingKeys] = useState<Set<string>>(new Set());
     const [kindFilter, setKindFilter] = useState<"ALL" | "SEM_BATIDAS" | "INCOMPLETA">("ALL");
     const [search, setSearch] = useState("");
 
@@ -143,7 +153,9 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 setRows(prev => prev.map(r => r.key === directPunchRow.key ? {
                     ...r,
                     status: "ENVIADO",
-                    adjustment: { id: "", code: "DIRETO", status: "APPROVED_SYNCED", secullumStatus: "SUCESSO" }
+                    pending: false,
+                    pendingKind: null,
+                    adjustment: { id: "", code: "DIRETO", status: "APPROVED_SYNCED", secullumStatus: "SUCESSO", sendCount: 0, lastSentAt: null }
                 } : r));
                 setDirectPunchRow(null);
             } else {
@@ -166,9 +178,10 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 return;
             }
             setRows(res.rows);
+            setEmployees(res.employees || []);
             setUnmatched(res.unmatched);
             setHasScanned(true);
-            toast.success(`${res.rows.length} inconsistência(s) encontradas no Secullum.`);
+            toast.success(`${(res.employees || []).length} colaborador(es) lidos no Secullum, ${res.rows.filter(r => r.pending).length} pendência(s) de ponto.`);
         } catch (e: any) {
             toast.error(e.message || "Erro ao buscar inconsistências.");
         } finally {
@@ -244,7 +257,20 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
             setRows(prev => prev.map(r => {
                 const out = byKey.get(r.key);
                 if (!out?.code) return r;
-                return { ...r, status: "ENVIADO", adjustment: { id: "", code: out.code, status: "PENDING_RESPONSE", secullumStatus: null } };
+                return {
+                    ...r,
+                    status: "ENVIADO",
+                    pending: true,
+                    pendingKind: "AGUARDANDO_GESTOR",
+                    adjustment: {
+                        id: out.adjustmentId || "",
+                        code: out.code,
+                        status: "PENDING_RESPONSE",
+                        secullumStatus: null,
+                        sendCount: out.ok ? 1 : 0,
+                        lastSentAt: out.ok ? new Date().toISOString() : null
+                    }
+                };
             }));
             setSelected(prev => {
                 const next = new Set(prev);
@@ -269,7 +295,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
         setIgnoreRow(null);
         const res = await ignoreInconsistency(row.employeeId, row.date, ignoreReason);
         if (!res.success) return toast.error(res.message || "Erro ao ignorar.");
-        setRows(prev => prev.map(r => (r.key === row.key ? { ...r, status: "IGNORADO", ignored: { reason: ignoreReason, userName: null } } : r)));
+        setRows(prev => prev.map(r => (r.key === row.key ? { ...r, status: "IGNORADO", pending: false, pendingKind: null, ignored: { reason: ignoreReason, userName: null } } : r)));
         setSelected(prev => {
             const next = new Set(prev);
             next.delete(row.key);
@@ -281,12 +307,108 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
     const doUnignore = async (row: InconsistencyRow) => {
         const res = await unignoreInconsistency(row.employeeId, row.date);
         if (!res.success) return toast.error(res.message || "Erro.");
-        setRows(prev => prev.map(r => (r.key === row.key ? { ...r, status: "NOVO", ignored: null } : r)));
+        setRows(prev => prev.map(r => (r.key === row.key ? { ...r, status: "NOVO", pending: true, pendingKind: "NOVO", ignored: null } : r)));
         toast.success("Inconsistência reativada.");
     };
 
     const selectedRows = rows.filter(r => selected.has(r.key));
     const selectedWithoutManager = selectedRows.filter(r => !r.managerHasPhone).length;
+
+    const doResend = async (r: InconsistencyRow) => {
+        if (!r.adjustment?.id) return toast.error("Ajuste sem identificador. Atualize a busca e tente novamente.");
+        setResendingKeys(prev => new Set(prev).add(r.key));
+        try {
+            const res = await resendPunchAdjustmentToManager(r.adjustment.id);
+            if (!res.success) return toast.error(res.message);
+            toast.success(res.message);
+            setRows(prev => prev.map(x => (x.key === r.key && x.adjustment ? {
+                ...x,
+                adjustment: {
+                    ...x.adjustment,
+                    sendCount: res.sendCount ?? x.adjustment.sendCount + 1,
+                    lastSentAt: res.lastSentAt ?? new Date().toISOString()
+                }
+            } : x)));
+        } catch (e: any) {
+            toast.error(e.message || "Erro ao reenviar.");
+        } finally {
+            setResendingKeys(prev => {
+                const next = new Set(prev);
+                next.delete(r.key);
+                return next;
+            });
+        }
+    };
+
+    // ---- Visão por colaborador (semáforo) ----
+    const rowsByEmployee = useMemo(() => {
+        const map = new Map<string, InconsistencyRow[]>();
+        rows.forEach(r => {
+            const list = map.get(r.employeeId) || [];
+            list.push(r);
+            map.set(r.employeeId, list);
+        });
+        return map;
+    }, [rows]);
+
+    const rowByKey = useMemo(() => new Map(rows.map(r => [r.key, r])), [rows]);
+
+    type Level = "RED" | "YELLOW" | "GREEN" | "GRAY";
+    const employeeViews = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        const order: Record<Level, number> = { RED: 0, YELLOW: 1, GREEN: 2, GRAY: 3 };
+        const views = employees
+            .filter(c => {
+                if (managerFilter === "NONE" && c.managerId) return false;
+                if (managerFilter !== "ALL" && managerFilter !== "NONE" && c.managerId !== managerFilter) return false;
+                if (clientFilter !== "ALL" && c.clientId !== clientFilter) return false;
+                if (q && !c.employeeName.toLowerCase().includes(q) && !(c.clientName || "").toLowerCase().includes(q) && !(c.folha || "").includes(q)) return false;
+                return true;
+            })
+            .map(card => {
+                const empRows = rowsByEmployee.get(card.employeeId) || [];
+                const pendingRows = empRows.filter(r => r.pending);
+                const level: Level = card.semPonto ? "GRAY" : pendingRows.length === 0 ? "GREEN" : pendingRows.length === 1 ? "YELLOW" : "RED";
+                return { card, empRows, pendingRows, level };
+            });
+        return { all: views, order, q };
+    }, [employees, rowsByEmployee, managerFilter, clientFilter, search]);
+
+    const trafficCounts = useMemo(() => ({
+        RED: employeeViews.all.filter(v => v.level === "RED").length,
+        YELLOW: employeeViews.all.filter(v => v.level === "YELLOW").length,
+        GREEN: employeeViews.all.filter(v => v.level === "GREEN").length,
+        GRAY: employeeViews.all.filter(v => v.level === "GRAY").length
+    }), [employeeViews]);
+
+    const visibleEmployees = useMemo(() => {
+        const { all, order } = employeeViews;
+        return all
+            .filter(v => {
+                if (trafficFilter !== "ALL" && v.level !== trafficFilter) return false;
+                // Cards superiores: restringem aos colaboradores que têm dias naquele grupo
+                if (statusFilter !== "ALL" || kindFilter !== "ALL") {
+                    return v.empRows.some(r => (statusFilter === "ALL" || r.status === statusFilter) && (kindFilter === "ALL" || r.kind === kindFilter));
+                }
+                return true;
+            })
+            .sort((a, b) => {
+                if (order[a.level] !== order[b.level]) return order[a.level] - order[b.level];
+                if (b.pendingRows.length !== a.pendingRows.length) return b.pendingRows.length - a.pendingRows.length;
+                return a.card.employeeName.localeCompare(b.card.employeeName);
+            });
+    }, [employeeViews, trafficFilter, statusFilter, kindFilter]);
+
+    const openView = openEmployeeId ? employeeViews.all.find(v => v.card.employeeId === openEmployeeId) || null : null;
+
+    const LEVEL_STYLE: Record<"RED" | "YELLOW" | "GREEN" | "GRAY", { dot: string; badge: string; label: (n: number) => string }> = {
+        RED: { dot: "bg-rose-500", badge: "bg-rose-50 text-rose-700 border-rose-200", label: n => `${n} pendências` },
+        YELLOW: { dot: "bg-amber-400", badge: "bg-amber-50 text-amber-700 border-amber-200", label: () => "1 pendência" },
+        GREEN: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", label: () => "Em dia" },
+        GRAY: { dot: "bg-slate-300", badge: "bg-slate-100 text-slate-600 border-slate-200", label: () => "Sem cartão no Secullum" }
+    };
+
+    const nth = (n: number) => `${n}º`;
 
     const StatCard = ({ title, value, hint, icon: Icon, tone, onClick, active }: any) => (
         <button
@@ -317,22 +439,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                         </div>
                         <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
                             <CalendarX2 className="w-8 h-8 text-rose-500" />
-                            Inconsistências de Ponto
+                            Ponto dos Colaboradores
                         </h1>
                         <p className="text-sm text-slate-500 font-medium mt-1">
-                            Dias com batidas faltando ou sem nenhuma batida. Analise e envie ao gestor do contrato para ajustar ou confirmar falta.
+                            Todos os colaboradores ativos no ponto x WFH com semáforo de pendências. Clique no colaborador para ver o cartão de ponto.
                         </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Button
-                            id="btn-send-selected"
-                            disabled={selectedRows.length === 0 || sendingKeys.size > 0}
-                            onClick={() => setConfirmItems(selectedRows)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-10 flex items-center gap-2"
-                        >
-                            {sendingKeys.size > 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 text-indigo-200" />}
-                            Enviar selecionados ({selectedRows.length})
-                        </Button>
                     </div>
                 </div>
             ) : (
@@ -340,21 +451,12 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                     <div>
                         <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2">
                             <CalendarX2 className="w-5 h-5 text-rose-500" />
-                            Inconsistências Detectadas no Secullum
+                            Ponto dos Colaboradores x Secullum
                         </h2>
                         <p className="text-xs text-slate-500 font-medium mt-0.5">
-                            Dias com batidas faltando ou em branco. Selecione e dispare o menu de tratativa ao gestor do contrato.
+                            Todos os colaboradores ativos com semáforo de pendências de ponto. Clique em um colaborador para tratar os dias.
                         </p>
                     </div>
-                    <Button
-                        id="btn-send-selected-tab"
-                        disabled={selectedRows.length === 0 || sendingKeys.size > 0}
-                        onClick={() => setConfirmItems(selectedRows)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm rounded-xl px-4 h-9 text-xs flex items-center gap-2"
-                    >
-                        {sendingKeys.size > 0 ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-indigo-200" />}
-                        Enviar selecionados ({selectedRows.length})
-                    </Button>
                 </div>
             )}
 
@@ -470,7 +572,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                         className="w-full sm:w-auto h-10 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs px-5 shadow-sm shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all"
                     >
                         {loading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Search className="w-4 h-4 mr-1" />}
-                        Buscar inconsistências
+                        Buscar
                     </Button>
                 </div>
             </div>
@@ -479,19 +581,19 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard title="Para analisar" value={stats.novos} hint="Ainda não enviadas" icon={AlertTriangle}
                     tone={{ text: "text-rose-700", bg: "bg-rose-100 text-rose-700", ring: "ring-rose-100", border: "border-rose-300" }}
-                    active={statusFilter === "NOVO" && kindFilter === "ALL"} onClick={() => { setStatusFilter("NOVO"); setKindFilter("ALL"); }} />
+                    active={statusFilter === "NOVO" && kindFilter === "ALL"} onClick={() => { const on = statusFilter === "NOVO" && kindFilter === "ALL"; setStatusFilter(on ? "ALL" : "NOVO"); setKindFilter("ALL"); }} />
                 <StatCard title="Sem nenhuma batida" value={stats.semBatidas} hint="Dia de trabalho vazio" icon={CalendarX2}
                     tone={{ text: "text-red-700", bg: "bg-red-100 text-red-700", ring: "ring-red-100", border: "border-red-300" }}
-                    active={statusFilter === "NOVO" && kindFilter === "SEM_BATIDAS"} onClick={() => { setStatusFilter("NOVO"); setKindFilter("SEM_BATIDAS"); }} />
+                    active={statusFilter === "NOVO" && kindFilter === "SEM_BATIDAS"} onClick={() => { const on = statusFilter === "NOVO" && kindFilter === "SEM_BATIDAS"; setStatusFilter(on ? "ALL" : "NOVO"); setKindFilter(on ? "ALL" : "SEM_BATIDAS"); }} />
                 <StatCard title="Batidas faltando" value={stats.incompletas} hint="Dia incompleto" icon={Clock}
                     tone={{ text: "text-amber-700", bg: "bg-amber-100 text-amber-700", ring: "ring-amber-100", border: "border-amber-300" }}
-                    active={statusFilter === "NOVO" && kindFilter === "INCOMPLETA"} onClick={() => { setStatusFilter("NOVO"); setKindFilter("INCOMPLETA"); }} />
+                    active={statusFilter === "NOVO" && kindFilter === "INCOMPLETA"} onClick={() => { const on = statusFilter === "NOVO" && kindFilter === "INCOMPLETA"; setStatusFilter(on ? "ALL" : "NOVO"); setKindFilter(on ? "ALL" : "INCOMPLETA"); }} />
                 <StatCard title="Enviadas ao gestor" value={stats.enviados} hint="Com ajuste em andamento" icon={CheckCircle2}
                     tone={{ text: "text-emerald-700", bg: "bg-emerald-100 text-emerald-700", ring: "ring-emerald-100", border: "border-emerald-300" }}
-                    active={statusFilter === "ENVIADO"} onClick={() => { setStatusFilter("ENVIADO"); setKindFilter("ALL"); }} />
+                    active={statusFilter === "ENVIADO"} onClick={() => { setStatusFilter(statusFilter === "ENVIADO" ? "ALL" : "ENVIADO"); setKindFilter("ALL"); }} />
                 <StatCard title="Ignoradas" value={stats.ignorados} hint="Marcadas para não tratar" icon={EyeOff}
                     tone={{ text: "text-slate-600", bg: "bg-slate-100 text-slate-600", ring: "ring-slate-100", border: "border-slate-300" }}
-                    active={statusFilter === "IGNORADO"} onClick={() => { setStatusFilter("IGNORADO"); setKindFilter("ALL"); }} />
+                    active={statusFilter === "IGNORADO"} onClick={() => { setStatusFilter(statusFilter === "IGNORADO" ? "ALL" : "IGNORADO"); setKindFilter("ALL"); }} />
             </div>
 
             {(stats.semGestor > 0 || unmatched > 0) && (
@@ -514,251 +616,126 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 </div>
             )}
 
-            {/* Tabela com Colunas Fixas (Data/Colaborador à esquerda e Botão de Envio SEMPRE VISÍVEL à direita) */}
+            {/* Semáforo: resumo por colaborador */}
+            <div className="flex flex-wrap items-center gap-2">
+                {([
+                    { id: "ALL", label: "Todos", count: employeeViews.all.length, cls: "bg-slate-100 text-slate-700 border-slate-300", dot: "bg-slate-400" },
+                    { id: "RED", label: "Vermelho (2+ pendências)", count: trafficCounts.RED, cls: "bg-rose-50 text-rose-700 border-rose-300", dot: "bg-rose-500" },
+                    { id: "YELLOW", label: "Amarelo (1 pendência)", count: trafficCounts.YELLOW, cls: "bg-amber-50 text-amber-700 border-amber-300", dot: "bg-amber-400" },
+                    { id: "GREEN", label: "Verde (em dia)", count: trafficCounts.GREEN, cls: "bg-emerald-50 text-emerald-700 border-emerald-300", dot: "bg-emerald-500" }
+                ] as const).map(t => (
+                    <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTrafficFilter(t.id)}
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer ${t.cls} ${trafficFilter === t.id ? "ring-2 ring-offset-1 ring-slate-300 shadow-sm" : "opacity-80 hover:opacity-100"}`}
+                    >
+                        <span className={`w-2.5 h-2.5 rounded-full ${t.dot}`} />
+                        {t.label}
+                        <span className="font-black">{t.count}</span>
+                    </button>
+                ))}
+                {trafficCounts.GRAY > 0 && (
+                    <span className="text-[11px] text-slate-400 font-medium ml-1">+ {trafficCounts.GRAY} ativo(s) no WFH sem cartão no Secullum</span>
+                )}
+            </div>
+
+            {/* Lista de colaboradores (pendências no topo) */}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden relative">
                 <div className="w-full overflow-x-auto relative">
-                    <Table className="w-full border-collapse border-spacing-0 min-w-[1050px]">
+                    <Table className="w-full border-collapse border-spacing-0 min-w-[900px]">
                         <TableHeader>
                             <TableRow className="bg-slate-50/90 border-b border-slate-200/80">
-                                <TableHead className="w-10 sticky left-0 z-30 bg-slate-50 pl-4 pr-1 text-center">
-                                    <input 
-                                        id="chk-all" 
-                                        type="checkbox" 
-                                        className="w-4 h-4 accent-indigo-600 rounded cursor-pointer" 
-                                        checked={allSelected} 
-                                        onChange={toggleAll} 
-                                        disabled={selectable.length === 0} 
-                                    />
-                                </TableHead>
-                                <TableHead className="w-24 sticky left-10 z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider px-3 whitespace-nowrap">
-                                    Data
-                                </TableHead>
-                                <TableHead className="min-w-[190px] max-w-[240px] sticky left-[136px] z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider px-3 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)]">
-                                    Colaborador
-                                </TableHead>
-                                <TableHead className="min-w-[180px] max-w-[220px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
-                                    Contrato / Posto
-                                </TableHead>
-                                <TableHead className="min-w-[150px] max-w-[190px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
-                                    Gestor
-                                </TableHead>
-                                <TableHead className="min-w-[270px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
-                                    Marcações (real × previsto)
-                                </TableHead>
-                                <TableHead className="w-32 font-bold text-slate-700 text-xs uppercase tracking-wider px-3">
-                                    Situação
-                                </TableHead>
-                                <TableHead className="w-36 sticky right-0 z-30 bg-slate-50 font-bold text-slate-700 text-xs uppercase tracking-wider text-right pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)]">
-                                    Ações
-                                </TableHead>
+                                <TableHead className="w-44 font-bold text-slate-700 text-xs uppercase tracking-wider px-4">Status do ponto</TableHead>
+                                <TableHead className="min-w-[210px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">Colaborador</TableHead>
+                                <TableHead className="min-w-[180px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">Contrato / Posto</TableHead>
+                                <TableHead className="min-w-[150px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">Gestor</TableHead>
+                                <TableHead className="min-w-[260px] font-bold text-slate-700 text-xs uppercase tracking-wider px-3">Dias pendentes</TableHead>
+                                <TableHead className="w-28 text-right font-bold text-slate-700 text-xs uppercase tracking-wider pr-4">Cartão</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-16 text-slate-500">
+                                    <TableCell colSpan={6} className="text-center py-16 text-slate-500">
                                         <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-sky-600" />
                                         Lendo cartões de ponto no Secullum...
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {!loading && filtered.length === 0 && (
+                            {!loading && visibleEmployees.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-16 text-slate-500">
-                                        <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500" />
-                                        {hasScanned ? "Nenhuma inconsistência com esses filtros." : "Clique em Buscar inconsistências."}
+                                    <TableCell colSpan={6} className="text-center py-16 text-slate-500">
+                                        <Users className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                                        {hasScanned ? "Nenhum colaborador com esses filtros." : "Clique em Buscar para ler os cartões."}
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {!loading && filtered.map(r => {
-                                const isSending = sendingKeys.has(r.key);
-                                const adjBadge = r.adjustment ? ADJ_STATUS_LABEL[r.adjustment.status] : null;
-                                const usedCols = COLS.filter(c => r.expected[c] || r.actual[c] || r.missing.includes(c));
-                                const isSelected = selected.has(r.key);
-                                const stickyBg = isSelected ? "bg-indigo-50/95" : "bg-white group-hover:bg-slate-50/95";
-
+                            {!loading && visibleEmployees.map(v => {
+                                const st = LEVEL_STYLE[v.level];
+                                const sortedPending = [...v.pendingRows].sort((a, b) => (a.date < b.date ? 1 : -1));
                                 return (
-                                    <TableRow 
-                                        key={r.key} 
-                                        className={`group transition-colors border-b border-slate-100 ${isSelected ? "bg-indigo-50/50" : "hover:bg-slate-50/60"}`}
+                                    <TableRow
+                                        key={v.card.employeeId}
+                                        onClick={() => setOpenEmployeeId(v.card.employeeId)}
+                                        className="group cursor-pointer border-b border-slate-100 hover:bg-slate-50/70 transition-colors"
                                     >
-                                        {/* 1. Checkbox Sticky */}
-                                        <TableCell className={`w-10 sticky left-0 z-20 transition-colors pl-4 pr-1 text-center ${stickyBg}`}>
-                                            <input 
-                                                type="checkbox" 
-                                                className="w-4 h-4 accent-indigo-600 rounded cursor-pointer" 
-                                                disabled={r.status !== "NOVO"} 
-                                                checked={isSelected} 
-                                                onChange={() => toggleOne(r.key)} 
-                                            />
-                                        </TableCell>
-
-                                        {/* 2. Data Sticky */}
-                                        <TableCell className={`w-24 sticky left-10 z-20 transition-colors px-3 whitespace-nowrap ${stickyBg}`}>
-                                            <div className={`font-black text-xs ${r.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>
-                                                {fmtDate(r.date)}
+                                        <TableCell className="px-4">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className={`w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ${st.dot}`} />
+                                                <Badge variant="outline" className={`text-[10px] font-black py-0.5 px-2 whitespace-nowrap ${st.badge}`}>
+                                                    {st.label(v.pendingRows.length)}
+                                                </Badge>
                                             </div>
-                                            <div className="text-[11px] text-slate-400 font-semibold">{WEEKDAYS[r.weekday]}</div>
                                         </TableCell>
-
-                                        {/* 3. Colaborador Sticky */}
-                                        <TableCell className={`min-w-[190px] max-w-[240px] sticky left-[136px] z-20 transition-colors px-3 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.06)] ${stickyBg}`}>
-                                            <div className="font-extrabold text-slate-900 text-xs leading-tight truncate" title={r.employeeName}>
-                                                {r.employeeName}
+                                        <TableCell className="px-3">
+                                            <div className="font-extrabold text-slate-900 text-xs leading-tight truncate max-w-[240px]" title={v.card.employeeName}>
+                                                {v.card.employeeName}
                                             </div>
-                                            {r.folha && (
-                                                <div className="text-[10px] text-slate-400 font-mono font-medium mt-0.5">
-                                                    Folha {r.folha}
-                                                </div>
-                                            )}
+                                            {v.card.folha && <div className="text-[10px] text-slate-400 font-mono font-medium mt-0.5">Folha {v.card.folha}</div>}
                                         </TableCell>
-
-                                        {/* 4. Contrato / Posto */}
-                                        <TableCell className="min-w-[180px] max-w-[220px] px-3">
-                                            <div className="text-xs font-bold text-slate-800 leading-tight truncate" title={r.clientName || "Sem alocação"}>
-                                                {r.clientName || <span className="text-slate-400 font-normal">Sem alocação</span>}
+                                        <TableCell className="px-3">
+                                            <div className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[210px]" title={v.card.clientName || "Sem alocação"}>
+                                                {v.card.clientName || <span className="text-slate-400 font-normal">Sem alocação</span>}
                                             </div>
-                                            {r.postoName && (
-                                                <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5" title={r.postoName}>
-                                                    {r.postoName}
-                                                </div>
-                                            )}
+                                            {v.card.postoName && <div className="text-[11px] text-slate-500 font-medium truncate max-w-[210px] mt-0.5">{v.card.postoName}</div>}
                                         </TableCell>
-
-                                        {/* 5. Gestor */}
-                                        <TableCell className="min-w-[150px] max-w-[190px] px-3">
-                                            {r.managerName ? (
-                                                <div className="text-xs text-slate-700 font-medium truncate" title={r.managerName}>
-                                                    <span className="font-semibold text-slate-800">{r.managerName}</span>
-                                                    {!r.managerHasPhone && (
-                                                        <span className="block text-[10px] text-amber-600 font-bold">⚠️ sem WhatsApp</span>
-                                                    )}
+                                        <TableCell className="px-3">
+                                            {v.card.managerName ? (
+                                                <div className="text-xs text-slate-700 font-semibold truncate max-w-[180px]" title={v.card.managerName}>
+                                                    {v.card.managerName}
+                                                    {!v.card.managerHasPhone && <span className="block text-[10px] text-amber-600 font-bold">⚠️ sem WhatsApp</span>}
                                                 </div>
                                             ) : (
-                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">
-                                                    Sem gestor
-                                                </Badge>
+                                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-bold">Sem gestor</Badge>
                                             )}
                                         </TableCell>
-
-                                        {/* 6. Marcações (real × previsto) */}
-                                        <TableCell className="min-w-[270px] px-3">
-                                            <div className="flex flex-wrap gap-1">
-                                                {usedCols.map(c => {
-                                                    const isMissing = r.missing.includes(c);
-                                                    const val = r.actual[c];
-                                                    const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
-                                                    return (
-                                                        <div
-                                                            key={c}
-                                                            title={`${c} — Previsto: ${r.expected[c] || "—"}`}
-                                                            className={`flex flex-col items-center min-w-[48px] px-1.5 py-0.5 rounded-md border text-[10px] leading-tight transition-all ${
-                                                                isMissing
-                                                                    ? "bg-rose-50 border-rose-200 text-rose-700 border-dashed font-bold"
-                                                                    : isText
-                                                                        ? "bg-slate-700 border-slate-700 text-white font-semibold"
-                                                                        : "bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold"
-                                                            }`}
-                                                        >
-                                                            <span className="font-extrabold opacity-75">{COL_SHORT[c]}</span>
-                                                            <span className="font-mono">{isMissing ? "faltou" : val}</span>
-                                                            <span className="opacity-60 text-[9px]">{r.expected[c] || "—"}</span>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            {r.workedOnDayOff && (
-                                                <div className="text-[10px] text-violet-600 font-bold mt-1">
-                                                    ✦ Batidas em folga
+                                        <TableCell className="px-3">
+                                            {sortedPending.length === 0 ? (
+                                                <span className="text-[11px] text-slate-400 font-medium">—</span>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {sortedPending.slice(0, 5).map(r => {
+                                                        const cls = r.pendingKind === "AGUARDANDO_GESTOR" ? "bg-amber-50 text-amber-800 border-amber-200"
+                                                            : r.pendingKind === "AGUARDANDO_RH" ? "bg-sky-50 text-sky-800 border-sky-200"
+                                                                : "bg-rose-50 text-rose-700 border-rose-200";
+                                                        const sends = r.adjustment?.sendCount || 0;
+                                                        return (
+                                                            <span key={r.key} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${cls}`}>
+                                                                {fmtDate(r.date).slice(0, 5)}
+                                                                {r.pendingKind === "AGUARDANDO_GESTOR" && sends > 0 && <span className="opacity-70">· {nth(sends)} envio</span>}
+                                                                {r.pendingKind === "AGUARDANDO_RH" && <span className="opacity-70">· RH</span>}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                    {sortedPending.length > 5 && <span className="text-[10px] text-slate-400 font-bold self-center">+{sortedPending.length - 5}</span>}
                                                 </div>
                                             )}
                                         </TableCell>
-
-                                        {/* 7. Situação */}
-                                        <TableCell className="w-32 whitespace-nowrap px-3">
-                                            {r.status === "NOVO" && (
-                                                <Badge 
-                                                    variant="outline" 
-                                                    className={`text-[10px] font-black py-0.5 px-2 ${
-                                                        r.kind === "SEM_BATIDAS" 
-                                                            ? "bg-red-50 text-red-700 border-red-200" 
-                                                            : "bg-amber-50 text-amber-700 border-amber-200"
-                                                    }`}
-                                                >
-                                                    {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`}
-                                                </Badge>
-                                            )}
-                                            {r.status === "ENVIADO" && r.adjustment && (
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="font-mono text-[11px] font-bold text-indigo-700">#{r.adjustment.code}</span>
-                                                    {adjBadge && <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${adjBadge.cls}`}>{adjBadge.label}</Badge>}
-                                                </div>
-                                            )}
-                                            {r.status === "IGNORADO" && (
-                                                <div className="flex flex-col gap-0.5">
-                                                    <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">Ignorada</Badge>
-                                                    {r.ignored?.reason && (
-                                                        <span className="text-[10px] text-slate-400 max-w-[140px] truncate" title={r.ignored.reason}>
-                                                            {r.ignored.reason}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </TableCell>
-
-                                        {/* 8. Ações STICKY RIGHT (SEMPRE VISÍVEL!) */}
-                                        <TableCell className={`w-44 sticky right-0 z-20 transition-colors text-right whitespace-nowrap pr-4 pl-2 shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.06)] ${stickyBg}`}>
-                                            {r.status === "NOVO" && (
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {/* Botão de Lançar Batida Direta (Esquecimento) */}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={isSending}
-                                                        onClick={() => openDirectPunch(r)}
-                                                        className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 shadow-2xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
-                                                        title="Lançar batida manual direto no Secullum (Esquecimento)"
-                                                    >
-                                                        <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                                        <span>Lançar</span>
-                                                    </Button>
-
-                                                    <Button 
-                                                        size="sm" 
-                                                        disabled={isSending} 
-                                                        onClick={() => setConfirmItems([r])}
-                                                        className="h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3 shadow-xs flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
-                                                    >
-                                                        {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-0.5 text-indigo-100" />}
-                                                        {!isSending && "Enviar"}
-                                                    </Button>
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="ghost" 
-                                                        disabled={isSending} 
-                                                        onClick={() => { setIgnoreRow(r); setIgnoreReason(IGNORE_REASONS[0]); }}
-                                                        className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 cursor-pointer" 
-                                                        title="Ignorar esta inconsistência"
-                                                    >
-                                                        <EyeOff className="w-3.5 h-3.5" />
-                                                    </Button>
-                                                </div>
-                                            )}
-                                            {r.status === "IGNORADO" && (
-                                                <Button 
-                                                    size="sm" 
-                                                    variant="outline" 
-                                                    onClick={() => doUnignore(r)} 
-                                                    className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100"
-                                                >
-                                                    <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
-                                                </Button>
-                                            )}
-                                            {r.status === "ENVIADO" && (
-                                                <a href="/admin/punch-adjustments" className="text-xs font-bold text-sky-700 hover:underline inline-flex items-center gap-1">
-                                                    Ver ajuste →
-                                                </a>
-                                            )}
+                                        <TableCell className="text-right pr-4">
+                                            <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs font-bold border-slate-200 text-slate-700 group-hover:border-sky-300 group-hover:text-sky-700 cursor-pointer">
+                                                Ver cartão
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -768,39 +745,198 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                 </div>
             </div>
 
-            {/* Barra Flutuante de Ação em Lote quando há itens selecionados */}
-            {selectedRows.length > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3.5 animate-in fade-in slide-in-from-bottom-5 duration-200">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-                        <span className="text-xs font-semibold text-slate-300">
-                            <strong className="text-white font-black text-sm">{selectedRows.length}</strong> {selectedRows.length === 1 ? "selecionado" : "selecionados"}
-                        </span>
-                    </div>
-                    <div className="h-4 w-px bg-slate-700" />
-                    <Button
-                        id="btn-floating-send"
-                        size="sm"
-                        onClick={() => setConfirmItems(selectedRows)}
-                        disabled={sendingKeys.size > 0}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs h-9 px-4 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer transition-all hover:scale-105"
-                    >
-                        {sendingKeys.size > 0 ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                            <Send className="w-3.5 h-3.5 text-indigo-200" />
-                        )}
-                        <span>Enviar ao Gestor Agora</span>
-                    </Button>
-                    <button
-                        type="button"
-                        onClick={() => setSelected(new Set())}
-                        className="text-xs text-slate-400 hover:text-white underline font-semibold cursor-pointer ml-1"
-                    >
-                        Desmarcar
-                    </button>
-                </div>
-            )}
+            {/* Modal: cartão de ponto do colaborador (visão semelhante ao Secullum) */}
+            <Dialog open={!!openView} onOpenChange={o => !o && setOpenEmployeeId(null)}>
+                <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+                    {openView && (() => {
+                        const { card, pendingRows, level } = openView;
+                        const st = LEVEL_STYLE[level];
+                        const useCols3 = card.days.some(d => d.actual.Entrada3 || d.actual.Saida3 || d.expected.Entrada3 || d.expected.Saida3);
+                        const cols = useCols3 ? COLS : COLS.slice(0, 4);
+                        const unsent = pendingRows.filter(r => r.pendingKind === "NOVO");
+                        return (
+                            <>
+                                <DialogHeader className="px-6 pt-5 pb-3 border-b border-slate-100 space-y-1">
+                                    <DialogTitle className="flex items-center gap-2.5 text-slate-900 font-black text-lg">
+                                        <span className={`w-3.5 h-3.5 rounded-full ${st.dot}`} />
+                                        {card.employeeName}
+                                        <Badge variant="outline" className={`text-[10px] font-black py-0.5 px-2 ${st.badge}`}>{st.label(pendingRows.length)}</Badge>
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-slate-500">
+                                        {card.clientName || "Sem alocação"}{card.postoName ? ` · ${card.postoName}` : ""}
+                                        {card.folha ? ` · Folha ${card.folha}` : ""}
+                                        {" · Gestor: "}<b>{card.managerName || "não definido"}</b>
+                                        {" · Período "}{fmtDate(startDate)} a {fmtDate(endDate)}
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                <div className="flex-1 overflow-auto px-6 py-3">
+                                    {card.days.length === 0 ? (
+                                        <div className="text-center py-12 text-slate-500 text-sm">
+                                            <UserX className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                                            Nenhum cartão de ponto deste colaborador foi encontrado no Secullum no período.
+                                        </div>
+                                    ) : (
+                                        <Table className="w-full border-collapse text-xs">
+                                            <TableHeader>
+                                                <TableRow className="bg-slate-50 border-b border-slate-200">
+                                                    <TableHead className="w-28 font-bold text-slate-700 text-[11px] uppercase px-2">Data</TableHead>
+                                                    {cols.map(c => (
+                                                        <TableHead key={c} className="text-center font-bold text-slate-700 text-[11px] uppercase px-1 w-20">{COLUMN_LABEL[c]}</TableHead>
+                                                    ))}
+                                                    <TableHead className="min-w-[170px] font-bold text-slate-700 text-[11px] uppercase px-2">Situação</TableHead>
+                                                    <TableHead className="min-w-[230px] text-right font-bold text-slate-700 text-[11px] uppercase px-2">Ações</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {[...card.days].sort((a, b) => {
+                                                    const ra = a.rowKey ? rowByKey.get(a.rowKey) : null;
+                                                    const rb = b.rowKey ? rowByKey.get(b.rowKey) : null;
+                                                    const pa = ra?.pending ? 0 : 1;
+                                                    const pb = rb?.pending ? 0 : 1;
+                                                    if (pa !== pb) return pa - pb; // pendências no topo
+                                                    return a.date < b.date ? 1 : -1;
+                                                }).map((day: EmployeeDay) => {
+                                                    const r = day.rowKey ? rowByKey.get(day.rowKey) || null : null;
+                                                    const isPending = !!r?.pending;
+                                                    const isSending = r ? sendingKeys.has(r.key) : false;
+                                                    const isResending = r ? resendingKeys.has(r.key) : false;
+                                                    const sends = r?.adjustment?.sendCount || 0;
+                                                    const adjBadge = r?.adjustment ? ADJ_STATUS_LABEL[r.adjustment.status] : null;
+                                                    return (
+                                                        <TableRow
+                                                            key={day.date}
+                                                            className={`border-b border-slate-100 ${isPending ? (r?.pendingKind === "NOVO" ? "bg-rose-50/40" : "bg-amber-50/40") : ""}`}
+                                                        >
+                                                            <TableCell className="px-2 py-2 whitespace-nowrap">
+                                                                <div className={`font-black ${day.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>{fmtDate(day.date)}</div>
+                                                                <div className="text-[10px] text-slate-400 font-semibold">{WEEKDAYS[day.weekday]}</div>
+                                                            </TableCell>
+                                                            {cols.map(c => {
+                                                                const val = day.actual[c];
+                                                                const missing = !!r && r.missing.includes(c);
+                                                                const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
+                                                                return (
+                                                                    <TableCell key={c} className="px-1 py-2 text-center">
+                                                                        {missing ? (
+                                                                            <div className="inline-flex flex-col items-center px-1.5 py-0.5 rounded-md border border-dashed border-rose-300 bg-rose-50 text-rose-700 font-bold leading-tight">
+                                                                                <span className="text-[10px]">falta</span>
+                                                                                <span className="text-[9px] opacity-60 font-mono">{day.expected[c] || "—"}</span>
+                                                                            </div>
+                                                                        ) : val ? (
+                                                                            <span className={`font-mono font-bold ${isText ? "px-1.5 py-0.5 rounded bg-slate-700 text-white text-[10px]" : "text-slate-800"}`}>{val}</span>
+                                                                        ) : (
+                                                                            <span className="text-slate-300">{day.dayOff ? "" : "·"}</span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                );
+                                                            })}
+                                                            <TableCell className="px-2 py-2">
+                                                                {day.leaveNote ? (
+                                                                    <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[10px] font-bold">{day.leaveNote}</Badge>
+                                                                ) : !r ? (
+                                                                    day.dayOff && Object.keys(day.actual).length === 0
+                                                                        ? <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-bold">Folga</Badge>
+                                                                        : <span className="inline-flex items-center gap-1 text-emerald-700 text-[11px] font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> OK</span>
+                                                                ) : r.status === "IGNORADO" ? (
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] w-fit">Ignorada</Badge>
+                                                                        {r.ignored?.reason && <span className="text-[10px] text-slate-400 max-w-[160px] truncate" title={r.ignored.reason}>{r.ignored.reason}</span>}
+                                                                    </div>
+                                                                ) : r.pendingKind === "NOVO" ? (
+                                                                    <Badge variant="outline" className={`text-[10px] font-black w-fit ${r.kind === "SEM_BATIDAS" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                                                                        {r.kind === "SEM_BATIDAS" ? "Sem batidas" : `Falta ${r.missing.length}`} · não enviada
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <span className="font-mono text-[11px] font-bold text-indigo-700">#{r.adjustment?.code}</span>
+                                                                        <div className="flex flex-wrap items-center gap-1">
+                                                                            {adjBadge && <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${adjBadge.cls}`}>{adjBadge.label}</Badge>}
+                                                                            {r.pendingKind === "AGUARDANDO_GESTOR" && sends > 0 && (
+                                                                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-indigo-50 text-indigo-700 border-indigo-200">{nth(sends)} envio</Badge>
+                                                                            )}
+                                                                        </div>
+                                                                        {r.adjustment?.lastSentAt && r.pendingKind === "AGUARDANDO_GESTOR" && (
+                                                                            <span className="text-[10px] text-slate-400">último: {new Date(r.adjustment.lastSentAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="px-2 py-2 text-right whitespace-nowrap">
+                                                                {r && r.pendingKind === "NOVO" && (
+                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                        <Button size="sm" variant="outline" disabled={isSending} onClick={() => openDirectPunch(r)}
+                                                                            className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
+                                                                            title="Lançar batida manual direto no Secullum (Esquecimento)">
+                                                                            <PlusCircle className="w-3.5 h-3.5 text-emerald-600" /> Lançar
+                                                                        </Button>
+                                                                        <Button size="sm" disabled={isSending} onClick={() => setConfirmItems([r])}
+                                                                            className="h-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-3 gap-1 cursor-pointer">
+                                                                            {isSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-indigo-100" />} Enviar ao líder
+                                                                        </Button>
+                                                                        <Button size="sm" variant="ghost" disabled={isSending} onClick={() => { setIgnoreRow(r); setIgnoreReason(IGNORE_REASONS[0]); }}
+                                                                            className="h-8 w-8 p-0 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+                                                                            title="Ignorar esta inconsistência">
+                                                                            <EyeOff className="w-3.5 h-3.5" />
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                                {r && r.pendingKind === "AGUARDANDO_GESTOR" && (
+                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                        <Button size="sm" variant="outline" onClick={() => openDirectPunch(r)}
+                                                                            className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
+                                                                            title="Lançar batida manual direto no Secullum">
+                                                                            <PlusCircle className="w-3.5 h-3.5 text-emerald-600" /> Lançar
+                                                                        </Button>
+                                                                        <Button size="sm" disabled={isResending} onClick={() => doResend(r)}
+                                                                            className="h-8 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs px-3 gap-1 cursor-pointer"
+                                                                            title="Reenviar ao gestor (fica registrado o nº do envio)">
+                                                                            {isResending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Repeat className="w-3.5 h-3.5" />} Reenviar ({nth(sends + 1)})
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                                {r && r.pendingKind === "AGUARDANDO_RH" && (
+                                                                    <a href="/admin/punch-adjustments?tab=adjustments" className="text-xs font-bold text-sky-700 hover:underline inline-flex items-center gap-1">
+                                                                        Aprovar no Secullum →
+                                                                    </a>
+                                                                )}
+                                                                {r && r.status === "IGNORADO" && (
+                                                                    <Button size="sm" variant="outline" onClick={() => doUnignore(r)} className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100 cursor-pointer">
+                                                                        <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
+                                                                    </Button>
+                                                                )}
+                                                                {r && !r.pending && r.status === "ENVIADO" && (
+                                                                    <a href="/admin/punch-adjustments?tab=adjustments" className="text-xs font-bold text-slate-500 hover:underline">Ver ajuste →</a>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                </div>
+
+                                <DialogFooter className="px-6 py-3 border-t border-slate-100 sm:justify-between gap-2">
+                                    <span className="text-[11px] text-slate-500 self-center">
+                                        {pendingRows.length === 0 ? "Sem pendências de ponto no período." : `${pendingRows.length} dia(s) pendente(s) · ${unsent.length} ainda não enviado(s) ao líder.`}
+                                    </span>
+                                    <div className="flex gap-2">
+                                        {unsent.length > 0 && (
+                                            <Button size="sm" onClick={() => setConfirmItems(unsent)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl gap-1.5 cursor-pointer">
+                                                <Send className="w-3.5 h-3.5" /> Enviar todas ao líder ({unsent.length})
+                                            </Button>
+                                        )}
+                                        <Button size="sm" variant="outline" onClick={() => setOpenEmployeeId(null)} className="rounded-xl text-xs cursor-pointer">
+                                            <X className="w-3.5 h-3.5 mr-1" /> Fechar
+                                        </Button>
+                                    </div>
+                                </DialogFooter>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
 
             {/* Confirmar envio */}
             <Dialog open={!!confirmItems} onOpenChange={o => !o && setConfirmItems(null)}>

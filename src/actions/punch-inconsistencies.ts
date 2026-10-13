@@ -11,6 +11,7 @@ import {
     COLUMN_LABEL,
     COLUMN_TO_PUNCH_TYPE,
     PUNCH_COLUMNS,
+    expectedScheduleFromBatida,
     planAutoIntervalFix,
     type PunchColumn
 } from "@/lib/punch-inconsistency";
@@ -35,9 +36,47 @@ export type InconsistencyRow = {
     actual: Partial<Record<PunchColumn, string>>;
     missing: PunchColumn[];
     status: "NOVO" | "ENVIADO" | "IGNORADO";
-    adjustment: { id: string; code: string; status: string; secullumStatus: string | null } | null;
+    adjustment: { id: string; code: string; status: string; secullumStatus: string | null; sendCount: number; lastSentAt: string | null } | null;
     ignored: { reason: string | null; userName: string | null } | null;
+    /** Pendência de ponto na folha: não enviada, aguardando resposta do gestor ou aguardando RH */
+    pending: boolean;
+    pendingKind: "NOVO" | "AGUARDANDO_GESTOR" | "AGUARDANDO_RH" | null;
 };
+
+export type EmployeeDay = {
+    date: string;                 // YYYY-MM-DD
+    weekday: number;
+    actual: Partial<Record<PunchColumn, string>>;
+    expected: Partial<Record<PunchColumn, string>>;
+    dayOff: boolean;
+    leaveNote: string | null;     // Férias / Atestado / Afastamento
+    rowKey: string | null;        // chave da InconsistencyRow, quando o dia tem inconsistência
+};
+
+export type EmployeeTimecard = {
+    employeeId: string;
+    employeeName: string;
+    folha: string | null;
+    clientId: string | null;
+    clientName: string | null;
+    postoName: string | null;
+    managerId: string | null;
+    managerName: string | null;
+    managerHasPhone: boolean;
+    semPonto: boolean;            // ativo no Hub, mas sem cartão no Secullum no período
+    days: EmployeeDay[];
+};
+
+const WAITING_MANAGER_STATUSES = ["PENDING_RESPONSE", "PENDING_REASON", "PENDING_SCOPE"];
+
+function pendingInfo(adj: { status: string } | null, ignored: boolean): { pending: boolean; pendingKind: InconsistencyRow["pendingKind"] } {
+    if (ignored) return { pending: false, pendingKind: null };
+    if (!adj) return { pending: true, pendingKind: "NOVO" };
+    if (WAITING_MANAGER_STATUSES.includes(adj.status)) return { pending: true, pendingKind: "AGUARDANDO_GESTOR" };
+    if (adj.status === "PENDING_AUDIT") return { pending: true, pendingKind: "AGUARDANDO_RH" };
+    // Ajuste lançado, falta confirmada, rejeitado ou descartado: não é mais pendência
+    return { pending: false, pendingKind: null };
+}
 
 async function getSecullumClient() {
     const config = await getBenefitsConfig();
@@ -62,6 +101,7 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
     message?: string;
     rows: InconsistencyRow[];
     unmatched: number;
+    employees?: EmployeeTimecard[];
 }> {
     try {
         if (!params.bypassAuth) {
@@ -140,7 +180,7 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
         const [adjustments, ignores] = await Promise.all([
             prisma.attendancePunchAdjustment.findMany({
                 where: { date: { gte: new Date(rangeStart.getTime() - 86400000), lte: new Date(rangeEnd.getTime() + 86400000) } },
-                select: { id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true },
+                select: { id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true, sendCount: true, lastSentAt: true },
                 orderBy: { createdAt: "desc" }
             }),
             (prisma as any).punchInconsistencyIgnore.findMany({ where: { date: { gte: start, lte: end } } })
@@ -154,6 +194,7 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
 
         const rows: InconsistencyRow[] = [];
         const unmatchedFuncs = new Set<number>();
+        const timecards = new Map<string, EmployeeTimecard>();
 
         for (const b of batidas as any[]) {
             const date = String(b.Data || "").slice(0, 10);
@@ -165,16 +206,36 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
             if (func?.Admissao && String(func.Admissao).slice(0, 10) > date) continue;
 
             const result = analyzeBatidaDay(b);
-            if (!result) continue;
 
             const cpf = String(func?.Cpf || "").replace(/\D/g, "");
             const emp = cpf ? empByCpf.get(cpf) : undefined;
             if (!emp) {
-                unmatchedFuncs.add(b.FuncionarioId);
+                if (result) unmatchedFuncs.add(b.FuncionarioId);
                 continue;
             }
             if (/deslig|demit|inativ/i.test(emp.status || "")) continue;
             if (emp.admissionDate && spDateParts(emp.admissionDate).dateStr > date) continue;
+
+            const posto = emp.assignments[0]?.posto;
+            const c = posto?.client;
+
+            let card = timecards.get(emp.id);
+            if (!card) {
+                card = {
+                    employeeId: emp.id,
+                    employeeName: emp.name,
+                    folha: func?.NumeroFolha || null,
+                    clientId: c?.id || null,
+                    clientName: c?.name || null,
+                    postoName: posto?.role?.name || null,
+                    managerId: c?.accountManager?.id || null,
+                    managerName: c?.accountManager?.name || null,
+                    managerHasPhone: Boolean(c?.accountManager?.phone && c.accountManager.phone.replace(/\D/g, "").length >= 10),
+                    semPonto: false,
+                    days: []
+                };
+                timecards.set(emp.id, card);
+            }
 
             // 1. CHECAGEM DE FÉRIAS (Tabela Vacation e campos do Employee)
             const isVacation = emp.vacations.some(v => {
@@ -186,7 +247,6 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 const lvEnd = spDateParts(emp.lastVacationEnd).dateStr;
                 return date >= lvStart && date <= lvEnd;
             })());
-            if (isVacation) continue;
 
             // 2. CHECAGEM DE ATESTADO MÉDICO
             const isMedicalLeave = emp.medicalCertificates.some(m => {
@@ -194,7 +254,6 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 const mEnd = spDateParts(m.endDate).dateStr;
                 return date >= mStart && date <= mEnd;
             });
-            if (isMedicalLeave) continue;
 
             // 3. CHECAGEM DE AFASTAMENTOS REGISTRADOS NO SECULLUM
             const isSecullumLeave = afastamentosSecullum.some((a: any) => {
@@ -204,13 +263,31 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 const aEnd = String(a.Fim || a.DataFim || "").slice(0, 10);
                 return (!aStart || date >= aStart) && (!aEnd || date <= aEnd);
             });
-            if (isSecullumLeave) continue;
 
-            const posto = emp.assignments[0]?.posto;
-            const c = posto?.client;
+            const leaveNote = isVacation ? "Férias" : isMedicalLeave ? "Atestado" : isSecullumLeave ? "Afastamento" : null;
             const key = `${emp.id}_${date}`;
+
+            const dayActual: Partial<Record<PunchColumn, string>> = {};
+            for (const col of PUNCH_COLUMNS) {
+                const v = b[col];
+                if (typeof v === "string" && v.trim()) dayActual[col] = v.trim();
+            }
+            const hasRow = Boolean(result) && !leaveNote;
+            card.days.push({
+                date,
+                weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
+                actual: dayActual,
+                expected: result?.expected || expectedScheduleFromBatida(b),
+                dayOff: b.Folga === true,
+                leaveNote,
+                rowKey: hasRow ? key : null
+            });
+
+            if (!result || leaveNote) continue;
+
             const adj = adjByKey.get(key) || null;
             const ign = ignByKey.get(key) || null;
+            const pend = pendingInfo(adj, Boolean(ign));
 
             rows.push({
                 key,
@@ -231,13 +308,48 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 actual: result.actual,
                 missing: result.missing,
                 status: adj ? "ENVIADO" : ign ? "IGNORADO" : "NOVO",
-                adjustment: adj ? { id: adj.id, code: adj.code, status: adj.status, secullumStatus: adj.secullumStatus } : null,
-                ignored: ign ? { reason: ign.reason, userName: ign.userName } : null
+                adjustment: adj ? {
+                    id: adj.id,
+                    code: adj.code,
+                    status: adj.status,
+                    secullumStatus: adj.secullumStatus,
+                    sendCount: adj.sendCount ?? 0,
+                    lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null
+                } : null,
+                ignored: ign ? { reason: ign.reason, userName: ign.userName } : null,
+                pending: pend.pending,
+                pendingKind: pend.pendingKind
             });
         }
 
+        // Colaboradores ativos no Hub sem nenhum cartão no Secullum no período
+        for (const emp of employees) {
+            if (timecards.has(emp.id)) continue;
+            if (!emp.cpf) continue;
+            if (/deslig|demit|inativ/i.test(emp.status || "")) continue;
+            if (emp.admissionDate && spDateParts(emp.admissionDate).dateStr > end) continue;
+            const posto = emp.assignments[0]?.posto;
+            if (!posto) continue; // sem alocação ativa: não é colaborador de posto
+            const c = posto.client;
+            timecards.set(emp.id, {
+                employeeId: emp.id,
+                employeeName: emp.name,
+                folha: null,
+                clientId: c?.id || null,
+                clientName: c?.name || null,
+                postoName: posto.role?.name || null,
+                managerId: c?.accountManager?.id || null,
+                managerName: c?.accountManager?.name || null,
+                managerHasPhone: Boolean(c?.accountManager?.phone && c.accountManager.phone.replace(/\D/g, "").length >= 10),
+                semPonto: true,
+                days: []
+            });
+        }
+        const employeeCards = Array.from(timecards.values());
+        employeeCards.forEach(card => card.days.sort((a, b) => (a.date < b.date ? -1 : 1)));
+
         rows.sort((a, b) => (a.date === b.date ? a.employeeName.localeCompare(b.employeeName) : a.date < b.date ? 1 : -1));
-        return { success: true, rows, unmatched: unmatchedFuncs.size };
+        return { success: true, rows, unmatched: unmatchedFuncs.size, employees: employeeCards };
     } catch (error: any) {
         console.error("[scanPunchInconsistencies] Erro:", error);
         return { success: false, message: error.message || "Erro ao buscar inconsistências.", rows: [], unmatched: 0 };
@@ -256,7 +368,7 @@ export async function dispatchInconsistencies(
         kind: "SEM_BATIDAS" | "INCOMPLETA";
     }>,
     options?: { bypassAuth?: boolean; requestedByName?: string }
-): Promise<{ success: boolean; results: Array<{ key: string; ok: boolean; code?: string; message?: string }> }> {
+): Promise<{ success: boolean; results: Array<{ key: string; ok: boolean; code?: string; adjustmentId?: string; message?: string }> }> {
     let userName = options?.requestedByName || "Robô de Ponto";
     if (!options?.bypassAuth) {
         let user = null;
@@ -267,7 +379,7 @@ export async function dispatchInconsistencies(
 
     const { createPunchAdjustmentAlert } = await import("@/actions/punch-adjustments");
     const { sendPunchAdjustmentWhatsAppAlert } = await import("@/lib/punch-whatsapp");
-    const results: Array<{ key: string; ok: boolean; code?: string; message?: string }> = [];
+    const results: Array<{ key: string; ok: boolean; code?: string; adjustmentId?: string; message?: string }> = [];
 
     for (const item of items) {
         const key = `${item.employeeId}_${item.date}`;
@@ -309,6 +421,7 @@ export async function dispatchInconsistencies(
                 key,
                 ok: sent.success,
                 code: created.adjustment.code,
+                adjustmentId: created.adjustment.id,
                 message: sent.success ? sent.message : `Ajuste #${created.adjustment.code} criado, mas o WhatsApp falhou: ${sent.message || "erro"}`
             });
         } catch (error: any) {
@@ -600,5 +713,37 @@ export async function autoFixIntervals(params: { startDate: string; endDate: str
     } catch (error: any) {
         console.error("[autoFixIntervals] Erro:", error);
         return { success: false, message: error.message || "Erro no ajuste automático de intervalo.", ...empty };
+    }
+}
+
+/**
+ * Reenvia ao gestor uma inconsistência que continua sem resposta. Cada envio é contabilizado
+ * (sendCount / lastSentAt) para mostrar "2º envio", "3º envio"... até a pendência ser resolvida.
+ */
+export async function resendPunchAdjustmentToManager(adjustmentId: string): Promise<{ success: boolean; message: string; sendCount?: number; lastSentAt?: string }> {
+    try {
+        const user = await getCurrentUser().catch(() => null);
+        if (!user) return { success: false, message: "Usuário não autenticado." };
+
+        const adj = await prisma.attendancePunchAdjustment.findUnique({ where: { id: adjustmentId }, select: { id: true, status: true } });
+        if (!adj) return { success: false, message: "Ajuste não encontrado." };
+        if (!WAITING_MANAGER_STATUSES.includes(adj.status)) {
+            return { success: false, message: "Este ajuste não está aguardando resposta do gestor." };
+        }
+
+        const { sendPunchAdjustmentWhatsAppAlert } = await import("@/lib/punch-whatsapp");
+        const sent = await sendPunchAdjustmentWhatsAppAlert(adjustmentId);
+        if (!sent.success) return { success: false, message: sent.message || "Falha ao reenviar ao gestor." };
+
+        const updated = await prisma.attendancePunchAdjustment.findUnique({ where: { id: adjustmentId }, select: { sendCount: true, lastSentAt: true } });
+        revalidatePath("/admin/punch-adjustments");
+        return {
+            success: true,
+            message: `Reenviado ao gestor (${updated?.sendCount ?? "?"}º envio).`,
+            sendCount: updated?.sendCount ?? undefined,
+            lastSentAt: updated?.lastSentAt ? updated.lastSentAt.toISOString() : undefined
+        };
+    } catch (error: any) {
+        return { success: false, message: error.message || "Erro ao reenviar." };
     }
 }
