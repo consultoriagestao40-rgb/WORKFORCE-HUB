@@ -11,6 +11,7 @@ import {
     COLUMN_LABEL,
     COLUMN_TO_PUNCH_TYPE,
     PUNCH_COLUMNS,
+    planAutoIntervalFix,
     type PunchColumn
 } from "@/lib/punch-inconsistency";
 import { generateAdjustmentCode } from "./punch-adjustments";
@@ -484,3 +485,120 @@ export async function launchDirectManualPunch(params: {
     }
 }
 
+/**
+ * AJUSTE AUTOMÁTICO DE INTERVALO
+ * Varre o período e, quando o colaborador tem entrada e saída final coerentes com a escala e faltam as duas
+ * batidas do intervalo (ou só uma), reposiciona a saída final (se necessário) e lança o intervalo direto no
+ * Secullum, registrando no Hub como "Lançado automaticamente" (source AUTO_INTERVAL).
+ */
+export async function autoFixIntervals(params: { startDate: string; endDate: string; bypassAuth?: boolean; dryRun?: boolean }): Promise<{
+    success: boolean;
+    message?: string;
+    fixed: Array<{ key: string; employeeName: string; date: string; summary: string }>;
+    failed: Array<{ key: string; employeeName: string; date: string; message: string }>;
+    candidates: number;
+}> {
+    const empty = { fixed: [], failed: [], candidates: 0 };
+    try {
+        if (!params.bypassAuth) {
+            let user = null;
+            try { user = await getCurrentUser(); } catch { user = null; }
+            if (!user) return { success: false, message: "Usuário não autenticado.", ...empty };
+        }
+        const client = await getSecullumClient();
+        if (!client) return { success: false, message: "Secullum não configurado em Benefícios.", ...empty };
+
+        const scan = await scanPunchInconsistencies({ startDate: params.startDate, endDate: params.endDate, bypassAuth: true });
+        if (!scan.success) return { success: false, message: scan.message, ...empty };
+
+        const candidates = scan.rows.filter(r => r.status === "NOVO" && r.kind === "INCOMPLETA" && !r.workedOnDayOff);
+        const fixed: Array<{ key: string; employeeName: string; date: string; summary: string }> = [];
+        const failed: Array<{ key: string; employeeName: string; date: string; message: string }> = [];
+        let eligible = 0;
+
+        for (const row of candidates) {
+            const plan = planAutoIntervalFix(row.actual, row.expected);
+            if (!plan) continue;
+            eligible++;
+            const base = { key: row.key, employeeName: row.employeeName, date: row.date };
+            if (params.dryRun) { fixed.push({ ...base, summary: plan.summary }); continue; }
+
+            try {
+                const emp = await prisma.employee.findUnique({
+                    where: { id: row.employeeId },
+                    select: {
+                        id: true, cpf: true,
+                        assignments: { where: { endDate: null }, take: 1, select: { posto: { select: { id: true, clientId: true } } } }
+                    }
+                });
+                if (!emp?.cpf) { failed.push({ ...base, message: "CPF não localizado." }); continue; }
+                const cpf = emp.cpf.replace(/\D/g, "");
+
+                // Reconfere o cartão ao vivo: se mudou desde a varredura, não mexe
+                const registro = await client.getRegistroDoDia(cpf, row.date).catch(() => null);
+                const unchanged = registro && PUNCH_COLUMNS.every(c => {
+                    const v = typeof registro[c] === "string" ? registro[c].trim() : "";
+                    return v === (row.actual[c] || "");
+                });
+                if (!unchanged) { failed.push({ ...base, message: "Cartão mudou desde a varredura; pulado." }); continue; }
+
+                const log: string[] = [];
+                let error: string | null = null;
+                for (const m of plan.moves) {
+                    const r = await client.trocarColunaBatida({ cpf, data: row.date, colunaOrigem: m.from, colunaDestino: m.to });
+                    if (!r.success) { error = `Troca ${m.from}→${m.to} falhou: ${r.message}`; break; }
+                    log.push(`${m.from}→${m.to}`);
+                }
+                if (!error) {
+                    for (const p of plan.punches) {
+                        const r = await client.lancarBatidaManual({
+                            cpf, data: row.date, hora: p.hora, coluna: p.coluna,
+                            motivo: "Ajuste automático de intervalo (Hub) | Esquecimento de batida"
+                        });
+                        if (!r.success) { error = `${p.coluna} ${p.hora}: ${r.message}`; break; }
+                        log.push(`${p.coluna} ${p.hora}`);
+                    }
+                }
+
+                const punchType = plan.punches.map(p => COLUMN_TO_PUNCH_TYPE[p.coluna]).join(",");
+                await prisma.attendancePunchAdjustment.create({
+                    data: {
+                        code: await generateAdjustmentCode(),
+                        employeeId: emp.id,
+                        clientId: emp.assignments[0]?.posto?.clientId || null,
+                        postoId: emp.assignments[0]?.posto?.id || null,
+                        date: new Date(`${row.date}T12:00:00-03:00`),
+                        punchType,
+                        expectedTime: plan.summary,
+                        requestedTime: plan.summary,
+                        secullumReasonId: "ESQUECIMENTO",
+                        secullumReasonName: "SEM REGISTRO DE PONTO (ESQUECIMENTO)",
+                        punchScope: "INTERVALO",
+                        notes: error
+                            ? `Ajuste automático de intervalo FALHOU parcialmente: ${error}`
+                            : "Lançado automaticamente (intervalo não batido; entrada e saída conferem com a escala)",
+                        status: error ? "PENDING_AUDIT" : "APPROVED_SYNCED",
+                        secullumStatus: error ? "ERRO" : "SUCESSO",
+                        secullumResponseLog: JSON.stringify({ auto: true, applied: log, error }),
+                        source: "AUTO_INTERVAL",
+                        resolvedAt: error ? null : new Date()
+                    }
+                });
+
+                if (error) failed.push({ ...base, message: error });
+                else fixed.push({ ...base, summary: plan.summary });
+            } catch (e: any) {
+                failed.push({ ...base, message: e.message || "Erro inesperado." });
+            }
+        }
+
+        if (!params.dryRun && (fixed.length || failed.length)) {
+            revalidatePath("/admin/punch-inconsistencies");
+            revalidatePath("/admin/punch-adjustments");
+        }
+        return { success: true, fixed, failed, candidates: eligible };
+    } catch (error: any) {
+        console.error("[autoFixIntervals] Erro:", error);
+        return { success: false, message: error.message || "Erro no ajuste automático de intervalo.", ...empty };
+    }
+}

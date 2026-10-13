@@ -171,3 +171,101 @@ export function analyzeBatidaDay(b: Record<string, any>): DayInconsistency | nul
     };
 }
 
+
+export type AutoIntervalPlan = {
+    /** Trocas de coluna (ordem de execução) para reposicionar batidas já existentes */
+    moves: Array<{ from: PunchColumn; to: PunchColumn }>;
+    /** Batidas de intervalo a lançar (já com horário definido) */
+    punches: Array<{ coluna: PunchColumn; hora: string }>;
+    summary: string;
+};
+
+/**
+ * Planeja o ajuste AUTOMÁTICO do intervalo (Saída 1 / Entrada 2) quando o colaborador tem a entrada e a
+ * saída final coerentes com a escala e faltam as duas batidas do intervalo (ou só uma delas).
+ *
+ * Só atua em escala de 4 marcações (E1,S1,E2,S2) sem virada de dia. Em qualquer dúvida devolve null
+ * (o caso segue o fluxo normal de tratativa pelo gestor).
+ */
+export function planAutoIntervalFix(
+    actual: Partial<Record<PunchColumn, string>>,
+    expected: Partial<Record<PunchColumn, string>>,
+    rand: () => number = Math.random
+): AutoIntervalPlan | null {
+    const eE1 = toMinutes(expected.Entrada1 || "");
+    const eS1 = toMinutes(expected.Saida1 || "");
+    const eE2 = toMinutes(expected.Entrada2 || "");
+    const eS2 = toMinutes(expected.Saida2 || "");
+    if (eE1 === null || eS1 === null || eE2 === null || eS2 === null) return null;
+    if (expected.Entrada3 || expected.Saida3) return null;
+    if (!(eE1 < eS1 && eS1 < eE2 && eE2 < eS2)) return null;
+
+    if (actual.Entrada3 || actual.Saida3) return null;
+    const filled = PUNCH_COLUMNS.filter(c => actual[c]);
+    if (filled.length < 2 || filled.length > 3) return null;
+    if (!filled.every(c => isTime(actual[c]))) return null;
+    const times = filled.map(c => toMinutes(actual[c]!) as number);
+    for (let i = 1; i < times.length; i++) if (times[i] <= times[i - 1]) return null;
+
+    const first = times[0];
+    const last = times[times.length - 1];
+    if (Math.abs(first - eE1) > 90 || Math.abs(last - eS2) > 120) return null;
+
+    const targets: PunchColumn[] = ["Entrada1"];
+    let s1: number | null = null;
+    let e2: number | null = null;
+    if (filled.length === 3) {
+        const mid = times[1];
+        const dS1 = Math.abs(mid - eS1);
+        const dE2 = Math.abs(mid - eE2);
+        if (Math.min(dS1, dE2) > 90) return null;
+        if (dS1 <= dE2) { targets.push("Saida1"); s1 = mid; } else { targets.push("Entrada2"); e2 = mid; }
+    }
+    targets.push("Saida2");
+
+    // Trocas necessárias (só move para coluna vazia)
+    const current = new Map<PunchColumn, PunchColumn>(); // coluna atual -> coluna alvo
+    filled.forEach((c, i) => { if (c !== targets[i]) current.set(c, targets[i]); });
+    const occupied = new Set<PunchColumn>(filled);
+    const moves: AutoIntervalPlan["moves"] = [];
+    let guard = 0;
+    while (current.size > 0 && guard++ < 10) {
+        let progressed = false;
+        for (const [from, to] of Array.from(current.entries())) {
+            if (!occupied.has(to)) {
+                moves.push({ from, to });
+                occupied.delete(from);
+                occupied.add(to);
+                current.delete(from);
+                progressed = true;
+            }
+        }
+        if (!progressed) return null;
+    }
+
+    const duration = Math.max(30, eE2 - eS1);
+    const variation = (min: number, max: number) => min + Math.floor(rand() * (max - min + 1));
+
+    if (s1 === null && e2 === null) {
+        s1 = eS1 + variation(1, 7);
+        e2 = s1 + duration;
+    } else if (e2 === null && s1 !== null) {
+        e2 = s1 + duration;
+    } else if (s1 === null && e2 !== null) {
+        s1 = e2 - duration - variation(1, 5);
+    }
+    if (s1 === null || e2 === null) return null;
+    // Coerência cronológica: entrada < saída p/ intervalo < retorno < saída final
+    if (!(first + 30 < s1 && s1 < e2 && e2 + 30 < last)) return null;
+
+    const punches: AutoIntervalPlan["punches"] = [];
+    if (!targets.includes("Saida1")) punches.push({ coluna: "Saida1", hora: toHHMM(s1) });
+    if (!targets.includes("Entrada2")) punches.push({ coluna: "Entrada2", hora: toHHMM(e2) });
+    if (punches.length === 0) return null;
+
+    return {
+        moves,
+        punches,
+        summary: punches.map(p => `${COLUMN_LABEL[p.coluna]} ${p.hora}`).join(" | ")
+    };
+}

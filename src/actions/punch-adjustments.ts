@@ -493,7 +493,18 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
             const dia: Record<string, any> | undefined = Object.keys(memoriaDia).length
                 ? memoriaDia
                 : horario?.dias.find(d => d.DiaSemana === weekday);
-            if (!dia) return fail("Não foi possível ler o horário previsto do colaborador no Secullum.");
+            // Horários informados na solicitação (ex: "Entrada 2 13:35"), usados como fallback quando o
+            // Secullum não expõe o horário previsto do dia (ex: horário sem Dias detalhados).
+            const requestedByColumn: Record<string, string> = {};
+            const reqRe = /(Entrada|Sa[ií]da)\s*([123])\s+(\d{1,2}:\d{2})/gi;
+            let reqMatch: RegExpExecArray | null;
+            const reqText = adj.requestedTime || adj.expectedTime || "";
+            while ((reqMatch = reqRe.exec(reqText)) !== null) {
+                const col = `${/^entrada/i.test(reqMatch[1]) ? "Entrada" : "Saida"}${reqMatch[2]}`;
+                requestedByColumn[col] = reqMatch[3].padStart(5, "0");
+            }
+            const hasRequested = Object.keys(requestedByColumn).length > 0;
+            if (!dia && !hasRequested) return fail("Não foi possível ler o horário previsto do colaborador no Secullum.");
 
             // Batidas já existentes no dia (não sobrescrever)
             const existing: Record<string, string | null> = {};
@@ -550,7 +561,16 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                 existing["Entrada2"] = null;
             }
 
-            const plan = planPunches({ scheduleDay: dia, scope: adj.punchScope, fallbackColumn, existing });
+            let plan = planPunches({ scheduleDay: dia, scope: adj.punchScope, fallbackColumn, existing });
+            if ((!dia || plan.error) && hasRequested) {
+                const cols = Object.keys(requestedByColumn);
+                plan = {
+                    punches: cols
+                        .filter(c => !existing[c])
+                        .map(c => ({ coluna: c, hora: requestedByColumn[c], previsto: requestedByColumn[c] })),
+                    skipped: cols.filter(c => !!existing[c])
+                };
+            }
             if (plan.error) return fail(`${plan.error}${horario ? ` (horário "${horario.descricao}")` : ""}`);
             
             if (plan.punches.length === 0) {

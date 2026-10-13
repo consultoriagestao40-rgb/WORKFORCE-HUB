@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { scanPunchInconsistencies, dispatchInconsistencies } from "@/actions/punch-inconsistencies";
+import { scanPunchInconsistencies, dispatchInconsistencies, autoFixIntervals } from "@/actions/punch-inconsistencies";
 import { sendPunchAdjustmentWhatsAppAlert } from "@/lib/punch-whatsapp";
 import { spDateParts } from "@/lib/punch-time";
 
@@ -39,6 +39,9 @@ export async function GET(request: Request) {
         const targetScanDate = yesterdayStr >= ACTIVATION_DATE ? yesterdayStr : todayStr;
 
         console.log(`[cron/inconsistencies-auto-dispatch] Varrendo inconsistências para a data: ${targetScanDate}`);
+
+        // 0. Ajuste automático de intervalo (entrada/saída conferem com a escala; só faltou o intervalo)
+        const autoRes = await autoFixIntervals({ startDate: targetScanDate, endDate: targetScanDate, bypassAuth: true });
 
         const scanRes = await scanPunchInconsistencies({
             startDate: targetScanDate,
@@ -98,6 +101,8 @@ export async function GET(request: Request) {
         return NextResponse.json({
             status: "success",
             scanDate: targetScanDate,
+            autoIntervalFixed: autoRes.fixed.length,
+            autoIntervalFailed: autoRes.failed.length,
             newInconsistenciesFound: scanRes.rows.length,
             dispatchedToManagers: dispatchedCount,
             remindersSent,

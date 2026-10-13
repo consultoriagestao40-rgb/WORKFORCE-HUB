@@ -68,6 +68,7 @@ import {
     sendPunchAdjustmentAlertAction,
     deletePunchAdjustment
 } from "@/actions/punch-adjustments";
+import { autoFixIntervals } from "@/actions/punch-inconsistencies";
 
 interface PunchAdjustmentItem {
     id: string;
@@ -143,6 +144,30 @@ export default function PunchAdjustmentsClient({
     const [checkingId, setCheckingId] = useState<string | null>(null);
     const [approvingId, setApprovingId] = useState<string | null>(null);
     const [isSyncingJusts, setIsSyncingJusts] = useState(false);
+    const [isAutoFixing, setIsAutoFixing] = useState(false);
+
+    // Varre os últimos 7 dias e lança automaticamente o intervalo esquecido (entrada/saída conferem com a escala)
+    const handleAutoFixIntervals = async () => {
+        setIsAutoFixing(true);
+        try {
+            const fmt = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+            const endDate = fmt(new Date(Date.now() - 86400000));
+            const startDate = fmt(new Date(Date.now() - 7 * 86400000));
+            const res = await autoFixIntervals({ startDate, endDate });
+            if (!res.success) {
+                toast.error(res.message || "Erro ao varrer intervalos.");
+            } else if (res.fixed.length === 0 && res.failed.length === 0) {
+                toast.info("Nenhum intervalo elegível para ajuste automático nos últimos 7 dias.");
+            } else {
+                toast.success(`⚡ ${res.fixed.length} intervalo(s) lançado(s) automaticamente${res.failed.length ? `, ${res.failed.length} com falha (ficam Pendentes RH)` : ""}.`, { duration: 8000 });
+                window.location.reload();
+            }
+        } catch {
+            toast.error("Erro ao varrer intervalos.");
+        } finally {
+            setIsAutoFixing(false);
+        }
+    };
 
     // Modal de Teste
     const defaultGroup = whatsappGroups.find(g => g.name.toLowerCase().includes("ajuste"))?.phone
@@ -410,6 +435,17 @@ export default function PunchAdjustmentsClient({
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={handleAutoFixIntervals}
+                        disabled={isAutoFixing}
+                        title="Lança automaticamente o intervalo quando entrada e saída conferem com a escala"
+                        className="bg-white border-emerald-200 hover:bg-emerald-50 text-emerald-700 font-semibold rounded-xl h-10 shadow-sm"
+                    >
+                        <Zap className={`w-4 h-4 mr-2 ${isAutoFixing ? "animate-pulse" : ""}`} />
+                        <span>{isAutoFixing ? "Varrendo..." : "Varrer intervalos agora"}</span>
+                    </Button>
+
                     <Button
                         variant="outline"
                         onClick={handleSyncJusts}
@@ -775,6 +811,11 @@ export default function PunchAdjustmentsClient({
                                                 <div className="text-xs text-amber-700 font-semibold mt-0.5">
                                                     {item.secullumReasonName || "Aguardando definição"}
                                                 </div>
+                                                {item.source === "AUTO_INTERVAL" && (
+                                                    <div className="text-[11px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
+                                                        <Zap className="w-3 h-3" /> Lançado automaticamente
+                                                    </div>
+                                                )}
                                                 {item.punchScope && (
                                                     <div className="text-[11px] text-indigo-700 font-semibold mt-0.5">
                                                         Marcações: {({ ENTRADA: "Só Entrada", SAIDA: "Só Saída", INTERVALO: "Intervalo", TODOS: "Dia Completo" } as Record<string, string>)[item.punchScope] || item.punchScope}
