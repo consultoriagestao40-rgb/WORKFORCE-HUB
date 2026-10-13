@@ -853,6 +853,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                 const val = day.actual[c];
                                                                 const missing = !!r && r.missing.includes(c);
                                                                 const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
+                                                                const isFolgaDay = day.dayOff && Object.keys(day.actual).length === 0 && !day.leaveNote;
+                                                                const folgaCell = isFolgaDay && cols.indexOf(c) < 4;
+                                                                const textCls = (t: string) => /falta/i.test(t)
+                                                                    ? "bg-rose-600 text-white"
+                                                                    : /folga/i.test(t) ? "bg-emerald-600 text-white" : "bg-orange-500 text-white";
                                                                 return (
                                                                     <TableCell key={c} className="px-1 py-2 text-center">
                                                                         {missing ? (
@@ -861,7 +866,9 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                                 <span className="text-[9px] opacity-60 font-mono">{day.expected[c] || "—"}</span>
                                                                             </div>
                                                                         ) : val ? (
-                                                                            <span className={`font-mono font-bold ${isText ? "px-1.5 py-0.5 rounded bg-slate-700 text-white text-[10px]" : "text-slate-800"}`}>{val}</span>
+                                                                            <span className={`font-mono font-bold ${isText ? `px-1.5 py-0.5 rounded text-[10px] ${textCls(val)}` : "text-slate-800"}`}>{val}</span>
+                                                                        ) : folgaCell ? (
+                                                                            <span className="font-mono font-bold px-1.5 py-0.5 rounded text-[10px] bg-emerald-600 text-white">FOLGA</span>
                                                                         ) : (
                                                                             <span className="text-slate-300">{day.dayOff ? "" : "·"}</span>
                                                                         )}
@@ -870,10 +877,10 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                             })}
                                                             <TableCell className="px-2 py-2">
                                                                 {day.leaveNote ? (
-                                                                    <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-[10px] font-bold">{day.leaveNote}</Badge>
+                                                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300 text-[10px] font-bold">{day.leaveNote}</Badge>
                                                                 ) : !r ? (
                                                                     day.dayOff && Object.keys(day.actual).length === 0
-                                                                        ? <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-bold">Folga</Badge>
+                                                                        ? <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold">Folga</Badge>
                                                                         : <span className="inline-flex items-center gap-1 text-emerald-700 text-[11px] font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> OK</span>
                                                                 ) : r.status === "IGNORADO" ? (
                                                                     <div className="flex flex-col gap-0.5">
