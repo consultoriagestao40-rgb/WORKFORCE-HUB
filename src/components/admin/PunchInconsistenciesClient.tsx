@@ -907,15 +907,18 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                             <TableBody>
                                                 {[...card.days].sort((a, b) => (a.date < b.date ? -1 : 1)).map((day: EmployeeDay) => {
                                                     const r = day.rowKey ? rowByKey.get(day.rowKey) || null : null;
+                                                    const activeAdj = day.adjustment || r?.adjustment || null;
                                                     const isPending = !!r?.pending;
                                                     const isSending = r ? sendingKeys.has(r.key) : false;
                                                     const isResending = r ? resendingKeys.has(r.key) : false;
-                                                    const sends = r?.adjustment?.sendCount || 0;
-                                                    const adjBadge = r?.adjustment ? ADJ_STATUS_LABEL[r.adjustment.status] : null;
+                                                    const sends = activeAdj?.sendCount || 0;
+                                                    const adjBadge = activeAdj ? ADJ_STATUS_LABEL[activeAdj.status] : null;
+                                                    const isAbsenceDay = (activeAdj?.reasonName?.toUpperCase().includes("FALTA")) || Object.values(day.actual).some(v => /falta/i.test(v || ""));
+
                                                     return (
                                                         <TableRow
                                                             key={day.date}
-                                                            className={`border-b border-slate-100 ${isPending ? (r?.pendingKind === "NOVO" ? "bg-rose-50/40" : "bg-amber-50/40") : ""}`}
+                                                            className={`border-b border-slate-100 ${isPending ? (r?.pendingKind === "NOVO" ? "bg-rose-50/40" : "bg-amber-50/40") : isAbsenceDay && activeAdj ? "bg-rose-50/20" : ""}`}
                                                         >
                                                             <TableCell className="px-2 py-2 whitespace-nowrap">
                                                                 <div className={`font-black ${day.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>{fmtDate(day.date)}</div>
@@ -950,10 +953,93 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                             <TableCell className="px-2 py-2">
                                                                 {day.leaveNote ? (
                                                                     <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300 text-[10px] font-bold">{day.leaveNote}</Badge>
+                                                                ) : activeAdj && isAbsenceDay ? (
+                                                                    <div className="flex flex-col gap-0.5 text-[11px] leading-snug">
+                                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                                            <Badge variant="outline" className="bg-rose-100 text-rose-800 border-rose-300 font-black text-[10px] py-0.5 px-2">
+                                                                                Falta Confirmada #{activeAdj.code}
+                                                                            </Badge>
+                                                                            {activeAdj.status === "APPROVED_SYNCED" ? (
+                                                                                <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] font-bold py-0 px-1.5 flex items-center gap-1">
+                                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Lançada no Secullum
+                                                                                </Badge>
+                                                                            ) : activeAdj.status === "PENDING_AUDIT" ? (
+                                                                                <Badge variant="outline" className="bg-sky-50 text-sky-800 border-sky-300 text-[10px] font-bold py-0 px-1.5 animate-pulse">
+                                                                                    Pendente RH (Pronto)
+                                                                                </Badge>
+                                                                            ) : null}
+                                                                        </div>
+                                                                        <div className="text-slate-700">
+                                                                            <span className="text-slate-400 font-semibold">Confirmado pelo gestor: </span>
+                                                                            <span className="font-bold text-slate-900">{activeAdj.requestedByName || "Gestor"}</span>
+                                                                            {activeAdj.requestedAt && (
+                                                                                <span className="text-slate-500 font-medium"> em {fmtDateTime(activeAdj.requestedAt)}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        {activeAdj.resolvedAt ? (
+                                                                            <div className="text-emerald-800">
+                                                                                <span className="text-slate-400 font-semibold">Aceite RH: </span>
+                                                                                <span className="font-bold text-emerald-900">{activeAdj.resolvedByName || "RH"}</span>
+                                                                                <span className="text-emerald-700 font-medium"> em {fmtDateTime(activeAdj.resolvedAt)}</span>
+                                                                            </div>
+                                                                        ) : activeAdj.status === "PENDING_AUDIT" ? (
+                                                                            <div className="text-sky-700 text-[10px] font-semibold">
+                                                                                Aguardando conferência do RH para lançamento
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                ) : activeAdj ? (
+                                                                    <div className="flex flex-col gap-0.5 text-[11px] leading-snug">
+                                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                                            <span className="font-mono font-bold text-indigo-700">#{activeAdj.code}</span>
+                                                                            {activeAdj.status === "APPROVED_SYNCED" ? (
+                                                                                <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] font-bold py-0 px-1.5 flex items-center gap-1">
+                                                                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Lançado no Secullum
+                                                                                </Badge>
+                                                                            ) : adjBadge ? (
+                                                                                <Badge variant="outline" className={`text-[10px] py-0 px-1.5 ${adjBadge.cls}`}>{adjBadge.label}</Badge>
+                                                                            ) : (
+                                                                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-sky-50 text-sky-700 border-sky-200">
+                                                                                    {activeAdj.reasonName || "Ajuste Solicitado"}
+                                                                                </Badge>
+                                                                            )}
+                                                                            {r?.pendingKind === "AGUARDANDO_GESTOR" && sends > 0 && (
+                                                                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-indigo-50 text-indigo-700 border-indigo-200">{nth(sends)} envio</Badge>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">Solicitante: </span>
+                                                                            <span className="font-semibold">{activeAdj.requestedByName || (r?.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r?.managerName || "gestor"}` : "—")}</span>
+                                                                        </div>
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">Motivo: </span>
+                                                                            <span className="font-semibold">{activeAdj.reasonName || (r?.pendingKind === "AGUARDANDO_GESTOR" ? "ainda não informado" : "—")}</span>
+                                                                            {activeAdj.requestedTime && activeAdj.reasonName !== "FALTA CONFIRMADA PELO GESTOR" && (
+                                                                                <span className="text-slate-400"> · {activeAdj.requestedTime}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-slate-600">
+                                                                            <span className="text-slate-400 font-semibold">{activeAdj.requestedAt ? "Solicitado em: " : "Enviado ao gestor em: "}</span>
+                                                                            <span className="font-semibold">{fmtDateTime(activeAdj.requestedAt || activeAdj.lastSentAt) || "—"}</span>
+                                                                        </div>
+                                                                        {activeAdj.resolvedAt && (
+                                                                            <div className="text-emerald-800">
+                                                                                <span className="text-slate-400 font-semibold">Aceite RH: </span>
+                                                                                <span className="font-bold text-emerald-900">{activeAdj.resolvedByName || "RH"}</span>
+                                                                                <span className="text-emerald-700 font-medium"> em {fmtDateTime(activeAdj.resolvedAt)}</span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
                                                                 ) : !r ? (
-                                                                    day.dayOff && Object.keys(day.actual).length === 0
-                                                                        ? <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold">Folga</Badge>
-                                                                        : <span className="inline-flex items-center gap-1 text-emerald-700 text-[11px] font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> OK</span>
+                                                                    isAbsenceDay ? (
+                                                                        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 text-[10px] font-bold">
+                                                                            Falta Registrada no Secullum
+                                                                        </Badge>
+                                                                    ) : day.dayOff && Object.keys(day.actual).length === 0 ? (
+                                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold">Folga</Badge>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 text-emerald-700 text-[11px] font-bold"><CheckCircle2 className="w-3.5 h-3.5" /> OK</span>
+                                                                    )
                                                                 ) : r.status === "IGNORADO" ? (
                                                                     <div className="flex flex-col gap-0.5">
                                                                         <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] w-fit">Ignorada</Badge>
@@ -1049,10 +1135,10 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                     </Button>
                                                                 )}
                                                                 {!r && !(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
-                                                                    <Button size="sm" variant="ghost" onClick={() => openDayTreatment(card, day)}
-                                                                        className="h-7 text-[11px] text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 font-semibold rounded-lg px-2 cursor-pointer"
+                                                                    <Button size="sm" variant={activeAdj ? "outline" : "ghost"} onClick={() => openDayTreatment(card, day)}
+                                                                        className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${activeAdj ? "border-slate-300 text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300" : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"}`}
                                                                         title="Ajustar batidas ou abonar este dia">
-                                                                        Tratar
+                                                                        {activeAdj ? "Ver / Ajustar" : "Tratar"}
                                                                     </Button>
                                                                 )}
                                                             </TableCell>

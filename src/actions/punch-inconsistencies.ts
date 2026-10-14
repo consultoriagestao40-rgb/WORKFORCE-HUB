@@ -47,11 +47,29 @@ export type InconsistencyRow = {
         requestedAt: string | null;       // data da solicitação
         reasonName: string | null;        // motivo do ajuste
         requestedTime: string | null;     // marcação solicitada
+        resolvedByName?: string | null;   // usuário RH que aprovou/sincronizou
+        resolvedAt?: string | null;       // data do aceite/aprovação pelo RH
     } | null;
     ignored: { reason: string | null; userName: string | null } | null;
     /** Pendência de ponto na folha: não enviada, aguardando resposta do gestor ou aguardando RH */
     pending: boolean;
     pendingKind: "NOVO" | "AGUARDANDO_GESTOR" | "AGUARDANDO_RH" | null;
+};
+
+export type EmployeeDayAdjustment = {
+    id: string;
+    code: string;
+    status: string;
+    secullumStatus?: string | null;
+    sendCount?: number;
+    lastSentAt?: string | null;
+    requestedByName: string | null;
+    requestedAt: string | null;
+    resolvedByName?: string | null;
+    resolvedAt?: string | null;
+    reasonName: string | null;
+    requestedTime?: string | null;
+    notes?: string | null;
 };
 
 export type EmployeeDay = {
@@ -62,6 +80,7 @@ export type EmployeeDay = {
     dayOff: boolean;
     leaveNote: string | null;     // Férias / Atestado / Afastamento
     rowKey: string | null;        // chave da InconsistencyRow, quando o dia tem inconsistência
+    adjustment?: EmployeeDayAdjustment | null;
 };
 
 export type EmployeeTimecard = {
@@ -198,7 +217,9 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 select: {
                     id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true,
                     sendCount: true, lastSentAt: true, requestedByName: true, requestedAt: true,
-                    secullumReasonName: true, requestedTime: true
+                    secullumReasonName: true, requestedTime: true, notes: true,
+                    resolvedAt: true,
+                    resolvedByUser: { select: { name: true } }
                 },
                 orderBy: { createdAt: "desc" }
             }),
@@ -292,6 +313,9 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 if (typeof v === "string" && v.trim()) dayActual[col] = v.trim();
             }
             const hasRow = Boolean(result) && !leaveNote;
+            const adj = adjByKey.get(key) || null;
+            const ign = ignByKey.get(key) || null;
+
             card.days.push({
                 date,
                 weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
@@ -299,13 +323,26 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 expected: result?.expected || expectedScheduleFromBatida(b),
                 dayOff: b.Folga === true,
                 leaveNote,
-                rowKey: hasRow ? key : null
+                rowKey: hasRow ? key : null,
+                adjustment: adj ? {
+                    id: adj.id,
+                    code: adj.code,
+                    status: adj.status,
+                    secullumStatus: adj.secullumStatus,
+                    sendCount: adj.sendCount ?? 0,
+                    lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null,
+                    requestedByName: adj.requestedByName || null,
+                    requestedAt: adj.requestedAt ? adj.requestedAt.toISOString() : null,
+                    resolvedByName: (adj as any).resolvedByUser?.name || null,
+                    resolvedAt: (adj as any).resolvedAt ? (adj as any).resolvedAt.toISOString() : null,
+                    reasonName: adj.secullumReasonName || null,
+                    requestedTime: adj.requestedTime || null,
+                    notes: adj.notes || null
+                } : null
             });
 
             if (!result || leaveNote) continue;
 
-            const adj = adjByKey.get(key) || null;
-            const ign = ignByKey.get(key) || null;
             const pend = pendingInfo(adj, Boolean(ign));
 
             rows.push({
@@ -337,7 +374,9 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                     requestedByName: adj.requestedByName || null,
                     requestedAt: adj.requestedAt ? adj.requestedAt.toISOString() : null,
                     reasonName: adj.secullumReasonName || null,
-                    requestedTime: adj.requestedTime || null
+                    requestedTime: adj.requestedTime || null,
+                    resolvedByName: (adj as any).resolvedByUser?.name || null,
+                    resolvedAt: (adj as any).resolvedAt ? (adj as any).resolvedAt.toISOString() : null
                 } : null,
                 ignored: ign ? { reason: ign.reason, userName: ign.userName } : null,
                 pending: pend.pending,

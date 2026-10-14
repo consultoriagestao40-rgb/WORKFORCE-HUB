@@ -79,7 +79,9 @@ interface PunchAdjustmentItem {
     requestedTime: string | null;
     requestedAt?: string | Date | null;
     punchScope?: string | null;
+    secullumReasonId?: string | null;
     secullumReasonName: string | null;
+    notes?: string | null;
     status: string;
     source: string;
     requestedByPhone: string | null;
@@ -87,6 +89,11 @@ interface PunchAdjustmentItem {
     isAccountManager: boolean;
     secullumStatus: string | null;
     secullumResponseLog: string | null;
+    resolvedAt?: string | Date | null;
+    resolvedByUser?: {
+        id: string;
+        name: string;
+    } | null;
     employee: {
         id: string;
         name: string;
@@ -179,14 +186,21 @@ export default function PunchAdjustmentsClient({
     const [testGroupTarget, setTestGroupTarget] = useState(defaultGroup);
     const [isSendingTest, setIsSendingTest] = useState(false);
 
+    const isAbsence = (item: PunchAdjustmentItem) => {
+        return item.status === "CONFIRMED_ABSENCE" ||
+            item.secullumReasonId === "FALTA" ||
+            Boolean(item.secullumReasonName?.toUpperCase().includes("FALTA")) ||
+            Boolean(item.notes?.toUpperCase().includes("FALTA"));
+    };
+
     // Estatísticas dos cards (Padrão Atestados)
     const stats = {
         total: adjustments.length,
         pendingResponse: adjustments.filter(a => a.status === "PENDING_RESPONSE").length,
-        pendingAudit: adjustments.filter(a => a.status === "PENDING_AUDIT").length,
-        approved: adjustments.filter(a => a.status === "APPROVED_SYNCED").length,
+        pendingAudit: adjustments.filter(a => a.status === "PENDING_AUDIT" && !isAbsence(a)).length,
+        approved: adjustments.filter(a => a.status === "APPROVED_SYNCED" && !isAbsence(a)).length,
         offlineFound: adjustments.filter(a => a.status === "DISCARDED_OFFLINE_FOUND").length,
-        absence: adjustments.filter(a => a.status === "CONFIRMED_ABSENCE").length
+        absence: adjustments.filter(isAbsence).length
     };
 
     // Sincronizar justificativas com Secullum
@@ -337,10 +351,10 @@ export default function PunchAdjustmentsClient({
     // Filtragem dos registros
     const filteredItems = adjustments.filter(item => {
         if (activeTab === "PENDING_RESPONSE" && item.status !== "PENDING_RESPONSE") return false;
-        if (activeTab === "PENDING_AUDIT" && item.status !== "PENDING_AUDIT") return false;
-        if (activeTab === "APPROVED_SYNCED" && item.status !== "APPROVED_SYNCED") return false;
+        if (activeTab === "PENDING_AUDIT" && (item.status !== "PENDING_AUDIT" || isAbsence(item))) return false;
+        if (activeTab === "APPROVED_SYNCED" && (item.status !== "APPROVED_SYNCED" || isAbsence(item))) return false;
         if (activeTab === "DISCARDED_OFFLINE_FOUND" && item.status !== "DISCARDED_OFFLINE_FOUND") return false;
-        if (activeTab === "CONFIRMED_ABSENCE" && item.status !== "CONFIRMED_ABSENCE") return false;
+        if (activeTab === "CONFIRMED_ABSENCE" && !isAbsence(item)) return false;
 
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
@@ -362,8 +376,41 @@ export default function PunchAdjustmentsClient({
         }
     };
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
+    const getStatusBadge = (item: PunchAdjustmentItem) => {
+        if (isAbsence(item)) {
+            if (item.status === "APPROVED_SYNCED") {
+                return (
+                    <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="bg-rose-50 text-rose-800 border-rose-300 font-bold gap-1.5 py-0.5 w-fit">
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            Falta Confirmada
+                        </Badge>
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300 text-[10px] font-semibold gap-1 py-0 px-1.5 w-fit">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Lançada no Secullum
+                        </Badge>
+                    </div>
+                );
+            }
+            if (item.status === "PENDING_AUDIT") {
+                return (
+                    <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="bg-rose-50 text-rose-800 border-rose-300 font-bold gap-1.5 py-0.5 w-fit animate-pulse">
+                            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                            Falta Confirmada (Pendente RH)
+                        </Badge>
+                    </div>
+                );
+            }
+            return (
+                <Badge variant="outline" className="bg-rose-50 text-rose-800 border-rose-300 font-semibold gap-1.5 py-0.5">
+                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                    Falta Confirmada
+                </Badge>
+            );
+        }
+
+        switch (item.status) {
             case "PENDING_RESPONSE":
             case "PENDING_REASON":
             case "PENDING_SCOPE":
@@ -404,7 +451,7 @@ export default function PunchAdjustmentsClient({
             default:
                 return (
                     <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300">
-                        {status}
+                        {item.status}
                     </Badge>
                 );
         }
@@ -763,7 +810,13 @@ export default function PunchAdjustmentsClient({
                                                 {item.requestedAt && (
                                                     <p className="text-[11px] text-indigo-600 mt-0.5 flex items-center gap-1 font-medium" title="Data e hora em que o gestor solicitou">
                                                         <Clock className="w-3 h-3 text-indigo-400" />
-                                                        Solicitado {format(new Date(item.requestedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                        {isAbsence(item) ? "Falta confirmada em " : "Solicitado "} {format(new Date(item.requestedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                                                    </p>
+                                                )}
+                                                {item.resolvedAt && (
+                                                    <p className="text-[11px] text-emerald-700 mt-0.5 flex items-center gap-1 font-medium" title="Aceite / Aprovação pelo RH">
+                                                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                                        Aceite RH {item.resolvedByUser?.name ? `(${item.resolvedByUser.name})` : ""} em {format(new Date(item.resolvedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
                                                     </p>
                                                 )}
                                             </TableCell>
@@ -794,8 +847,13 @@ export default function PunchAdjustmentsClient({
                                             <TableCell className="py-4">
                                                 <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                                                     <User className="w-3.5 h-3.5 text-indigo-500" />
-                                                    {item.client?.accountManager?.name || item.requestedByName || "Não atribuído"}
+                                                    {item.requestedByName || item.client?.accountManager?.name || "Não atribuído"}
                                                 </div>
+                                                {item.requestedByName && item.client?.accountManager?.name && item.requestedByName !== item.client.accountManager.name && (
+                                                    <div className="text-[10px] text-slate-400">
+                                                        Conta: {item.client.accountManager.name}
+                                                    </div>
+                                                )}
                                                 {item.isAccountManager && (
                                                     <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                                         Gestor da Conta
@@ -825,7 +883,7 @@ export default function PunchAdjustmentsClient({
 
                                             {/* Status */}
                                             <TableCell className="py-4">
-                                                {getStatusBadge(item.status)}
+                                                {getStatusBadge(item)}
                                             </TableCell>
 
                                             {/* Ações */}

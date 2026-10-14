@@ -24,10 +24,11 @@ export default async function PunchAdjustmentsPage({
                     accountManager: { select: { id: true, name: true, phone: true } }
                 }
             },
-            posto: { select: { id: true, role: { select: { name: true } } } }
+            posto: { select: { id: true, role: { select: { name: true } } } },
+            resolvedByUser: { select: { id: true, name: true } }
         },
         orderBy: { updatedAt: "desc" },
-        take: 200
+        take: 500
     });
 
     // 2. Buscar justificativas ativas sincronizadas do Secullum
