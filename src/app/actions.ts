@@ -2773,12 +2773,98 @@ export async function updateUser(formData: FormData) {
 }
 
 export async function deleteUser(id: string) {
-    const userRole = await getCurrentUserRole();
-    if (userRole !== 'ADMIN') throw new Error("Unauthorized");
+    try {
+        const userRole = await getCurrentUserRole();
+        if (userRole !== 'ADMIN') {
+            return { success: false, error: "Não autorizado. Apenas administradores podem gerenciar usuários." };
+        }
 
-    await prisma.user.delete({ where: { id } });
-    revalidatePath("/admin/users");
+        const user = await prisma.user.findUnique({
+            where: { id },
+            select: { id: true, name: true, email: true, isActive: true }
+        });
+
+        if (!user) {
+            return { success: false, error: "Usuário não encontrado." };
+        }
+
+        // 1. Desvincular associações operacionais diretas
+        try {
+            await prisma.$transaction([
+                prisma.client.updateMany({
+                    where: { accountManagerId: id },
+                    data: { accountManagerId: null }
+                }),
+                prisma.vacancy.updateMany({
+                    where: { recruiterId: id },
+                    data: { recruiterId: null }
+                }),
+                prisma.user.updateMany({
+                    where: { managerId: id },
+                    data: { managerId: null }
+                }),
+                prisma.notification.deleteMany({
+                    where: { userId: id }
+                })
+            ]);
+        } catch (unlinkErr) {
+            console.warn("[deleteUser] Erro ao desvincular dados operacionais:", unlinkErr);
+        }
+
+        // 2. Tentar exclusão física primeiro (para usuários sem dependências históricas)
+        try {
+            await prisma.user.delete({ where: { id } });
+            revalidatePath("/admin/users");
+            return { 
+                success: true, 
+                softDeleted: false, 
+                message: `Usuário ${user.name} excluído permanentemente.` 
+            };
+        } catch (fkError: any) {
+            // Se houver restrições de integridade referencial (FKs em solicitações, vagas, comentários, auditoria)
+            console.log(`[deleteUser] Usuário ${id} possui registros históricos vinculados. Aplicando inativação (soft-delete).`);
+            await prisma.user.update({
+                where: { id },
+                data: { 
+                    isActive: false 
+                }
+            });
+            revalidatePath("/admin/users");
+            return { 
+                success: true, 
+                softDeleted: true, 
+                message: `O usuário ${user.name} possui dados históricos (solicitações, vagas ou logs) e foi inativado com sucesso para manter a integridade dos registros.` 
+            };
+        }
+    } catch (error: any) {
+        console.error("Erro ao excluir usuário:", error);
+        return { success: false, error: error.message || "Erro interno ao processar exclusão do usuário." };
+    }
 }
+
+export async function toggleUserActive(id: string, newStatus: boolean) {
+    try {
+        const userRole = await getCurrentUserRole();
+        if (userRole !== 'ADMIN') {
+            return { success: false, error: "Não autorizado." };
+        }
+
+        const updated = await prisma.user.update({
+            where: { id },
+            data: { isActive: newStatus }
+        });
+
+        revalidatePath("/admin/users");
+        return { 
+            success: true, 
+            message: `Usuário ${updated.name} ${newStatus ? 'reativado' : 'inativado'} com sucesso.` 
+        };
+    } catch (error: any) {
+        console.error("Erro ao alterar status do usuário:", error);
+        return { success: false, error: error.message || "Erro ao alterar status do usuário." };
+    }
+}
+
 
 export async function deleteEmployee(id: string) {
     const userRole = await getCurrentUserRole();

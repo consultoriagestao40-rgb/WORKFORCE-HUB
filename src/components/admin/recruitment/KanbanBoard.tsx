@@ -209,7 +209,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
 
                     // Automatic Link to Posto
                     postoId: candidateToMove.vacancy?.posto?.id || '',
-                    postoName: candidateToMove.vacancy?.posto ? `${candidateToMove.vacancy.posto.name || 'Sem Nome'} - ${candidateToMove.vacancy.posto.client.name}` : undefined
+                    postoName: candidateToMove.vacancy?.posto ? `${candidateToMove.vacancy.posto.name || 'Sem Nome'}${candidateToMove.vacancy.posto.client?.name ? ` - ${candidateToMove.vacancy.posto.client.name}` : ''}` : undefined
                 });
 
                 setIsEmployeeSheetOpen(true);

@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Edit2, Search, Trash2, UserCog, SlidersHorizontal, Users, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Edit2, Search, Trash2, UserCog, SlidersHorizontal, Users, ShieldCheck, CheckCircle2, Loader2, Power, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { deleteUser } from "@/app/actions";
+import { deleteUser, toggleUserActive } from "@/app/actions";
 import { WorkflowRulesConfig, WorkflowRuleData, SystemUserData } from "@/components/admin/approvals/WorkflowRulesConfig";
+import { toast } from "sonner";
 
 interface AccessManagementClientProps {
     users: SystemUserData[];
@@ -20,9 +21,51 @@ interface AccessManagementClientProps {
 export function AccessManagementClient({ users, rules, clientsList }: AccessManagementClientProps) {
     const [selectedTab, setSelectedTab] = useState<"USERS" | "WORKFLOW">("USERS");
     const [searchTerm, setSearchTerm] = useState("");
+    const [processingId, setProcessingId] = useState<string | null>(null);
+
+    const handleDeleteUser = async (id: string, name: string) => {
+        if (!window.confirm(`Tem certeza que deseja excluir/inativar o usuário "${name}"?`)) {
+            return;
+        }
+        setProcessingId(id);
+        try {
+            const res = await deleteUser(id);
+            if (res?.success) {
+                toast.success(res.message);
+            } else {
+                toast.error(res?.error || "Erro ao excluir usuário.");
+            }
+        } catch (err: any) {
+            toast.error("Erro inesperado ao excluir usuário.");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleToggleActive = async (id: string, currentStatus: boolean, name: string) => {
+        const nextStatus = !currentStatus;
+        const actionLabel = nextStatus ? "reativar" : "inativar";
+        if (!window.confirm(`Deseja realmente ${actionLabel} o usuário "${name}"?`)) {
+            return;
+        }
+        setProcessingId(id);
+        try {
+            const res = await toggleUserActive(id, nextStatus);
+            if (res?.success) {
+                toast.success(res.message);
+            } else {
+                toast.error(res?.error || `Erro ao ${actionLabel} usuário.`);
+            }
+        } catch (err: any) {
+            toast.error(`Erro ao ${actionLabel} usuário.`);
+        } finally {
+            setProcessingId(null);
+        }
+    };
 
     const activeUsers = users.filter(u => u.isActive !== false);
     const usersWithManager = users.filter(u => u.managerId);
+
 
     const filteredUsers = users.filter(u => {
         if (!searchTerm.trim()) return true;
@@ -227,14 +270,39 @@ export function AccessManagementClient({ users, rules, clientsList }: AccessMana
                                                                 </Button>
                                                             }
                                                         />
-                                                        <form action={deleteUser.bind(null, user.id)}>
-                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-rose-600 hover:bg-rose-50">
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                        </form>
+                                                        {/* Alternar Status (Ativar / Inativar) */}
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className={`h-8 w-8 ${user.isActive ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"}`}
+                                                            title={user.isActive ? "Inativar Usuário" : "Reativar Usuário"}
+                                                            disabled={processingId === user.id}
+                                                            onClick={() => handleToggleActive(user.id, user.isActive, user.name)}
+                                                        >
+                                                            {processingId === user.id ? (
+                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : user.isActive ? (
+                                                                <Power className="w-3.5 h-3.5" />
+                                                            ) : (
+                                                                <RotateCcw className="w-3.5 h-3.5" />
+                                                            )}
+                                                        </Button>
+
+                                                        {/* Excluir Usuário */}
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                                            title="Excluir Usuário"
+                                                            disabled={processingId === user.id}
+                                                            onClick={() => handleDeleteUser(user.id, user.name)}
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
+
                                         ))
                                     )}
                                 </TableBody>

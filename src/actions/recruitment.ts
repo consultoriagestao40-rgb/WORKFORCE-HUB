@@ -37,7 +37,7 @@ export async function createVacancyFromPosto(
     }
 
     // BLOCKER: Prevent vacancy creation for ROTATIVO
-    if (posto.client.name === 'ROTATIVO') {
+    if (posto.client?.name === 'ROTATIVO') {
         throw new Error("Não é permitido abrir vaga para o posto ROTATIVO.");
     }
 
@@ -47,8 +47,8 @@ export async function createVacancyFromPosto(
         orderBy: { createdAt: 'desc' }
     });
 
-    const title = `${posto.role.name} - ${posto.client.name}`;
-    const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule}\n- Horário: ${posto.startTime} - ${posto.endTime}\n- Carga horária: ${posto.requiredWorkload}h`;
+    const title = `${posto.role?.name || 'Vaga'} - ${posto.client?.name || 'Posto'}`;
+    const description = `Vaga aberta automaticamente após realocação de colaborador.\n\nDetalhes do posto:\n- Escala: ${posto.schedule || 'N/A'}\n- Horário: ${posto.startTime || ''} - ${posto.endTime || ''}\n- Carga horária: ${posto.requiredWorkload || 0}h`;
 
     const isVacationReason = reason && /férias|ferias/i.test(reason);
     const openingReason = isVacationReason ? 'FERIAS' : (reason || null);
@@ -86,7 +86,7 @@ export async function createVacancyFromPosto(
             title,
             description,
             postoId: posto.id,
-            companyId: posto.client.company?.id || null,
+            companyId: posto.client?.company?.id || null,
             status: 'OPEN',
             priority: 'MEDIUM',
             openingReason,
@@ -805,37 +805,65 @@ export async function withdrawCandidate(candidateId: string) {
     });
 
     if (candidate) {
-        // 2. Create Audit Log (Preserved via Vacancy Link)
-        await prisma.recruitmentTimeline.create({
-            data: {
-                vacancyId: candidate.vacancyId,
-                candidateName: candidate.name,
-                // candidateId will be null after delete OR we set it now and let it be set to null by ON DELETE SET NULL
-                // To safely link it before delete, we can set it.
-                // But since we delete immediately, it might be safer to just relying on vacancy links for history of deleted candidates.
-                // Let's link it anyway, so if delete fails, we have it.
-                candidateId: candidateId,
-                action: "WITHDRAWN",
-                details: `Candidato ${candidate.name} desistiu do processo e foi removido.`,
-                userId: user.id
-            }
-        });
+        // 2. Create Audit Log (Preserved via Vacancy Link, with candidateId = null to avoid FK violation)
+        try {
+            await prisma.recruitmentTimeline.create({
+                data: {
+                    vacancyId: candidate.vacancyId,
+                    candidateName: candidate.name,
+                    candidateId: null, // Evita violação de FK quando o candidato for removido
+                    action: "WITHDRAWN",
+                    details: `Candidato ${candidate.name} desistiu do processo e foi removido.`,
+                    userId: user.id
+                }
+            });
+        } catch (logErr) {
+            console.warn("[withdrawCandidate] Erro ao registrar log de desistência:", logErr);
+        }
     }
 
-    // 3. Delete Candidate (Timeline candidateId becomes null, but vacancyId and candidateName persist)
-    await prisma.recruitmentCandidate.delete({
-        where: { id: candidateId }
-    });
+    // 3. Desvincular todas as timelines anteriores deste candidato antes de deletar
+    try {
+        await prisma.recruitmentTimeline.updateMany({
+            where: { candidateId: candidateId },
+            data: { candidateId: null }
+        });
+    } catch (tlErr) {
+        console.warn("[withdrawCandidate] Erro ao desvincular timelines do candidato:", tlErr);
+    }
 
-    // 4. Notify all stakeholders about withdrawal
+    // 4. Limpar mensagens de WhatsApp se houver
+    try {
+        await prisma.recruitmentWhatsAppMessage.deleteMany({
+            where: { candidateId: candidateId }
+        });
+    } catch (waErr) {
+        console.warn("[withdrawCandidate] Erro ao limpar mensagens de whatsapp:", waErr);
+    }
+
+    // 5. Delete Candidate safely
+    try {
+        await prisma.recruitmentCandidate.delete({
+            where: { id: candidateId }
+        });
+    } catch (delErr) {
+        console.error("[withdrawCandidate] Erro ao excluir candidato:", delErr);
+        throw new Error("Não foi possível excluir o candidato devido a vínculos no banco de dados.");
+    }
+
+    // 6. Notify all stakeholders about withdrawal
     if (candidate && candidate.vacancyId) {
-        await notifyVacancyStakeholders(
-            candidate.vacancyId,
-            "Desistência de Candidato",
-            `Candidato ${candidate.name} desistiu do processo.`,
-            'SYSTEM',
-            '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
-        );
+        try {
+            await notifyVacancyStakeholders(
+                candidate.vacancyId,
+                "Desistência de Candidato",
+                `Candidato ${candidate.name} desistiu do processo.`,
+                'SYSTEM',
+                '/admin/recrutamento?openId=VAC-' + candidate.vacancyId
+            );
+        } catch (notifErr) {
+            console.warn("[withdrawCandidate] Erro ao notificar interessados:", notifErr);
+        }
     }
 
     revalidatePath("/admin/recrutamento");
@@ -850,10 +878,23 @@ export async function deleteCandidate(candidateId: string) {
         throw new Error("Apenas administradores podem excluir registros permanentemente.");
     }
 
-    // Delete associated timeline entries first to be clean (optional but good for test data)
-    await prisma.recruitmentTimeline.deleteMany({
-        where: { candidateId: candidateId }
-    });
+    // Desvincular ou deletar timeline para não estourar constraint de FK
+    try {
+        await prisma.recruitmentTimeline.deleteMany({
+            where: { candidateId: candidateId }
+        });
+    } catch (e) {
+        console.warn("[deleteCandidate] Erro ao remover timeline:", e);
+    }
+
+    // Limpar mensagens do WhatsApp
+    try {
+        await prisma.recruitmentWhatsAppMessage.deleteMany({
+            where: { candidateId: candidateId }
+        });
+    } catch (e) {
+        console.warn("[deleteCandidate] Erro ao remover mensagens de whatsapp:", e);
+    }
 
     await prisma.recruitmentCandidate.delete({
         where: { id: candidateId }
@@ -1154,15 +1195,15 @@ async function syncBacklogGaps() {
     console.log(`Creating ${postosNeedingVacancy.length} automatic vacancies for gaps.`);
 
     for (const p of postosNeedingVacancy) {
-        if (p.client.name === 'ROTATIVO') continue;
+        if (!p.client || p.client.name === 'ROTATIVO') continue;
         try {
             await prisma.vacancy.create({
                 data: {
-                    title: `${p.role.name} - ${p.client.name}`,
-                    description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime} - ${p.endTime}\nEscala: ${p.schedule}`,
+                    title: `${p.role?.name || 'Vaga'} - ${p.client?.name || 'Posto'}`,
+                    description: `Vaga aberta automaticamente por vacância do posto.\nHorário: ${p.startTime || ''} - ${p.endTime || ''}\nEscala: ${p.schedule || ''}`,
                     postoId: p.id,
                     roleId: p.roleId || undefined,
-                    companyId: p.client.companyId || undefined,
+                    companyId: p.client?.companyId || undefined,
                     priority: "URGENT",
                     status: "OPEN"
                 }

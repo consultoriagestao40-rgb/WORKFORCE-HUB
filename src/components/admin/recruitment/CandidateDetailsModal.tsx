@@ -761,35 +761,35 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                     </div>
                                                 </div>
 
-                                                {(candidate.vacancy.posto.insalubridade > 0 ||
-                                                    candidate.vacancy.posto.periculosidade > 0 ||
-                                                    candidate.vacancy.posto.gratificacao > 0 ||
-                                                    candidate.vacancy.posto.outrosAdicionais > 0) && (
+                                                {(((candidate.vacancy.posto.insalubridade || 0) > 0) ||
+                                                    (((candidate.vacancy.posto.periculosidade || 0) > 0)) ||
+                                                    (((candidate.vacancy.posto.gratificacao || 0) > 0)) ||
+                                                    (((candidate.vacancy.posto.outrosAdicionais || 0) > 0))) && (
                                                         <div className="pt-2 border-t border-emerald-100/50 mt-2 space-y-1">
                                                             <label className="text-xs font-medium text-slate-500 uppercase">Adicionais</label>
 
-                                                            {candidate.vacancy.posto.insalubridade > 0 && (
+                                                            {(candidate.vacancy.posto.insalubridade || 0) > 0 && (
                                                                 <div className="flex justify-between text-sm text-slate-700">
                                                                     <span>Insalubridade</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.insalubridade)}</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.insalubridade || 0)}</span>
                                                                 </div>
                                                             )}
-                                                            {candidate.vacancy.posto.periculosidade > 0 && (
+                                                            {(candidate.vacancy.posto.periculosidade || 0) > 0 && (
                                                                 <div className="flex justify-between text-sm text-slate-700">
                                                                     <span>Periculosidade</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.periculosidade)}</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.periculosidade || 0)}</span>
                                                                 </div>
                                                             )}
-                                                            {candidate.vacancy.posto.gratificacao > 0 && (
+                                                            {(candidate.vacancy.posto.gratificacao || 0) > 0 && (
                                                                 <div className="flex justify-between text-sm text-slate-700">
                                                                     <span>Gratificação</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.gratificacao)}</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.gratificacao || 0)}</span>
                                                                 </div>
                                                             )}
-                                                            {candidate.vacancy.posto.outrosAdicionais > 0 && (
+                                                            {(candidate.vacancy.posto.outrosAdicionais || 0) > 0 && (
                                                                 <div className="flex justify-between text-sm text-slate-700">
                                                                     <span>Outros</span>
-                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.outrosAdicionais)}</span>
+                                                                    <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(candidate.vacancy.posto.outrosAdicionais || 0)}</span>
                                                                 </div>
                                                             )}
                                                         </div>

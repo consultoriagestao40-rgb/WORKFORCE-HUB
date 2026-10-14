@@ -91,7 +91,10 @@ export default async function UsersPage() {
                                                 }
                                             />
                                             {/* Delete Form */}
-                                            <form action={deleteUser.bind(null, user.id)}>
+                                            <form action={async () => {
+                                                "use server";
+                                                await deleteUser(user.id);
+                                            }}>
                                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50">
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
