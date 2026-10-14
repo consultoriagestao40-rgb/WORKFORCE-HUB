@@ -198,9 +198,28 @@ export async function createApprovalRequest(data: {
     const n1Required = data.n1Required !== undefined ? data.n1Required : (rule ? rule.n1Enabled : true);
     const n2Required = data.n2Required !== undefined ? data.n2Required : (rule ? rule.n2Enabled : true);
 
-    const initialStatus = n1Required 
-        ? ApprovalStatus.PENDENTE_N1 
-        : (n2Required ? ApprovalStatus.PENDENTE_N2 : ApprovalStatus.APROVADO);
+    // Verificar se o solicitante possui superior imediato (N1)
+    const requester = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { id: true, managerId: true, isApproverN2: true, role: true }
+    });
+
+    const hasN1 = !!requester?.managerId;
+
+    // REGRA DE N1 E N2:
+    // Se o solicitante NÃO possui superior imediato (N1), a solicitação sobe DIRETO para o N2!
+    // Se o solicitante possui N1, passa primeiro pelo N1 e depois pelo N2.
+    let initialStatus: ApprovalStatus;
+    let effectiveN1Required = n1Required;
+
+    if (!hasN1) {
+        effectiveN1Required = false;
+        initialStatus = n2Required ? ApprovalStatus.PENDENTE_N2 : ApprovalStatus.APROVADO;
+    } else if (!n1Required) {
+        initialStatus = n2Required ? ApprovalStatus.PENDENTE_N2 : ApprovalStatus.APROVADO;
+    } else {
+        initialStatus = ApprovalStatus.PENDENTE_N1;
+    }
 
     const request = await prisma.approvalRequest.create({
         data: {
@@ -219,15 +238,19 @@ export async function createApprovalRequest(data: {
             snapshotCurrent: data.snapshotCurrent || null,
             snapshotProposed: data.snapshotProposed,
             executionPayload: data.executionPayload,
-            n1Required,
+            n1Required: effectiveN1Required,
             n2Required,
         }
     });
 
+    const routingDetails = !hasN1 
+        ? `Solicitante sem N1 (Direção Geral) -> Sobe direto para o Nível 2 (N2).` 
+        : (effectiveN1Required ? `Encaminhada para aprovação N1 (Gestor Imediato).` : `Encaminhada para aprovação N2.`);
+
     await prisma.log.create({
         data: {
             action: "CRIACAO_SOLICITACAO_APROVACAO",
-            details: `Solicitação criada: ${data.title} (${data.type}) para aprovação N1.`,
+            details: `Solicitação criada: ${data.title} (${data.type}) - ${routingDetails}`,
             employeeId: data.employeeId || null,
             userId: user.id
         }
@@ -387,7 +410,12 @@ export async function processApprovalDecision(
         // 2. Processamento NÍVEL 2 (N2)
         if (request.status === ApprovalStatus.PENDENTE_N2) {
             let canApproveN2 = false;
-            if (user.role === 'ADMIN') {
+            const dbApprover = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: { isApproverN2: true, role: true }
+            });
+
+            if (user.role === 'ADMIN' || dbApprover?.isApproverN2) {
                 canApproveN2 = true;
             } else if (rule?.n2ApproverType === "SPECIFIC_USER") {
                 if (user.id === rule.n2TargetUserId) {

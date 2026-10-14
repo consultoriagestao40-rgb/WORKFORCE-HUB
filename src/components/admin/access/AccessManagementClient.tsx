@@ -200,7 +200,7 @@ export function AccessManagementClient({ users, rules, clientsList }: AccessMana
                                         <TableHead className="text-xs font-bold text-slate-700">Nome / Email</TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700">Usuário (Login)</TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700">Perfil de Acesso</TableHead>
-                                        <TableHead className="text-xs font-bold text-slate-700">Gestor Imediato (Superior N1)</TableHead>
+                                        <TableHead className="text-xs font-bold text-slate-700">Hierarquia & Alçadas (N1 / N2)</TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700">Status</TableHead>
                                         <TableHead className="text-xs font-bold text-slate-700 text-right pr-4">Ações</TableHead>
                                     </TableRow>
@@ -234,21 +234,30 @@ export function AccessManagementClient({ users, rules, clientsList }: AccessMana
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {user.manager ? (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                                                {user.manager.name}
+                                                    <div className="flex flex-col gap-1">
+                                                        {user.manager ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                                    N1: {user.manager.name}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-mono uppercase tracking-tight ml-3">
+                                                                    {user.manager.role}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded w-fit">
+                                                                Sem N1 (Sobe direto p/ N2)
                                                             </span>
-                                                            <span className="text-[10px] text-slate-400 font-mono uppercase tracking-tight ml-3">
-                                                                {user.manager.role}
+                                                        )}
+
+                                                        {user.isApproverN2 && (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded w-fit">
+                                                                <ShieldCheck className="w-3 h-3 text-purple-600" />
+                                                                Aprovador N2 (Diretoria)
                                                             </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-slate-400 italic">
-                                                            {user.role === 'ADMIN' ? 'Direção Geral (Sem Superior)' : 'Não configurado'}
-                                                        </span>
-                                                    )}
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge 

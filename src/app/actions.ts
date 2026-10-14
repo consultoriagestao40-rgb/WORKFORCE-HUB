@@ -2716,6 +2716,7 @@ export async function createUser(formData: FormData) {
     const clientIds = formData.getAll("clientIds") as string[];
     const phone = formData.get("phone") as string;
     const managerId = (formData.get("managerId") as string) || null;
+    const isApproverN2 = formData.get("isApproverN2") === "true";
 
     const hashedPassword = await hashPassword(password);
 
@@ -2727,6 +2728,7 @@ export async function createUser(formData: FormData) {
             password: hashedPassword,
             role,
             managerId: managerId && managerId !== "NONE" ? managerId : null,
+            isApproverN2,
             isActive: true,
             clientIds,
             phone
@@ -2749,12 +2751,14 @@ export async function updateUser(formData: FormData) {
     const clientIds = formData.getAll("clientIds") as string[];
     const phone = formData.get("phone") as string;
     const managerId = (formData.get("managerId") as string) || null;
+    const isApproverN2 = formData.get("isApproverN2") === "true";
 
     const updateData: any = {
         name,
         email,
         role,
         managerId: managerId && managerId !== "NONE" ? managerId : null,
+        isApproverN2,
         isActive,
         clientIds,
         phone

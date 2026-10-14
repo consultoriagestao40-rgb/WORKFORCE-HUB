@@ -55,10 +55,11 @@ model User {
   approvalRequestsN1         ApprovalRequest[]           @relation("ApprovalN1By")
   approvalRequestsN2         ApprovalRequest[]           @relation("ApprovalN2By")
 
-  // Subordinação Hierárquica
+  // Subordinação Hierárquica e Alçadas
   managerId                  String?
   manager                    User?                       @relation("UserSubordination", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates               User[]                      @relation("UserSubordination")
+  isApproverN2               Boolean                     @default(false)
 }
 
 model Log {

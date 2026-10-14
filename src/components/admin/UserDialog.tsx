@@ -24,6 +24,7 @@ interface User {
     clientIds?: string[];
     managerId?: string | null;
     manager?: { id: string; name: string; role: string } | null;
+    isApproverN2?: boolean;
 }
 
 interface Client {
@@ -34,7 +35,7 @@ interface Client {
 interface UserDialogProps {
     user?: User; // If provided, edit mode
     clients?: Client[];
-    allUsers?: { id: string; name: string; username: string; role: string; isActive?: boolean }[];
+    allUsers?: { id: string; name: string; username: string; role: string; isActive?: boolean; isApproverN2?: boolean }[];
     trigger?: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
@@ -46,6 +47,7 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
     const [selectedRole, setSelectedRole] = useState<string>(user?.role || "SUPERVISOR");
     const [selectedClients, setSelectedClients] = useState<string[]>(user?.clientIds || []);
     const [selectedManagerId, setSelectedManagerId] = useState<string>(user?.managerId || "NONE");
+    const [isApproverN2, setIsApproverN2] = useState<boolean>(user?.isApproverN2 || false);
 
     const isEdit = !!user;
 
@@ -54,10 +56,12 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
             setSelectedRole(user.role);
             setSelectedClients(user.clientIds || []);
             setSelectedManagerId(user.managerId || "NONE");
+            setIsApproverN2(!!user.isApproverN2);
         } else {
             setSelectedRole("SUPERVISOR");
             setSelectedClients([]);
             setSelectedManagerId("NONE");
+            setIsApproverN2(false);
         }
     }, [user, open, internalOpen]);
 
@@ -73,6 +77,7 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
             }
 
             formData.set("managerId", selectedManagerId);
+            formData.set("isApproverN2", String(isApproverN2));
 
             if (isEdit) {
                 formData.append("id", user!.id);
@@ -171,37 +176,60 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
                     </div>
 
                     {selectedRole !== "CLIENTE" && (
-                        <div className="space-y-1.5 p-3 rounded-xl border border-indigo-100 bg-indigo-50/40">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                                    <span>Gestor Imediato (Superior N1)</span>
-                                </Label>
-                                <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">
-                                    Hierarquia
-                                </span>
-                            </div>
-                            <Select 
-                                value={selectedManagerId}
-                                onValueChange={setSelectedManagerId}
-                            >
-                                <SelectTrigger className="h-10 text-xs border-indigo-200 bg-white shadow-sm">
-                                    <SelectValue placeholder="Selecione o gestor imediato..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="NONE">
-                                        <span className="text-slate-500 font-medium">Nenhum (Direção Geral / Sem Superior)</span>
-                                    </SelectItem>
-                                    {availableManagers.map(mgr => (
-                                        <SelectItem key={mgr.id} value={mgr.id}>
-                                            <span className="font-semibold text-slate-800">{mgr.name}</span>
-                                            <span className="text-[11px] text-slate-500 ml-1.5">({mgr.role})</span>
+                        <div className="space-y-3 p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/40">
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                        <span>Gestor Imediato (Superior N1)</span>
+                                    </Label>
+                                    <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">
+                                        Validação N1
+                                    </span>
+                                </div>
+                                <Select 
+                                    value={selectedManagerId}
+                                    onValueChange={setSelectedManagerId}
+                                >
+                                    <SelectTrigger className="h-10 text-xs border-indigo-200 bg-white shadow-sm">
+                                        <SelectValue placeholder="Selecione o gestor imediato..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="NONE">
+                                            <span className="text-slate-500 font-medium">Nenhum (Direção Geral / Sem Superior N1)</span>
                                         </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-[11px] text-slate-500 leading-tight">
-                                Define quem é o superior imediato responsável por receber e aprovar solicitações de alçada N1 criadas por este usuário.
-                            </p>
+                                        {availableManagers.map(mgr => (
+                                            <SelectItem key={mgr.id} value={mgr.id}>
+                                                <span className="font-semibold text-slate-800">{mgr.name}</span>
+                                                <span className="text-[11px] text-slate-500 ml-1.5">({mgr.role})</span>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-[11px] text-slate-500 leading-tight">
+                                    {selectedManagerId === "NONE" 
+                                        ? "⚡ Como este usuário não possui N1, qualquer solicitação criada por ele subirá DIRETO para o N2." 
+                                        : "As solicitações deste usuário passam primeiro pela validação do superior imediato (N1)."}
+                                </p>
+                            </div>
+
+                            {/* Alçada de Nível 2 (N2 - Diretoria / Instância Final) */}
+                            <div className="pt-2.5 border-t border-indigo-100 flex items-center justify-between gap-3">
+                                <div className="space-y-0.5">
+                                    <Label htmlFor="isApproverN2" className="text-xs font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+                                        <span className="w-2 h-2 rounded-full bg-purple-600" />
+                                        <span>Perfil Aprovador Nível 2 (N2)</span>
+                                    </Label>
+                                    <p className="text-[10px] text-slate-500 leading-tight">
+                                        Habilita este usuário para deliberação executiva e aprovação final (Diretoria).
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="isApproverN2"
+                                    checked={isApproverN2}
+                                    onCheckedChange={setIsApproverN2}
+                                />
+                            </div>
                         </div>
                     )}
 
