@@ -2816,6 +2816,51 @@ export async function deleteEmployeesBatch(ids: string[]) {
 
 
 
+export async function updateUserApprovalLevel(userId: string, level: "NONE" | "N1" | "N2" | "N1_N2") {
+    try {
+        const userRole = await getCurrentUserRole();
+        if (userRole !== 'ADMIN') {
+            return { success: false, error: "Apenas administradores podem alterar alçadas." };
+        }
+
+        const isApproverN1 = level === "N1" || level === "N1_N2";
+        const isApproverN2 = level === "N2" || level === "N1_N2";
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { isApproverN1, isApproverN2 }
+        });
+
+        revalidatePath("/admin/users");
+        const label = level === 'N1' ? 'Gestor N1' : level === 'N2' ? 'Diretoria N2' : level === 'N1_N2' ? 'N1 + N2 (Ambos)' : 'Solicitante';
+        return { 
+            success: true, 
+            message: `Alçada de ${updated.name} atualizada para ${label}!` 
+        };
+    } catch (err: any) {
+        return { success: false, error: err?.message || "Erro ao atualizar alçada." };
+    }
+}
+
+export async function updateUserManager(userId: string, managerId: string | null) {
+    try {
+        const userRole = await getCurrentUserRole();
+        if (userRole !== 'ADMIN') {
+            return { success: false, error: "Apenas administradores podem alterar superior imediato." };
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { managerId: (managerId === "NONE" || !managerId) ? null : managerId }
+        });
+
+        revalidatePath("/admin/users");
+        return { success: true, message: `Superior de ${updated.name} atualizado!` };
+    } catch (err: any) {
+        return { success: false, error: err?.message || "Erro ao atualizar superior." };
+    }
+}
+
 export async function deleteUser(id: string) {
     try {
         const userRole = await getCurrentUserRole();

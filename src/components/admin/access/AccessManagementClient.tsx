@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Edit2, Search, Trash2, UserCog, SlidersHorizontal, Users, ShieldCheck, CheckCircle2, Loader2, Power, RotateCcw, UserCheck, Crown } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { deleteUser, toggleUserActive } from "@/app/actions";
+import { deleteUser, toggleUserActive, updateUserApprovalLevel, updateUserManager } from "@/app/actions";
 import { WorkflowRulesConfig, WorkflowRuleData, SystemUserData } from "@/components/admin/approvals/WorkflowRulesConfig";
 import { toast } from "sonner";
 
@@ -22,6 +23,38 @@ export function AccessManagementClient({ users, rules, clientsList }: AccessMana
     const [selectedTab, setSelectedTab] = useState<"USERS" | "WORKFLOW">("USERS");
     const [searchTerm, setSearchTerm] = useState("");
     const [processingId, setProcessingId] = useState<string | null>(null);
+
+    const handleQuickApprovalLevelChange = async (userId: string, level: "NONE" | "N1" | "N2" | "N1_N2") => {
+        setProcessingId(userId);
+        try {
+            const res = await updateUserApprovalLevel(userId, level);
+            if (res.success) {
+                toast.success(res.message);
+            } else {
+                toast.error(res.error || "Erro ao atualizar alçada.");
+            }
+        } catch {
+            toast.error("Erro inesperado ao atualizar alçada.");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleQuickManagerChange = async (userId: string, managerId: string) => {
+        setProcessingId(userId);
+        try {
+            const res = await updateUserManager(userId, managerId);
+            if (res.success) {
+                toast.success(res.message);
+            } else {
+                toast.error(res.error || "Erro ao atualizar superior.");
+            }
+        } catch {
+            toast.error("Erro inesperado ao atualizar superior.");
+        } finally {
+            setProcessingId(null);
+        }
+    };
 
     const handleDeleteUser = async (id: string, name: string) => {
         if (!window.confirm(`Tem certeza que deseja excluir/inativar o usuário "${name}"?`)) {
@@ -249,58 +282,83 @@ export function AccessManagementClient({ users, rules, clientsList }: AccessMana
                                                         </Badge>
                                                     </TableCell>
 
-                                                    {/* Alçadas (N1 / N2) */}
+                                                    {/* Alçadas (N1 / N2) - SELEÇÃO RÁPIDA DIRETO NA TABELA */}
                                                     <TableCell>
-                                                        <div className="flex flex-col gap-1">
-                                                            {user.isApproverN1 && (
-                                                                <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-black text-[10px] w-fit shadow-none">
-                                                                    ⭐ Gestor N1
-                                                                </Badge>
-                                                            )}
-                                                            {user.isApproverN2 && (
-                                                                <Badge className="bg-purple-100 text-purple-900 border-purple-300 font-black text-[10px] w-fit shadow-none">
-                                                                    👑 Diretoria N2
-                                                                </Badge>
-                                                            )}
-                                                            {!user.isApproverN1 && !user.isApproverN2 && (
-                                                                <span className="text-[10px] text-slate-400 italic">
-                                                                    Solicitante
-                                                                </span>
-                                                            )}
+                                                        <div className="w-40">
+                                                            <Select
+                                                                disabled={processingId === user.id}
+                                                                value={
+                                                                    user.isApproverN1 && user.isApproverN2 ? "N1_N2" :
+                                                                    user.isApproverN1 ? "N1" :
+                                                                    user.isApproverN2 ? "N2" : "NONE"
+                                                                }
+                                                                onValueChange={(val) => handleQuickApprovalLevelChange(user.id, val as any)}
+                                                            >
+                                                                <SelectTrigger className={`h-8 text-xs font-bold rounded-xl transition-all shadow-none ${
+                                                                    user.isApproverN1 && user.isApproverN2 ? "bg-indigo-50 text-indigo-900 border-indigo-300 font-black" :
+                                                                    user.isApproverN1 ? "bg-amber-50 text-amber-900 border-amber-300 font-black" :
+                                                                    user.isApproverN2 ? "bg-purple-50 text-purple-900 border-purple-300 font-black" :
+                                                                    "bg-slate-50 text-slate-600 border-slate-200 font-medium"
+                                                                }`}>
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="NONE" className="text-xs font-medium text-slate-600">
+                                                                        Solicitante (Sem Alçada)
+                                                                    </SelectItem>
+                                                                    <SelectItem value="N1" className="text-xs font-bold text-amber-800">
+                                                                        ⭐ Gestor N1 (Operacional)
+                                                                    </SelectItem>
+                                                                    <SelectItem value="N2" className="text-xs font-bold text-purple-800">
+                                                                        👑 Diretoria N2 (Instância Final)
+                                                                    </SelectItem>
+                                                                    <SelectItem value="N1_N2" className="text-xs font-bold text-indigo-900">
+                                                                        ⭐👑 Ambos (N1 + N2)
+                                                                    </SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                     </TableCell>
 
-                                                    {/* Superior Imediato */}
+                                                    {/* Superior Imediato - SELEÇÃO RÁPIDA DIRETO NA TABELA */}
                                                     <TableCell>
-                                                        {user.manager ? (
-                                                            <div className="flex flex-col">
-                                                                {isN2Direct ? (
-                                                                    <div className="p-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-950 w-fit">
-                                                                        <span className="text-[11px] font-black flex items-center gap-1">
-                                                                            <Crown className="w-3 h-3 text-purple-600" />
-                                                                            Direto N2: {user.manager.name}
-                                                                        </span>
-                                                                        <span className="text-[9px] text-purple-700 block font-medium">
-                                                                            Aprovou no N2, já libera pro RH
-                                                                        </span>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-950 w-fit">
-                                                                        <span className="text-[11px] font-black flex items-center gap-1">
-                                                                            <UserCheck className="w-3 h-3 text-amber-600" />
-                                                                            N1: {user.manager.name}
-                                                                        </span>
-                                                                        <span className="text-[9px] text-amber-700 block font-medium">
-                                                                            Valida no N1 e sobe pro N2
-                                                                        </span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded w-fit inline-block">
-                                                                Sem N1 (Sobe direto pro N2)
-                                                            </span>
-                                                        )}
+                                                        <div className="w-48 flex flex-col gap-1">
+                                                            <Select
+                                                                disabled={processingId === user.id}
+                                                                value={user.managerId || "NONE"}
+                                                                onValueChange={(val) => handleQuickManagerChange(user.id, val)}
+                                                            >
+                                                                <SelectTrigger className="h-8 text-[11px] font-semibold rounded-xl bg-white border-slate-200 shadow-none">
+                                                                    <SelectValue placeholder="Sem Superior" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="NONE" className="text-xs font-medium text-slate-500">
+                                                                        Nenhum (Direção Geral / Sem N1)
+                                                                    </SelectItem>
+                                                                    {users.filter(u => u.id !== user.id && u.isActive !== false).map(mgr => (
+                                                                        <SelectItem key={mgr.id} value={mgr.id} className="text-xs">
+                                                                            <span className="font-bold">{mgr.name}</span>
+                                                                            <span className="text-[10px] text-slate-400 ml-1">
+                                                                                ({mgr.isApproverN2 ? "N2" : mgr.isApproverN1 ? "N1" : mgr.role})
+                                                                            </span>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            {isN2Direct ? (
+                                                                <span className="text-[9px] text-purple-700 font-bold block leading-tight">
+                                                                    ⚡ Ligado a N2 (aprovação já libera pro RH)
+                                                                </span>
+                                                            ) : user.manager ? (
+                                                                <span className="text-[9px] text-amber-700 font-medium block leading-tight">
+                                                                    Passa por N1 e sobe pro N2
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[9px] text-slate-400 font-medium block leading-tight">
+                                                                    Sobe direto para N2
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
 
                                                     {/* Equipe Subordinada */}

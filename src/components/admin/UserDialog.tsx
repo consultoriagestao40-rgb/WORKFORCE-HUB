@@ -253,10 +253,53 @@ export function UserDialog({ user, clients = [], allUsers = [], trigger, open, o
                             </div>
 
                             {/* 1. Alçadas que este usuário possui */}
-                            <div>
-                                <Label className="text-xs font-bold text-slate-800 block mb-2">
-                                    Alçadas Deliberativas deste Usuário:
-                                </Label>
+                            <div className="space-y-3">
+                                <div>
+                                    <Label className="text-xs font-bold text-slate-800 block mb-1.5">
+                                        Definir se este Usuário é N1 ou N2:
+                                    </Label>
+                                    <Select
+                                        value={
+                                            isApproverN1 && isApproverN2 ? "N1_N2" :
+                                            isApproverN1 ? "N1" :
+                                            isApproverN2 ? "N2" : "NONE"
+                                        }
+                                        onValueChange={(val) => {
+                                            if (val === "N1") {
+                                                setIsApproverN1(true);
+                                                setIsApproverN2(false);
+                                            } else if (val === "N2") {
+                                                setIsApproverN1(false);
+                                                setIsApproverN2(true);
+                                            } else if (val === "N1_N2") {
+                                                setIsApproverN1(true);
+                                                setIsApproverN2(true);
+                                            } else {
+                                                setIsApproverN1(false);
+                                                setIsApproverN2(false);
+                                            }
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-10 text-xs font-bold border-indigo-200 bg-white rounded-xl shadow-sm">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NONE" className="text-xs font-medium text-slate-600">
+                                                Apenas Solicitante (Sem Alçada de Aprovação)
+                                            </SelectItem>
+                                            <SelectItem value="N1" className="text-xs font-bold text-amber-800">
+                                                ⭐ Gestor Nível 1 (N1 - Validação Operacional / Equipe)
+                                            </SelectItem>
+                                            <SelectItem value="N2" className="text-xs font-bold text-purple-800">
+                                                👑 Aprovador Nível 2 (N2 - Diretoria / Efetivação Final)
+                                            </SelectItem>
+                                            <SelectItem value="N1_N2" className="text-xs font-bold text-indigo-900">
+                                                ⭐👑 Ambos (N1 e N2 - Gestor e Diretoria)
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {/* Nível 1 (N1) */}
                                     <div className={`p-3 rounded-xl border transition-all ${isApproverN1 ? "border-amber-400 bg-amber-50/60 shadow-sm" : "border-slate-200 bg-white"}`}>
