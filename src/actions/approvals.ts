@@ -274,6 +274,18 @@ export async function createApprovalRequest(data: {
         }
     });
 
+    // Notificar Aprovador correspondente via WhatsApp (Z-API)
+    await notifyApprovalFlow({
+        event: initialStatus === ApprovalStatus.PENDENTE_N1 ? 'NOVA_SOLICITACAO_N1' : 'NOVA_SOLICITACAO_N2',
+        requestId: request.id,
+        title: data.title,
+        type: data.type,
+        employeeName,
+        clientName,
+        requesterName: user.name,
+        requesterManagerId: requester?.managerId
+    });
+
     revalidatePath("/admin/aprovacoes");
     return { success: true, request };
 }
@@ -373,6 +385,18 @@ export async function processApprovalDecision(
                     }
                 });
 
+                await notifyApprovalFlow({
+                    event: 'REPROVADO',
+                    requestId,
+                    title: request.title,
+                    type: request.type,
+                    employeeName: request.employeeName,
+                    clientName: request.clientName,
+                    requesterName: request.requesterName,
+                    n1ApproverName: user.name,
+                    feedback
+                });
+
                 revalidatePath("/admin/aprovacoes");
                 return { success: true, status: ApprovalStatus.REPROVADO, message: "Solicitação reprovada no N1." };
             }
@@ -401,6 +425,19 @@ export async function processApprovalDecision(
                     }
                 });
 
+                // Notificar N2 e RH do avanço
+                await notifyApprovalFlow({
+                    event: 'AVANCO_N2',
+                    requestId,
+                    title: request.title,
+                    type: request.type,
+                    employeeName: request.employeeName,
+                    clientName: request.clientName,
+                    requesterName: request.requesterName,
+                    n1ApproverName: user.name,
+                    feedback
+                });
+
                 revalidatePath("/admin/aprovacoes");
                 return { success: true, status: ApprovalStatus.PENDENTE_N2, message: "Aprovado no N1! Aguardando deliberação N2." };
             } else {
@@ -419,6 +456,19 @@ export async function processApprovalDecision(
 
                 // Executa no WFH e Secullum
                 const execResult = await executeApprovedRequest(requestId, user.name);
+
+                // Notificar RH de liberação final
+                await notifyApprovalFlow({
+                    event: 'APROVADO_FINAL',
+                    requestId,
+                    title: request.title,
+                    type: request.type,
+                    employeeName: request.employeeName,
+                    clientName: request.clientName,
+                    requesterName: request.requesterName,
+                    n1ApproverName: user.name,
+                    feedback
+                });
 
                 revalidatePath("/admin/aprovacoes");
                 return { 
@@ -475,6 +525,19 @@ export async function processApprovalDecision(
                     }
                 });
 
+                await notifyApprovalFlow({
+                    event: 'REPROVADO',
+                    requestId,
+                    title: request.title,
+                    type: request.type,
+                    employeeName: request.employeeName,
+                    clientName: request.clientName,
+                    requesterName: request.requesterName,
+                    n1ApproverName: request.n1ApproverName,
+                    n2ApproverName: user.name,
+                    feedback
+                });
+
                 revalidatePath("/admin/aprovacoes");
                 return { success: true, status: ApprovalStatus.REPROVADO, message: "Solicitação reprovada no N2." };
             }
@@ -503,6 +566,20 @@ export async function processApprovalDecision(
 
             // Executa no WFH e Secullum
             const execResult = await executeApprovedRequest(requestId, user.name);
+
+            // Notificar RH de liberação final para dar sequência operacional
+            await notifyApprovalFlow({
+                event: 'APROVADO_FINAL',
+                requestId,
+                title: request.title,
+                type: request.type,
+                employeeName: request.employeeName,
+                clientName: request.clientName,
+                requesterName: request.requesterName,
+                n1ApproverName: request.n1ApproverName,
+                n2ApproverName: user.name,
+                feedback
+            });
 
             revalidatePath("/admin/aprovacoes");
             return { 
@@ -870,4 +947,166 @@ export async function saveApprovalWorkflowRule(data: {
 
     revalidatePath("/admin/aprovacoes");
     return { success: true, rule: updated };
+}
+
+/**
+ * Notificador de WhatsApp para Alçada de Aprovações (N1 / N2 / RH)
+ */
+export async function notifyApprovalFlow(params: {
+    event: 'NOVA_SOLICITACAO_N1' | 'NOVA_SOLICITACAO_N2' | 'AVANCO_N2' | 'APROVADO_FINAL' | 'REPROVADO';
+    requestId: string;
+    title: string;
+    type?: string;
+    employeeName?: string | null;
+    clientName?: string | null;
+    requesterName?: string | null;
+    requesterManagerId?: string | null;
+    n1ApproverName?: string | null;
+    n2ApproverName?: string | null;
+    feedback?: string | null;
+}) {
+    try {
+        const { sendZapiRaw } = await import("@/lib/rh-notifications");
+
+        // 1. Buscar Aprovadores N1, Aprovadores N2, Equipe RH e Configurações
+        const [n1Users, n2Users, rhUsers, config] = await Promise.all([
+            prisma.user.findMany({
+                where: { OR: [{ isApproverN1: true }, { role: 'SUPERVISOR' }], isActive: true },
+                select: { id: true, name: true, phone: true }
+            }),
+            prisma.user.findMany({
+                where: { OR: [{ isApproverN2: true }, { role: 'ADMIN' }], isActive: true },
+                select: { id: true, name: true, phone: true }
+            }),
+            prisma.user.findMany({
+                where: { OR: [{ role: 'COORD_RH' }, { role: 'ASSIST_RH' }, { email: { contains: 'dp@' } }], isActive: true },
+                select: { id: true, name: true, phone: true }
+            }),
+            prisma.rhNotificationConfig.findFirst()
+        ]);
+
+        const adminGroup = config?.adminGroupJid;
+        const portalUrl = "https://workforce-hub-henna.vercel.app/admin/aprovacoes";
+
+        // ── A) NOVA SOLICITAÇÃO PENDENTE N1 ──────────────────────────────
+        if (params.event === 'NOVA_SOLICITACAO_N1') {
+            const targets = new Set<string>();
+            if (params.requesterManagerId) {
+                const mgr = await prisma.user.findUnique({ 
+                    where: { id: params.requesterManagerId }, 
+                    select: { phone: true } 
+                });
+                if (mgr?.phone) targets.add(mgr.phone);
+            }
+            if (targets.size === 0) {
+                n1Users.forEach(u => u.phone && targets.add(u.phone));
+            }
+
+            const msg = `🔔 *WORKFORCE HUB - NOVA SOLICITAÇÃO (N1)*\n\n` +
+                `Uma nova solicitação foi aberta e aguarda sua aprovação como Gestor N1:\n\n` +
+                `📌 *Solicitação:* ${params.title}\n` +
+                `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                `✍️ *Solicitado por:* ${params.requesterName || 'Operação'}\n\n` +
+                `🔗 Acesse o portal para deliberar:\n${portalUrl}`;
+
+            for (const phone of targets) {
+                await sendZapiRaw(phone, msg);
+            }
+        }
+
+        // ── B) NOVA SOLICITAÇÃO PENDENTE N2 (Diretoria) ─────────────────
+        else if (params.event === 'NOVA_SOLICITACAO_N2') {
+            const targets = new Set<string>();
+            n2Users.forEach(u => u.phone && targets.add(u.phone));
+            if (adminGroup) targets.add(adminGroup);
+
+            const msg = `👑 *WORKFORCE HUB - APROVAÇÃO DIRETORIA (N2)*\n\n` +
+                `Nova solicitação aguardando deliberação da Diretoria (N2):\n\n` +
+                `📌 *Solicitação:* ${params.title}\n` +
+                `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                `✍️ *Solicitante:* ${params.requesterName || 'Operação'}\n` +
+                `⭐ *Alçada N1:* Direto para N2 (sem N1 intermediário)\n\n` +
+                `🔗 Acesse para deliberação:\n${portalUrl}`;
+
+            for (const target of targets) {
+                await sendZapiRaw(target, msg);
+            }
+        }
+
+        // ── C) AVANÇO N1 ➔ N2 (N1 Aprovou) ──────────────────────────────
+        else if (params.event === 'AVANCO_N2') {
+            // Notifica N2 (Diretoria)
+            const targetsN2 = new Set<string>();
+            n2Users.forEach(u => u.phone && targetsN2.add(u.phone));
+            if (adminGroup) targetsN2.add(adminGroup);
+
+            const msgN2 = `👑 *WORKFORCE HUB - APROVADO NO N1 ➔ PENDENTE N2*\n\n` +
+                `A solicitação foi aprovada no Nível 1 por *${params.n1ApproverName || 'Gestor N1'}* e subiu para aprovação final da Diretoria (N2):\n\n` +
+                `📌 *Solicitação:* ${params.title}\n` +
+                `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                `✍️ *Solicitante:* ${params.requesterName || 'Operação'}\n` +
+                `⭐ *Parecer N1:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
+                `🔗 Acesse para deliberação:\n${portalUrl}`;
+
+            for (const target of targetsN2) {
+                await sendZapiRaw(target, msgN2);
+            }
+
+            // Notifica RH para acompanhamento
+            const targetsRh = new Set<string>();
+            rhUsers.forEach(u => u.phone && targetsRh.add(u.phone));
+            const msgRh = `📋 *WORKFORCE HUB - ACOMPANHAMENTO RH (AVANÇO N2)*\n\n` +
+                `A solicitação *${params.title}* (${params.employeeName || 'N/A'}) foi aprovada pelo Gestor N1 (*${params.n1ApproverName || 'Gestor'}*) e avançou para a Diretoria (N2).\n` +
+                `Assim que o N2 homologar, você receberá a liberação para dar sequência operacional!`;
+
+            for (const phone of targetsRh) {
+                await sendZapiRaw(phone, msgRh);
+            }
+        }
+
+        // ── D) APROVADO FINAL (N2 Aprovou / Homologado) ──────────────────
+        else if (params.event === 'APROVADO_FINAL') {
+            // NOTIFICA O RH PARA DAR SEQUÊNCIA
+            const targetsRh = new Set<string>();
+            rhUsers.forEach(u => u.phone && targetsRh.add(u.phone));
+            if (adminGroup) targetsRh.add(adminGroup);
+
+            const msgRh = `✅ *WORKFORCE HUB - PROCESSO APROVADO! LIBERADO PARA O RH*\n\n` +
+                `A seguinte solicitação foi *100% HOMOLOGADA* pela Diretoria e está *LIBERADA* para execução operacional do RH:\n\n` +
+                `📌 *Solicitação:* ${params.title}\n` +
+                `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                `⭐ *Aprovador N1:* ${params.n1ApproverName || 'Dispensado / Direto N2'}\n` +
+                `👑 *Aprovador N2:* ${params.n2ApproverName || 'Diretoria'}\n` +
+                `💬 *Parecer:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
+                `👉 *Ação do RH:* Efetivar no sistema, documentos, Secullum e trâmites de departamento pessoal.\n\n` +
+                `🔗 Acesse para dar sequência:\n${portalUrl}`;
+
+            for (const target of targetsRh) {
+                await sendZapiRaw(target, msgRh);
+            }
+        }
+
+        // ── E) REPROVADO ─────────────────────────────────────────────────
+        else if (params.event === 'REPROVADO') {
+            const targets = new Set<string>();
+            rhUsers.forEach(u => u.phone && targets.add(u.phone));
+            if (adminGroup) targets.add(adminGroup);
+
+            const msg = `❌ *WORKFORCE HUB - SOLICITAÇÃO REPROVADA*\n\n` +
+                `A solicitação de *${params.title}* para *${params.employeeName || 'N/A'}* foi reprovada.\n\n` +
+                `👤 *Deliberado por:* ${params.n1ApproverName || params.n2ApproverName || 'Diretoria'}\n` +
+                `🚫 *Motivo:* ${params.feedback || 'Sem justificativa informada'}\n\n` +
+                `🔗 Detalhes no portal:\n${portalUrl}`;
+
+            for (const target of targets) {
+                await sendZapiRaw(target, msg);
+            }
+        }
+    } catch (notifErr) {
+        console.error("[notifyApprovalFlow] Non-fatal notification error:", notifErr);
+    }
 }
