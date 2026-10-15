@@ -214,16 +214,19 @@ export async function createApprovalRequest(data: {
     });
 
     // Se o gestor imediato do solicitante já for um aprovador N2 (ou ADMIN da Diretoria como Cristiano),
-    // ou se o solicitante não tiver superior imediato:
-    // A solicitação NÃO precisa de N1 intermediário, sobe DIRETO para o N2!
+    // ou se o solicitante NÃO tiver superior imediato,
+    // ou se o próprio solicitante já for um Gestor N1 (como o Wellington):
+    // A solicitação NUNCA fica parada para ele aprovar a si mesmo! Pula a etapa N1 e sobe DIRETO para o N2 (Diretoria / Cristiano).
     // Aprovado no N2, o fluxo fica liberado imediatamente para o RH trabalhar.
+    const requesterIsN1 = !!(requester?.isApproverN1 || requester?.role === 'SUPERVISOR');
     const directManagerIsN2 = !!(requester?.manager?.isApproverN2 || requester?.manager?.role === 'ADMIN');
-    const hasN1 = !!(requester?.managerId && !directManagerIsN2);
+    const hasN1 = !!(requester?.managerId && !directManagerIsN2 && !requesterIsN1);
 
     // REGRA DE N1 E N2:
-    // 1. Quem tem gestor N1 (ex: equipe do Wellington) -> passa primeiro pelo N1 (Wellington), depois sobe para o N2 (Cristiano) e libera pro RH.
-    // 2. Quem está ligado direto ao N2 (ex: Kesia ligada ao Cristiano) -> vai DIRETO para o N2 (Cristiano), aprovou lá já libera pro RH.
-    // 3. Quem não tem superior imediato -> vai DIRETO para o N2.
+    // 1. Colaborador comum com gestor N1 (ex: equipe do Wellington) -> passa primeiro pelo N1 (Wellington), depois sobe para o N2 (Cristiano) e libera pro RH.
+    // 2. O próprio Gestor N1 solicita (ex: Wellington pede desligamento) -> PULA N1 e vai DIRETO para o N2 (Cristiano). Sem autoaprovação!
+    // 3. Quem está ligado direto ao N2 (ex: Kesia ligada ao Cristiano) -> vai DIRETO para o N2 (Cristiano).
+    // 4. Quem não tem superior imediato -> vai DIRETO para o N2.
     let initialStatus: ApprovalStatus;
     let effectiveN1Required = n1Required;
 
@@ -308,6 +311,11 @@ export async function processApprovalDecision(
 
         // 1. Processamento NÍVEL 1 (N1)
         if (request.status === ApprovalStatus.PENDENTE_N1) {
+            // Regra contra autoaprovação: o próprio solicitante nunca aprova a sua própria solicitação
+            if (request.requesterId === user.id && user.role !== 'ADMIN') {
+                throw new Error("Você é o solicitante deste pedido e não pode deliberar na sua própria solicitação.");
+            }
+
             let canApproveN1 = false;
             if (user.role === 'ADMIN') {
                 canApproveN1 = true;
