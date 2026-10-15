@@ -1200,6 +1200,37 @@ export async function getManagerAuditMetrics() {
             .flatMap(g => g.errosList.map(e => ({ ...e, managerName: g.name })))
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+        // Ranking de reenvios: ajustes enviados ao gestor 2+ vezes (cobrança repetida / sem resposta)
+        const WAITING = ["PENDING_RESPONSE", "PENDING_REASON", "PENDING_SCOPE"];
+        const reenviosDetalhados = adjustments
+            .filter(a => (a.sendCount ?? 0) >= 2)
+            .map(a => ({
+                id: a.id,
+                code: a.code,
+                employeeName: a.employee?.name || "Desconhecido",
+                date: a.date,
+                clientName: a.client?.name || "Sem Contrato",
+                managerName: a.client?.accountManager?.name?.trim() || a.requestedByName?.trim() || "Gestor Não Atribuído",
+                sendCount: a.sendCount ?? 0,
+                lastSentAt: a.lastSentAt,
+                status: a.status,
+                semResposta: WAITING.includes(a.status)
+            }))
+            .sort((a, b) => b.sendCount - a.sendCount || new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const reenviosMap = new Map<string, { name: string; ajustes: number; totalEnvios: number; maxEnvios: number; semResposta: number; ultimoEnvio: Date | null }>();
+        for (const r of reenviosDetalhados) {
+            const g = reenviosMap.get(r.managerName) || { name: r.managerName, ajustes: 0, totalEnvios: 0, maxEnvios: 0, semResposta: 0, ultimoEnvio: null };
+            g.ajustes++;
+            g.totalEnvios += r.sendCount;
+            g.maxEnvios = Math.max(g.maxEnvios, r.sendCount);
+            if (r.semResposta) g.semResposta++;
+            if (r.lastSentAt && (!g.ultimoEnvio || r.lastSentAt > g.ultimoEnvio)) g.ultimoEnvio = r.lastSentAt;
+            reenviosMap.set(r.managerName, g);
+        }
+        const rankingReenvios = Array.from(reenviosMap.values())
+            .sort((a, b) => b.semResposta - a.semResposta || b.totalEnvios - a.totalEnvios);
+
         return {
             success: true,
             totalAdjustments: adjustments.length,
@@ -1210,7 +1241,9 @@ export async function getManagerAuditMetrics() {
             rankingGeralGestores,
             rankingMotivos,
             evolutivoMensal,
-            todosErrosDetalhados
+            todosErrosDetalhados,
+            rankingReenvios,
+            reenviosDetalhados
         };
     } catch (error: any) {
         console.error("[getManagerAuditMetrics] Erro:", error);

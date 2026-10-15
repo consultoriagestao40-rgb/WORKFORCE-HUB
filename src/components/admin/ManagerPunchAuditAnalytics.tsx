@@ -31,7 +31,7 @@ import { toast } from "sonner";
 export default function ManagerPunchAuditAnalytics() {
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState<any>(null);
-    const [activeSubTab, setActiveSubTab] = useState<"RANKING_ABONOS" | "RANKING_ERROS" | "MOTIVOS" | "HISTORICO_ERROS">("RANKING_ABONOS");
+    const [activeSubTab, setActiveSubTab] = useState<"RANKING_ABONOS" | "RANKING_ERROS" | "MOTIVOS" | "HISTORICO_ERROS" | "REENVIOS">("RANKING_ABONOS");
 
     const loadMetrics = async () => {
         setLoading(true);
@@ -81,7 +81,9 @@ export default function ManagerPunchAuditAnalytics() {
         rankingGeralGestores = [],
         rankingMotivos = [],
         evolutivoMensal = [],
-        todosErrosDetalhados = []
+        todosErrosDetalhados = [],
+        rankingReenvios = [],
+        reenviosDetalhados = []
     } = metrics || {};
 
     const maxAbonos = rankingAbonos.length > 0 ? rankingAbonos[0].abonos : 1;
@@ -242,6 +244,21 @@ export default function ManagerPunchAuditAnalytics() {
                         <span>Ocorrências com Erro do Gestor</span>
                         <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-800">
                             {todosErrosDetalhados.length}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveSubTab("REENVIOS")}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                            activeSubTab === "REENVIOS"
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        <RefreshCw className="w-3.5 h-3.5 text-orange-500" />
+                        <span>Reenvios sem Resposta</span>
+                        <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-black bg-orange-100 text-orange-800">
+                            {reenviosDetalhados.length}
                         </span>
                     </button>
 
@@ -495,6 +512,102 @@ export default function ManagerPunchAuditAnalytics() {
                                         ))}
                                     </TableBody>
                                 </Table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Aba: Ranking de Reenvios (gestor cobrado várias vezes) */}
+                {activeSubTab === "REENVIOS" && (
+                    <div className="space-y-5 pt-2">
+                        <div>
+                            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                                <RefreshCw className="w-4 h-4 text-orange-600" />
+                                Ranking de Gestores por Reenvios de Ajustes
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Ajustes enviados ao gestor 2 ou mais vezes (ex.: enviou, não respondeu, reenviou, não respondeu…).
+                            </p>
+                        </div>
+
+                        {rankingReenvios.length === 0 ? (
+                            <div className="text-center py-10 text-slate-400 text-sm">Nenhum ajuste foi reenviado até o momento.</div>
+                        ) : (
+                            <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-slate-50">
+                                            <TableHead className="w-16 text-center font-bold text-slate-700 text-xs">Posição</TableHead>
+                                            <TableHead className="font-bold text-slate-700 text-xs">Gestor</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700 text-xs">Ajustes Reenviados</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700 text-xs">Total de Envios</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700 text-xs">Maior nº de Envios</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700 text-xs">Ainda sem Resposta</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700 text-xs">Último Envio</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {rankingReenvios.map((g: any, idx: number) => (
+                                            <TableRow key={g.name} className="hover:bg-slate-50/70 border-b border-slate-100">
+                                                <TableCell className="text-center font-black text-slate-700 text-xs">{idx + 1}º</TableCell>
+                                                <TableCell className="font-bold text-slate-900 text-sm">
+                                                    <div className="flex items-center gap-2"><User className="w-4 h-4 text-indigo-500" />{g.name}</div>
+                                                </TableCell>
+                                                <TableCell className="text-center font-mono font-black text-orange-700 text-sm">{g.ajustes}</TableCell>
+                                                <TableCell className="text-center font-mono font-bold text-slate-800">{g.totalEnvios}</TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="outline" className="font-black text-xs bg-orange-50 text-orange-700 border-orange-200">{g.maxEnvios}x</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant="outline" className={`font-black text-xs ${g.semResposta > 0 ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>{g.semResposta}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-600">{formatData(g.ultimoEnvio)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+
+                        {reenviosDetalhados.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-extrabold text-slate-900 mb-2">Ajustes mais cobrados</h4>
+                                <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-slate-50">
+                                                <TableHead className="text-xs font-bold text-slate-700">Código</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700">Colaborador</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700">Contrato</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700">Gestor</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700 text-center">Data</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700 text-center">Envios</TableHead>
+                                                <TableHead className="text-xs font-bold text-slate-700 text-center">Situação</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {reenviosDetalhados.slice(0, 100).map((r: any) => (
+                                                <TableRow key={r.id} className="hover:bg-slate-50/70 border-b border-slate-100">
+                                                    <TableCell className="font-mono font-bold text-indigo-700 text-xs">#{r.code}</TableCell>
+                                                    <TableCell className="text-xs font-semibold text-slate-800">{r.employeeName}</TableCell>
+                                                    <TableCell className="text-xs text-slate-600">{r.clientName}</TableCell>
+                                                    <TableCell className="text-xs text-slate-700">{r.managerName}</TableCell>
+                                                    <TableCell className="text-center text-xs text-slate-600">{formatData(r.date)}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Badge variant="outline" className="font-black text-xs bg-orange-50 text-orange-700 border-orange-200">{r.sendCount}x</Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {r.semResposta ? (
+                                                            <Badge variant="outline" className="text-[10px] font-bold bg-rose-50 text-rose-700 border-rose-200">Sem resposta</Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border-emerald-200">Respondido</Badge>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
                         )}
                     </div>

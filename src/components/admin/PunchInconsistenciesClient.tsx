@@ -899,7 +899,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
 
             {/* Modal: cartão de ponto do colaborador (visão semelhante ao Secullum) */}
             <Dialog open={!!openView} onOpenChange={o => !o && setOpenEmployeeId(null)}>
-                <DialogContent className="sm:max-w-6xl max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+                <DialogContent className="w-[96vw] sm:max-w-6xl max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-2xl">
                     {openView && (() => {
                         const { card, pendingRows, level } = openView;
                         const st = LEVEL_STYLE[level];
@@ -922,7 +922,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                     </DialogDescription>
                                 </DialogHeader>
 
-                                <div className="flex-1 overflow-auto px-6 py-3">
+                                <div className="flex-1 overflow-auto px-4 py-3">
                                     {card.days.length === 0 ? (
                                         <div className="text-center py-12 text-slate-500 text-sm">
                                             <UserX className="w-8 h-8 mx-auto mb-2 text-slate-400" />
@@ -936,8 +936,8 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                     {cols.map(c => (
                                                         <TableHead key={c} className="text-center font-bold text-slate-700 text-[11px] uppercase px-1 w-20">{COLUMN_LABEL[c]}</TableHead>
                                                     ))}
-                                                    <TableHead className="min-w-[280px] font-bold text-slate-700 text-[11px] uppercase px-2">Situação</TableHead>
-                                                    <TableHead className="min-w-[230px] text-right font-bold text-slate-700 text-[11px] uppercase px-2">Ações</TableHead>
+                                                    <TableHead className="min-w-[190px] font-bold text-slate-700 text-[11px] uppercase px-2">Situação</TableHead>
+                                                    <TableHead className="w-[150px] text-right font-bold text-slate-700 text-[11px] uppercase px-2">Ações</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -1128,7 +1128,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                             </TableCell>
                                                             <TableCell className="px-2 py-2 text-right whitespace-nowrap">
                                                                 {r && r.pendingKind === "NOVO" && (
-                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                    <div className="flex flex-col items-end gap-1.5">
                                                                         <Button size="sm" variant="outline" disabled={isSending} onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
                                                                             title="Abrir tratativa completa do dia (editar batidas ou abonar/feriado)">
@@ -1146,7 +1146,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                     </div>
                                                                 )}
                                                                 {r && r.pendingKind === "AGUARDANDO_GESTOR" && (
-                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                    <div className="flex flex-col items-end gap-1.5">
                                                                         <Button size="sm" variant="outline" onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
                                                                             title="Abrir tratativa completa do dia (editar batidas ou abonar/feriado)">
@@ -1160,7 +1160,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                     </div>
                                                                 )}
                                                                 {r && r.pendingKind === "AGUARDANDO_RH" && !isApproved && (
-                                                                    <div className="flex items-center justify-end gap-1.5">
+                                                                    <div className="flex flex-col items-end gap-1.5">
                                                                         <Button size="sm" variant="outline" onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
                                                                             title="Editar marcações deste dia antes de lançar">
