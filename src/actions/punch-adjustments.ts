@@ -1181,3 +1181,178 @@ export async function getManagerAuditMetrics() {
         return { success: false, message: error.message };
     }
 }
+
+/**
+ * Busca a jornada contratual e horários da escala do colaborador no Secullum para o dia da ocorrência.
+ * Retorna os horários pré-preenchidos para preencher os campos de batida no modal do RH.
+ */
+export async function fetchScheduleForAdjustment(adjustmentId: string) {
+    try {
+        const adj = await prisma.attendancePunchAdjustment.findUnique({
+            where: { id: adjustmentId },
+            include: { employee: true, posto: true }
+        });
+
+        if (!adj) return { success: false, message: "Ajuste não encontrado" };
+
+        const punches = {
+            Entrada1: "",
+            Saida1: "",
+            Entrada2: "",
+            Saida2: "",
+            Entrada3: "",
+            Saida3: ""
+        };
+
+        // 1. Tentar extrair de expectedTime
+        if (adj.expectedTime) {
+            const allTimes = adj.expectedTime.match(/\b\d{1,2}:\d{2}\b/g) || [];
+            if (allTimes.length >= 4) {
+                punches.Entrada1 = allTimes[0]!;
+                punches.Saida1 = allTimes[1]!;
+                punches.Entrada2 = allTimes[2]!;
+                punches.Saida2 = allTimes[3]!;
+            } else if (allTimes.length === 2) {
+                punches.Entrada1 = allTimes[0]!;
+                punches.Saida2 = allTimes[1]!;
+            }
+        }
+
+        // 2. Se ainda faltar horários e houver CPF, consultar o horário no Secullum
+        if ((!punches.Entrada1 || !punches.Saida2) && adj.employee?.cpf) {
+            try {
+                const config = await getBenefitsConfig();
+                const bankId = config?.secullumCompanyId?.trim();
+                const token = config?.secullumApiToken?.trim();
+                const apiUrl = config?.secullumApiUrl?.trim();
+
+                if (bankId && token) {
+                    const client = new SecullumApiClient(token, bankId, apiUrl);
+                    const horarioInfo = await client.getHorarioDoFuncionario(adj.employee.cpf);
+                    if (horarioInfo?.dias && horarioInfo.dias.length > 0) {
+                        const dateObj = new Date(adj.date);
+                        const diaSemana = dateObj.getUTCDay(); // 0=Dom, 1=Seg...
+                        const diaMatch = horarioInfo.dias.find(d => d.DiaSemana === diaSemana);
+                        if (diaMatch) {
+                            if (!punches.Entrada1 && diaMatch.Entrada1) punches.Entrada1 = diaMatch.Entrada1.trim();
+                            if (!punches.Saida1 && diaMatch.Saida1) punches.Saida1 = diaMatch.Saida1.trim();
+                            if (!punches.Entrada2 && diaMatch.Entrada2) punches.Entrada2 = diaMatch.Entrada2.trim();
+                            if (!punches.Saida2 && diaMatch.Saida2) punches.Saida2 = diaMatch.Saida2.trim();
+                            if (!punches.Entrada3 && diaMatch.Entrada3) punches.Entrada3 = diaMatch.Entrada3.trim();
+                            if (!punches.Saida3 && diaMatch.Saida3) punches.Saida3 = diaMatch.Saida3.trim();
+                        }
+                    }
+                }
+            } catch (secErr) {
+                console.warn("[fetchScheduleForAdjustment] Falha ao consultar horário no Secullum:", secErr);
+            }
+        }
+
+        // 3. Sobrepor com batidas já detectadas no relógio
+        if (adj.detectedPunches) {
+            const parts = adj.detectedPunches.split("|");
+            for (const part of parts) {
+                const trimmed = part.trim();
+                const match = trimmed.match(/(E1|S1|E2|S2|E3|S3)\s*:\s*(\d{1,2}:\d{2})/i);
+                if (match) {
+                    const label = match[1].toUpperCase();
+                    const hora = match[2];
+                    if (label === "E1") punches.Entrada1 = hora;
+                    else if (label === "S1") punches.Saida1 = hora;
+                    else if (label === "E2") punches.Entrada2 = hora;
+                    else if (label === "S2") punches.Saida2 = hora;
+                    else if (label === "E3") punches.Entrada3 = hora;
+                    else if (label === "S3") punches.Saida3 = hora;
+                }
+            }
+        }
+
+        return {
+            success: true,
+            punches,
+            detectedPunches: adj.detectedPunches,
+            employeeName: adj.employee?.name,
+            expectedTime: adj.expectedTime
+        };
+    } catch (error: any) {
+        console.error("[fetchScheduleForAdjustment] Erro:", error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Lança um Feriado ou Abono diretamente no Secullum para o dia da ocorrência de ajuste.
+ */
+export async function launchHolidayForAdjustment(params: {
+    adjustmentId: string;
+    justificativaCodigo: string;
+    observacao?: string;
+    abonar?: boolean;
+}) {
+    try {
+        const user = await getCurrentUser().catch(() => null);
+        if (!user) return { success: false, message: "Usuário não autenticado." };
+
+        const adj = await prisma.attendancePunchAdjustment.findUnique({
+            where: { id: params.adjustmentId },
+            include: { employee: true }
+        });
+
+        if (!adj) return { success: false, message: "Ajuste não encontrado." };
+        if (!adj.employee?.cpf) return { success: false, message: "Colaborador sem CPF cadastrado." };
+
+        const config = await getBenefitsConfig();
+        const bankId = config?.secullumCompanyId?.trim();
+        const token = config?.secullumApiToken?.trim();
+        const apiUrl = config?.secullumApiUrl?.trim();
+
+        if (!bankId || !token) {
+            return { success: false, message: "Secullum não configurado em Benefícios." };
+        }
+
+        const client = new SecullumApiClient(token, bankId, apiUrl);
+        const cpfClean = adj.employee.cpf.replace(/\D/g, "");
+        const dateStr = spDateParts(adj.date).dateStr;
+
+        const res = await client.lancarJustificativaPonto({
+            cpf: cpfClean,
+            data: dateStr,
+            justificativa: params.justificativaCodigo,
+            observacoes: (params.observacao || `Feriado / Ajuste lançado pelo RH (${user.name})`).slice(0, 200),
+            abonar: params.abonar !== false,
+            grupos: [1, 2]
+        });
+
+        if (res.success) {
+            await prisma.attendancePunchAdjustment.update({
+                where: { id: adj.id },
+                data: {
+                    status: "APPROVED_SYNCED",
+                    secullumStatus: "SUCESSO",
+                    secullumReasonName: `FERIADO / ABONO: ${params.justificativaCodigo}`,
+                    secullumResponseLog: res.message || "Justificativa de feriado/abono lançada no Secullum",
+                    resolvedAt: new Date(),
+                    resolvedByUserId: user.id
+                }
+            });
+
+            await prisma.log.create({
+                data: {
+                    action: "LANCAR_FERIADO_PONTO",
+                    details: `RH (${user.name}) lançou justificativa/feriado "${params.justificativaCodigo}" para ${adj.employee.name} em ${dateStr}.`,
+                    employeeId: adj.employeeId,
+                    userId: user.id
+                }
+            });
+
+            revalidatePath("/admin/punch-adjustments");
+            return { success: true, message: "Feriado / Justificativa lançada com sucesso no Secullum!" };
+        } else {
+            return { success: false, message: res.message || "Erro retornado pelo Secullum ao lançar feriado." };
+        }
+    } catch (error: any) {
+        console.error("[launchHolidayForAdjustment] Erro:", error);
+        return { success: false, message: error.message || "Erro ao processar feriado." };
+    }
+}
+

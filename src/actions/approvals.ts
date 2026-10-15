@@ -1110,3 +1110,120 @@ export async function notifyApprovalFlow(params: {
         console.error("[notifyApprovalFlow] Non-fatal notification error:", notifErr);
     }
 }
+
+/**
+ * Exclui ou solicita exclusão de solicitações de aprovação (com alçada N2)
+ * - Se o usuário for N2 / ADMIN: a exclusão é homologada e removida imediatamente do sistema.
+ * - Se for outro perfil (ex: Gestor N1 / Supervisor): a solicitação de exclusão é encaminhada para o N2 aprovar!
+ */
+export async function deleteApprovalRequests(requestIds: string[], reason?: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { id: true, name: true, role: true, isApproverN2: true }
+    });
+
+    const isN2OrAdmin = !!(dbUser?.isApproverN2 || dbUser?.role === 'ADMIN');
+
+    if (!requestIds || !requestIds.length) {
+        return { success: true, count: 0, isN2OrAdmin };
+    }
+
+    if (isN2OrAdmin) {
+        // N2 / ADMIN: Exclui definitivamente direto
+        const count = await prisma.approvalRequest.deleteMany({
+            where: { id: { in: requestIds } }
+        });
+
+        await prisma.log.create({
+            data: {
+                action: "EXCLUSAO_SOLICITACOES_APROVACAO",
+                details: `Diretoria N2 (${user.name}) homologou e excluiu definitivamente ${count.count} solicitação(ões) obsoleta(s).`,
+                userId: user.id
+            }
+        });
+
+        revalidatePath("/admin/aprovacoes");
+        return { 
+            success: true, 
+            count: count.count, 
+            action: "DELETED", 
+            message: `${count.count} solicitação(ões) excluída(s) com sucesso pela Diretoria N2!` 
+        };
+    } else {
+        // Não é N2: Envia para o N2 aprovar a exclusão!
+        await prisma.approvalRequest.updateMany({
+            where: { id: { in: requestIds } },
+            data: {
+                status: ApprovalStatus.PENDENTE_N2,
+                n1Decision: "SOLICITADA_EXCLUSAO",
+                n1Feedback: `Exclusão solicitada por ${user.name}. Motivo: ${reason || 'Solicitação obsoleta'}`
+            }
+        });
+
+        // Notifica N2 via WhatsApp
+        await notifyApprovalFlow({
+            event: 'NOVA_SOLICITACAO_N2',
+            requestId: requestIds[0],
+            title: `[SOLICITAÇÃO DE EXCLUSÃO] ${requestIds.length} solicitação(ões) obsoleta(s)`,
+            requesterName: user.name
+        });
+
+        await prisma.log.create({
+            data: {
+                action: "SOLICITACAO_EXCLUSAO_N2",
+                details: `Gestor ${user.name} solicitou ao N2 a exclusão de ${requestIds.length} solicitação(ões) obsoleta(s).`,
+                userId: user.id
+            }
+        });
+
+        revalidatePath("/admin/aprovacoes");
+        return { 
+            success: true, 
+            count: requestIds.length, 
+            action: "PENDING_N2", 
+            message: `${requestIds.length} solicitação(ões) enviada(s) para aprovação de exclusão pelo N2 (Diretoria)!` 
+        };
+    }
+}
+
+/**
+ * Rejeita o pedido de exclusão e retorna a solicitação para o fluxo normal de aprovação
+ */
+export async function rejectDeleteRequest(requestId: string, reason?: string) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const req = await prisma.approvalRequest.findUnique({
+        where: { id: requestId }
+    });
+
+    if (!req) throw new Error("Solicitação não encontrada");
+
+    // Retorna para o status de origem (PENDENTE_N1 ou PENDENTE_N2 dependendo da regra)
+    const nextStatus = req.n1Required ? ApprovalStatus.PENDENTE_N1 : ApprovalStatus.PENDENTE_N2;
+
+    await prisma.approvalRequest.update({
+        where: { id: requestId },
+        data: {
+            n1Decision: null,
+            n1Feedback: null,
+            status: nextStatus
+        }
+    });
+
+    await prisma.log.create({
+        data: {
+            action: "REJEICAO_SOLICITACAO_EXCLUSAO",
+            details: `Diretoria N2 (${user.name}) rejeitou a exclusão da solicitação "${req.title}". O item foi mantido no fluxo de aprovação. Motivo: ${reason || 'Sem justificativa'}`,
+            userId: user.id
+        }
+    });
+
+    revalidatePath("/admin/aprovacoes");
+    return { success: true, message: "Pedido de exclusão rejeitado. A solicitação continuará no fluxo normal." };
+}
+
+

@@ -1009,7 +1009,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">Solicitante: </span>
-                                                                            <span className="font-semibold">{activeAdj.requestedByName || (r?.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r?.managerName || "gestor"}` : "—")}</span>
+                                                                            <span className="font-semibold">{activeAdj.requestedByName || (activeAdj.source === "AUTO_INTERVAL" ? "⚡ Robô de Intervalo (Hub)" : r?.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r?.managerName || "gestor"}` : "—")}</span>
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">Motivo: </span>
@@ -1020,7 +1020,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">{activeAdj.requestedAt ? "Solicitado em: " : "Enviado ao gestor em: "}</span>
-                                                                            <span className="font-semibold">{fmtDateTime(activeAdj.requestedAt || activeAdj.lastSentAt) || "—"}</span>
+                                                                            <span className="font-semibold">
+                                                                                {activeAdj.source === "AUTO_INTERVAL"
+                                                                                    ? "Automação Direta (Robô)"
+                                                                                    : (fmtDateTime(activeAdj.requestedAt || activeAdj.lastSentAt) || "—")}
+                                                                            </span>
                                                                         </div>
                                                                         {activeAdj.resolvedAt && (
                                                                             <div className="text-emerald-800">
@@ -1065,7 +1069,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">Solicitante: </span>
-                                                                            <span className="font-semibold">{r.adjustment?.requestedByName || (r.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r.managerName || "gestor"}` : "—")}</span>
+                                                                            <span className="font-semibold">{r.adjustment?.requestedByName || (r.adjustment?.source === "AUTO_INTERVAL" ? "⚡ Robô de Intervalo (Hub)" : r.pendingKind === "AGUARDANDO_GESTOR" ? `aguardando ${r.managerName || "gestor"}` : "—")}</span>
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">Motivo: </span>
@@ -1076,7 +1080,11 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </div>
                                                                         <div className="text-slate-600">
                                                                             <span className="text-slate-400 font-semibold">{r.adjustment?.requestedAt ? "Solicitado em: " : "Enviado ao gestor em: "}</span>
-                                                                            <span className="font-semibold">{fmtDateTime(r.adjustment?.requestedAt || r.adjustment?.lastSentAt) || "—"}</span>
+                                                                            <span className="font-semibold">
+                                                                                {r.adjustment?.source === "AUTO_INTERVAL"
+                                                                                    ? "Automação Direta (Robô)"
+                                                                                    : (fmtDateTime(r.adjustment?.requestedAt || r.adjustment?.lastSentAt) || "—")}
+                                                                            </span>
                                                                         </div>
                                                                     </div>
                                                                 )}

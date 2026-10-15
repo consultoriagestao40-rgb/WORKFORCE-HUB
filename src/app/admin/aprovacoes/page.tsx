@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import React from "react";
 import { getCurrentUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { getApprovalRequests, getApprovalMetrics } from "@/actions/approvals";
 import { ApprovalsHub } from "@/components/admin/approvals/ApprovalsHub";
 import { BackButton } from "@/components/admin/BackButton";
@@ -14,10 +15,16 @@ export default async function AprovacoesPage() {
         redirect("/login");
     }
 
-    const [requests, metrics] = await Promise.all([
+    const [requests, metrics, dbUser] = await Promise.all([
         getApprovalRequests(),
-        getApprovalMetrics()
+        getApprovalMetrics(),
+        prisma.user.findUnique({
+            where: { id: user.id },
+            select: { isApproverN2: true, role: true }
+        })
     ]);
+
+    const isApproverN2 = !!(dbUser?.isApproverN2 || dbUser?.role === 'ADMIN');
 
     return (
         <div className="space-y-6">
@@ -48,6 +55,7 @@ export default async function AprovacoesPage() {
                 metrics={metrics}
                 userRole={user.role}
                 userName={user.name}
+                isApproverN2={isApproverN2}
             />
         </div>
     );

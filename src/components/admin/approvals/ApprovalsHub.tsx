@@ -19,11 +19,12 @@ import {
     ArrowRight,
     UserX,
     Calendar,
-    ArrowRightLeft
+    ArrowRightLeft,
+    Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { processApprovalDecision } from "@/actions/approvals";
+import { processApprovalDecision, deleteApprovalRequests, rejectDeleteRequest } from "@/actions/approvals";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -90,6 +91,7 @@ interface ApprovalsHubProps {
     };
     userRole?: string;
     userName?: string;
+    isApproverN2?: boolean;
 }
 
 function safeFmtDate(date: any, pattern: string = "dd/MM/yyyy HH:mm"): string {
@@ -107,13 +109,15 @@ export function ApprovalsHub({
     initialRequests, 
     metrics: initialMetrics,
     userRole,
-    userName
+    userName,
+    isApproverN2 = false
 }: ApprovalsHubProps) {
     const [requests, setRequests] = useState<ApprovalRequestItem[]>(initialRequests);
     const [metrics, setMetrics] = useState(initialMetrics);
     const [selectedTab, setSelectedTab] = useState<string>("PENDING_ALL");
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedType, setSelectedType] = useState<string>("ALL");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isPending, startTransition] = useTransition();
 
     // Modal de Detalhes e Ações
@@ -125,6 +129,17 @@ export function ApprovalsHub({
         isOpen: false,
         request: null,
         decisionFeedback: ""
+    });
+
+    // Modal de Confirmação de Exclusão
+    const [deleteModal, setDeleteModal] = useState<{
+        isOpen: boolean;
+        ids: string[];
+        reason: string;
+    }>({
+        isOpen: false,
+        ids: [],
+        reason: ""
     });
 
     // Filtros
@@ -232,6 +247,118 @@ export function ApprovalsHub({
         });
     };
 
+    const handleToggleSelect = (id: string) => {
+        setSelectedIds(prev => 
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const handleToggleSelectAll = () => {
+        if (selectedIds.length === filteredRequests.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredRequests.map(r => r.id));
+        }
+    };
+
+    const handleOpenDeleteModal = (ids: string[]) => {
+        setDeleteModal({
+            isOpen: true,
+            ids,
+            reason: ""
+        });
+    };
+
+    const handleConfirmDelete = () => {
+        if (!deleteModal.ids.length) return;
+
+        startTransition(async () => {
+            const res = await deleteApprovalRequests(deleteModal.ids, deleteModal.reason);
+            if (res.success) {
+                if (res.action === "DELETED") {
+                    toast.success(res.message || `${deleteModal.ids.length} solicitação(ões) excluída(s) com sucesso!`);
+                    
+                    setRequests(prev => prev.filter(r => !deleteModal.ids.includes(r.id)));
+                    setSelectedIds(prev => prev.filter(id => !deleteModal.ids.includes(id)));
+                    
+                    setMetrics(prev => ({
+                        ...prev,
+                        totalPending: Math.max(0, prev.totalPending - deleteModal.ids.length)
+                    }));
+
+                    if (detailsModal.request && deleteModal.ids.includes(detailsModal.request.id)) {
+                        setDetailsModal({ isOpen: false, request: null, decisionFeedback: "" });
+                    }
+                } else {
+                    toast.success(res.message || "Solicitação de exclusão encaminhada para o N2 (Diretoria) aprovar!");
+                    
+                    setRequests(prev => prev.map(item => {
+                        if (deleteModal.ids.includes(item.id)) {
+                            return {
+                                ...item,
+                                status: "PENDENTE_N2",
+                                n1Decision: "SOLICITADA_EXCLUSAO",
+                                n1Feedback: `Exclusão solicitada por ${userName || 'Gestor'}. Motivo: ${deleteModal.reason || 'Solicitação obsoleta'}`
+                            };
+                        }
+                        return item;
+                    }));
+                    setSelectedIds([]);
+                    
+                    if (detailsModal.request && deleteModal.ids.includes(detailsModal.request.id)) {
+                        setDetailsModal(prev => ({
+                            ...prev,
+                            request: prev.request ? {
+                                ...prev.request,
+                                status: "PENDENTE_N2",
+                                n1Decision: "SOLICITADA_EXCLUSAO",
+                                n1Feedback: `Exclusão solicitada por ${userName || 'Gestor'}. Motivo: ${deleteModal.reason || 'Solicitação obsoleta'}`
+                            } : null
+                        }));
+                    }
+                }
+
+                setDeleteModal({ isOpen: false, ids: [], reason: "" });
+            } else {
+                toast.error((res as any).error || (res as any).message || "Erro ao processar exclusão.");
+            }
+        });
+    };
+
+    const handleConfirmRejectDelete = (requestId: string) => {
+        startTransition(async () => {
+            const res = await rejectDeleteRequest(requestId);
+            if (res.success) {
+                toast.success(res.message || "Solicitação de exclusão rejeitada.");
+                setRequests(prev => prev.map(item => {
+                    if (item.id === requestId) {
+                        return {
+                            ...item,
+                            n1Decision: null,
+                            n1Feedback: null,
+                            status: item.n1Required ? "PENDENTE_N1" : "PENDENTE_N2"
+                        };
+                    }
+                    return item;
+                }));
+
+                if (detailsModal.request && detailsModal.request.id === requestId) {
+                    setDetailsModal(prev => ({
+                        ...prev,
+                        request: prev.request ? {
+                            ...prev.request,
+                            n1Decision: null,
+                            n1Feedback: null,
+                            status: prev.request.n1Required ? "PENDENTE_N1" : "PENDENTE_N2"
+                        } : null
+                    }));
+                }
+            } else {
+                toast.error((res as any).error || (res as any).message || "Erro ao rejeitar exclusão.");
+            }
+        });
+    };
+
     const getTypeBadge = (type: string) => {
         switch (type) {
             case "DESLIGAMENTO":
@@ -284,7 +411,16 @@ export function ApprovalsHub({
         }
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (status: string, n1Decision?: string | null) => {
+        if (n1Decision === "SOLICITADA_EXCLUSAO") {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-300">
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600 animate-pulse" />
+                    Exclusão Solicitada (N2)
+                </span>
+            );
+        }
+
         switch (status) {
             case "PENDENTE_N1":
                 return (
@@ -487,15 +623,55 @@ export function ApprovalsHub({
                 </div>
             </div>
 
+            {/* Barra de Ações em Lote */}
+            {selectedIds.length > 0 && (
+                <div className="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-md flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-3">
+                        <span className="font-bold text-xs bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
+                            {selectedIds.length} {selectedIds.length === 1 ? "selecionada" : "selecionadas"}
+                        </span>
+                        <span className="text-xs text-slate-300 hidden sm:inline">
+                            {isApproverN2 
+                                ? "Alçada N2 (Diretoria/Admin): as solicitações serão excluídas definitivamente."
+                                : "Botão de exclusão liberado: os pedidos selecionados serão encaminhados para homologação do N2."}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setSelectedIds([])}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                            Desmarcar
+                        </button>
+                        <button
+                            onClick={() => handleOpenDeleteModal(selectedIds)}
+                            className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            {isApproverN2 ? `Excluir Definitivamente (${selectedIds.length})` : `Solicitar Exclusão ao N2 (${selectedIds.length})`}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* ══════════════════════════════════════════════════════════
                 TABELA BÁSICA E LIMPA (PADRÃO SOLICITADO PELO USUÁRIO)
-                Colunas: Solicitante | Data | Tipo | Colaborador | Status | Ações
+                Colunas: Checkbox | Solicitante | Data | Tipo | Colaborador | Status | Ações
             ══════════════════════════════════════════════════════════ */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs whitespace-nowrap">
                         <thead className="bg-slate-50/80 text-slate-500 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
                             <tr>
+                                <th className="px-3 py-3.5 w-10 text-center">
+                                    <input 
+                                        type="checkbox"
+                                        checked={filteredRequests.length > 0 && selectedIds.length === filteredRequests.length}
+                                        onChange={handleToggleSelectAll}
+                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                        title="Selecionar todas as solicitações"
+                                    />
+                                </th>
                                 <th className="px-4 py-3.5">Solicitante</th>
                                 <th className="px-4 py-3.5 text-center">Data</th>
                                 <th className="px-4 py-3.5">Tipo de Solicitação</th>
@@ -507,7 +683,7 @@ export function ApprovalsHub({
                         <tbody className="divide-y divide-slate-100">
                             {filteredRequests.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                                         Nenhuma solicitação encontrada.
                                     </td>
                                 </tr>
@@ -519,6 +695,16 @@ export function ApprovalsHub({
                                             className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                                             onClick={() => setDetailsModal({ isOpen: true, request: req, decisionFeedback: "" })}
                                         >
+                                            {/* 0. Checkbox */}
+                                            <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                                <input 
+                                                    type="checkbox"
+                                                    checked={selectedIds.includes(req.id)}
+                                                    onChange={() => handleToggleSelect(req.id)}
+                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                />
+                                            </td>
+
                                             {/* 1. Solicitante */}
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
@@ -558,18 +744,27 @@ export function ApprovalsHub({
 
                                             {/* 5. Status da Alçada */}
                                             <td className="px-4 py-3 text-center">
-                                                {getStatusBadge(req.status)}
+                                                {getStatusBadge(req.status, req.n1Decision)}
                                             </td>
 
                                             {/* 6. Ações */}
                                             <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={() => setDetailsModal({ isOpen: true, request: req, decisionFeedback: "" })}
-                                                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs inline-flex items-center gap-1.5 transition-colors border border-slate-200/80"
-                                                >
-                                                    <Eye className="w-3.5 h-3.5 text-slate-500" />
-                                                    Detalhes
-                                                </button>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        onClick={() => setDetailsModal({ isOpen: true, request: req, decisionFeedback: "" })}
+                                                        className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs inline-flex items-center gap-1.5 transition-colors border border-slate-200/80 cursor-pointer"
+                                                    >
+                                                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                                        Detalhes
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenDeleteModal([req.id])}
+                                                        title={isApproverN2 ? "Excluir definitivamente (N2)" : "Solicitar exclusão ao N2"}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -603,12 +798,52 @@ export function ApprovalsHub({
                                     </div>
                                 </div>
                                 <div>
-                                    {getStatusBadge(detailsModal.request.status)}
+                                    {getStatusBadge(detailsModal.request.status, detailsModal.request.n1Decision)}
                                 </div>
                             </div>
 
                             {/* Informações Detalhadas */}
                             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto text-xs">
+                                {/* Alerta especial de Exclusão Solicitada */}
+                                {detailsModal.request.n1Decision === "SOLICITADA_EXCLUSAO" && (
+                                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/70 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="p-1 rounded-lg bg-rose-100 text-rose-700 mt-0.5 shrink-0">
+                                                <Trash2 className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <span className="font-bold text-rose-900 text-xs block">
+                                                    Exclusão Solicitada — Aguardando Parecer N2
+                                                </span>
+                                                <p className="text-rose-800 text-[11px] mt-0.5">
+                                                    {detailsModal.request.n1Feedback || "Um gestor solicitou a exclusão desta solicitação por estar obsoleta."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {isApproverN2 && (
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleConfirmRejectDelete(detailsModal.request!.id)}
+                                                    disabled={isPending}
+                                                    className="text-[11px] h-8 bg-white border-rose-200 text-rose-800 hover:bg-rose-100 font-semibold"
+                                                >
+                                                    Rejeitar Exclusão
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleOpenDeleteModal([detailsModal.request!.id])}
+                                                    disabled={isPending}
+                                                    className="text-[11px] h-8 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                                                >
+                                                    Homologar Exclusão
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Informações Básicas em Cards Limpos */}
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
@@ -649,9 +884,7 @@ export function ApprovalsHub({
                                     </div>
                                 </div>
 
-                                {/* ══════════════════════════════════════════════════════════
-                                    REGRA DE DESTINO AO SER APROVADO
-                                ══════════════════════════════════════════════════════════ */}
+                                {/* REGRA DE DESTINO AO SER APROVADO */}
                                 <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/50 flex items-start gap-3">
                                     <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700 mt-0.5 shrink-0">
                                         <ArrowRight className="w-4 h-4" />
@@ -674,9 +907,7 @@ export function ApprovalsHub({
                                     </div>
                                 </div>
 
-                                {/* ══════════════════════════════════════════════════════════
-                                    HISTÓRICO COMPLETO DE AUDITORIA
-                                ══════════════════════════════════════════════════════════ */}
+                                {/* HISTÓRICO COMPLETO DE AUDITORIA */}
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
                                         <CalendarClock className="w-4 h-4 text-slate-600" />
@@ -710,6 +941,8 @@ export function ApprovalsHub({
                                                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                         : detailsModal.request.n1Decision === "REPROVADO"
                                                         ? "bg-rose-50 text-rose-700 border-rose-200"
+                                                        : detailsModal.request.n1Decision === "SOLICITADA_EXCLUSAO"
+                                                        ? "bg-rose-50 text-rose-700 border-rose-200"
                                                         : detailsModal.request.n1Required
                                                         ? "bg-amber-50 text-amber-700 border-amber-200"
                                                         : "bg-slate-100 text-slate-500 border-slate-200"
@@ -721,6 +954,8 @@ export function ApprovalsHub({
                                                     <span className="text-[11px] text-slate-500">
                                                         {detailsModal.request.n1ApproverName ? (
                                                             <>Deliberado por <strong>{detailsModal.request.n1ApproverName}</strong> {detailsModal.request.n1Feedback ? `("${detailsModal.request.n1Feedback}")` : ""}</>
+                                                        ) : detailsModal.request.n1Decision === "SOLICITADA_EXCLUSAO" ? (
+                                                            <span className="text-rose-600 font-semibold">{detailsModal.request.n1Feedback || "Exclusão solicitada"}</span>
                                                         ) : detailsModal.request.n1Required ? (
                                                             <span className="text-amber-600 font-semibold">Aguardando parecer do Gestor N1</span>
                                                         ) : (
@@ -803,7 +1038,7 @@ export function ApprovalsHub({
                                 </div>
 
                                 {/* Campo de Parecer para Deliberar */}
-                                {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && (
+                                {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && detailsModal.request.n1Decision !== "SOLICITADA_EXCLUSAO" && (
                                     <div className="space-y-2 pt-2 border-t border-slate-100">
                                         <label className="text-xs font-bold text-slate-700">
                                             Parecer ou observações da deliberação (opcional):
@@ -820,21 +1055,32 @@ export function ApprovalsHub({
 
                             {/* Footer do Modal */}
                             <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setDetailsModal(prev => ({ ...prev, isOpen: false }))}
-                                    className="text-xs font-semibold"
-                                >
-                                    Fechar
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setDetailsModal(prev => ({ ...prev, isOpen: false }))}
+                                        className="text-xs font-semibold cursor-pointer"
+                                    >
+                                        Fechar
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => handleOpenDeleteModal([detailsModal.request!.id])}
+                                        disabled={isPending}
+                                        className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 gap-1.5 font-medium cursor-pointer"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        {isApproverN2 ? "Excluir Definitivamente" : "Solicitar Exclusão ao N2"}
+                                    </Button>
+                                </div>
 
-                                {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && (
+                                {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && detailsModal.request.n1Decision !== "SOLICITADA_EXCLUSAO" && (
                                     <div className="flex items-center gap-2">
                                         <Button
                                             variant="destructive"
                                             onClick={() => handleExecuteDecision(detailsModal.request!, "REPROVAR", detailsModal.decisionFeedback)}
                                             disabled={isPending}
-                                            className="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white"
+                                            className="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
                                         >
                                             <X className="w-3.5 h-3.5 mr-1" />
                                             Reprovar
@@ -843,7 +1089,7 @@ export function ApprovalsHub({
                                         <Button
                                             onClick={() => handleExecuteDecision(detailsModal.request!, "APROVAR", detailsModal.decisionFeedback)}
                                             disabled={isPending}
-                                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
                                         >
                                             <Check className="w-3.5 h-3.5 mr-1 stroke-[3]" />
                                             {detailsModal.request.status === "PENDENTE_N1" ? "Aprovar como N1" : "Aprovar e Liberar"}
@@ -853,6 +1099,62 @@ export function ApprovalsHub({
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ══════════════════════════════════════════════════════════
+                MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (ALÇADA N2)
+            ══════════════════════════════════════════════════════════ */}
+            <Dialog open={deleteModal.isOpen} onOpenChange={(open) => !open && setDeleteModal(prev => ({ ...prev, isOpen: false }))}>
+                <DialogContent className="max-w-md p-6 bg-white border border-slate-200 shadow-xl rounded-2xl">
+                    <DialogHeader>
+                        <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mb-2 border border-rose-200">
+                            <Trash2 className="w-5 h-5" />
+                        </div>
+                        <DialogTitle className="text-base font-bold text-slate-800">
+                            {isApproverN2 
+                                ? `Excluir definitivamente ${deleteModal.ids.length === 1 ? "esta solicitação" : `${deleteModal.ids.length} solicitações`}?` 
+                                : `Solicitar exclusão de ${deleteModal.ids.length === 1 ? "esta solicitação" : `${deleteModal.ids.length} solicitações`} ao N2?`}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            {isApproverN2 ? (
+                                <>Como você possui alçada <strong>N2 / Diretoria (Admin)</strong>, os registros serão <strong>excluídos permanentemente</strong> do banco de dados e as auditorias serão gravadas.</>
+                            ) : (
+                                <>O botão de exclusão está liberado, porém esta solicitação <strong>será encaminhada para o N2 (Diretoria) aprovar</strong>. O status mudará para <span className="font-semibold text-purple-700">Aguardando N2</span>.</>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-2 my-4">
+                        <label className="text-xs font-bold text-slate-700">
+                            Motivo da exclusão (opcional):
+                        </label>
+                        <Textarea
+                            value={deleteModal.reason}
+                            onChange={(e) => setDeleteModal(prev => ({ ...prev, reason: e.target.value }))}
+                            placeholder="Ex: Solicitação obsoleta, erro de digitação, duplicada..."
+                            className="text-xs resize-none h-18 border-slate-200"
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <Button
+                            variant="outline"
+                            onClick={() => setDeleteModal(prev => ({ ...prev, isOpen: false }))}
+                            disabled={isPending}
+                            className="text-xs font-semibold cursor-pointer"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            disabled={isPending}
+                            className="text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                        >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            {isApproverN2 ? "Excluir Definitivamente" : "Enviar ao N2"}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

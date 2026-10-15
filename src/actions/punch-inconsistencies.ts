@@ -45,6 +45,7 @@ export type InconsistencyRow = {
         lastSentAt: string | null;
         requestedByName: string | null;   // quem solicitou o ajuste (gestor/líder)
         requestedAt: string | null;       // data da solicitação
+        source?: string | null;           // AUTO_INTERVAL, WHATSAPP, etc
         reasonName: string | null;        // motivo do ajuste
         requestedTime: string | null;     // marcação solicitada
         resolvedByName?: string | null;   // usuário RH que aprovou/sincronizou
@@ -65,6 +66,7 @@ export type EmployeeDayAdjustment = {
     lastSentAt?: string | null;
     requestedByName: string | null;
     requestedAt: string | null;
+    source?: string | null;
     resolvedByName?: string | null;
     resolvedAt?: string | null;
     reasonName: string | null;
@@ -216,7 +218,7 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                 },
                 select: {
                     id: true, code: true, status: true, secullumStatus: true, employeeId: true, date: true, createdAt: true,
-                    sendCount: true, lastSentAt: true, requestedByName: true, requestedAt: true,
+                    sendCount: true, lastSentAt: true, requestedByName: true, requestedAt: true, source: true,
                     secullumReasonName: true, requestedTime: true, notes: true,
                     resolvedAt: true,
                     resolvedByUser: { select: { name: true } }
@@ -331,7 +333,8 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                     secullumStatus: adj.secullumStatus,
                     sendCount: adj.sendCount ?? 0,
                     lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null,
-                    requestedByName: adj.requestedByName || null,
+                    source: (adj as any).source || null,
+                    requestedByName: adj.requestedByName || ((adj as any).source === "AUTO_INTERVAL" ? "⚡ Robô de Intervalo (Hub)" : null),
                     requestedAt: adj.requestedAt ? adj.requestedAt.toISOString() : null,
                     resolvedByName: (adj as any).resolvedByUser?.name || null,
                     resolvedAt: (adj as any).resolvedAt ? (adj as any).resolvedAt.toISOString() : null,
@@ -371,7 +374,8 @@ export async function scanPunchInconsistencies(params: { startDate: string; endD
                     secullumStatus: adj.secullumStatus,
                     sendCount: adj.sendCount ?? 0,
                     lastSentAt: adj.lastSentAt ? adj.lastSentAt.toISOString() : null,
-                    requestedByName: adj.requestedByName || null,
+                    source: (adj as any).source || null,
+                    requestedByName: adj.requestedByName || ((adj as any).source === "AUTO_INTERVAL" ? "⚡ Robô de Intervalo (Hub)" : null),
                     requestedAt: adj.requestedAt ? adj.requestedAt.toISOString() : null,
                     reasonName: adj.secullumReasonName || null,
                     requestedTime: adj.requestedTime || null,
@@ -760,6 +764,8 @@ export async function autoFixIntervals(params: { startDate: string; endDate: str
                         secullumStatus: error ? "ERRO" : "SUCESSO",
                         secullumResponseLog: JSON.stringify({ auto: true, applied: log, error }),
                         source: "AUTO_INTERVAL",
+                        requestedByName: "⚡ Robô de Intervalo (Hub)",
+                        requestedAt: new Date(),
                         resolvedAt: error ? null : new Date()
                     }
                 });
