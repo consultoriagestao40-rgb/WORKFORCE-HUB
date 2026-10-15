@@ -25,7 +25,8 @@ import {
     Trash2,
     CalendarX2,
     BarChart3,
-    Wrench
+    Wrench,
+    ChevronRight
 } from "lucide-react";
 import PunchInconsistenciesClient from "@/components/admin/PunchInconsistenciesClient";
 import ManagerPunchAuditAnalytics from "@/components/admin/ManagerPunchAuditAnalytics";
@@ -71,7 +72,9 @@ import {
     sendPunchAdjustmentAlertAction,
     deletePunchAdjustment,
     autoCheckAllPendingOfflinePunches,
-    fixAndSyncIncompletePunch
+    fixAndSyncIncompletePunch,
+    fetchScheduleForAdjustment,
+    launchHolidayForAdjustment
 } from "@/actions/punch-adjustments";
 import { autoFixIntervals } from "@/actions/punch-inconsistencies";
 
@@ -175,8 +178,15 @@ export default function PunchAdjustmentsClient({
     });
     const [fixNotes, setFixNotes] = useState("");
     const [isSavingFix, setIsSavingFix] = useState(false);
+    const [holidayReasonId, setHolidayReasonId] = useState<string>("");
+    const [isLaunchingHoliday, setIsLaunchingHoliday] = useState(false);
+    const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
 
-    const handleOpenFixModal = (item: PunchAdjustmentItem) => {
+    const handleOpenFixModal = async (item: PunchAdjustmentItem) => {
+        setFixModalItem(item);
+        setHolidayReasonId("");
+        setFixNotes(item.notes || `Ajuste #${item.code} - ${item.secullumReasonName || "Ponto"}`);
+
         const initial: Record<string, string> = {
             Entrada1: "",
             Saida1: "",
@@ -186,6 +196,7 @@ export default function PunchAdjustmentsClient({
             Saida3: ""
         };
 
+        // 1. Extrair batidas detectadas no Secullum
         const detected = item.detectedPunches || item.secullumResponseLog || "";
         const parts = detected.split("|");
         for (const part of parts) {
@@ -203,9 +214,69 @@ export default function PunchAdjustmentsClient({
             }
         }
 
+        // 2. Extrair horários do texto solicitado ou previsto (ex: "06:00 / 12:00 / 13:00 / 18:00")
+        const textTimes = (item.requestedTime || item.expectedTime || "").match(/\b\d{1,2}:\d{2}\b/g) || [];
+        if (textTimes.length >= 4) {
+            if (!initial.Entrada1) initial.Entrada1 = textTimes[0]!;
+            if (!initial.Saida1) initial.Saida1 = textTimes[1]!;
+            if (!initial.Entrada2) initial.Entrada2 = textTimes[2]!;
+            if (!initial.Saida2) initial.Saida2 = textTimes[3]!;
+        } else if (textTimes.length === 2) {
+            if (!initial.Entrada1) initial.Entrada1 = textTimes[0]!;
+            if (!initial.Saida2) initial.Saida2 = textTimes[1]!;
+        }
+
         setFixPunches(initial);
-        setFixNotes(`Gestor informou "${item.secullumReasonName || "FALTA"}" indevidamente. Colaborador possui batidas; lançada batida faltante pelo RH.`);
-        setFixModalItem(item);
+
+        // 3. Buscar horários oficiais da escala do Secullum para preencher os que faltarem!
+        setIsLoadingSchedule(true);
+        try {
+            const schedRes = await fetchScheduleForAdjustment(item.id);
+            if (schedRes.success && schedRes.punches) {
+                setFixPunches(prev => ({
+                    Entrada1: prev.Entrada1 || schedRes.punches?.Entrada1 || "",
+                    Saida1: prev.Saida1 || schedRes.punches?.Saida1 || "",
+                    Entrada2: prev.Entrada2 || schedRes.punches?.Entrada2 || "",
+                    Saida2: prev.Saida2 || schedRes.punches?.Saida2 || "",
+                    Entrada3: prev.Entrada3 || schedRes.punches?.Entrada3 || "",
+                    Saida3: prev.Saida3 || schedRes.punches?.Saida3 || ""
+                }));
+            }
+        } catch (e) {
+            console.warn("Erro ao buscar escala Secullum:", e);
+        } finally {
+            setIsLoadingSchedule(false);
+        }
+    };
+
+    const handleLaunchHoliday = async () => {
+        if (!fixModalItem) return;
+        const selectedJust = justifications.find(j => j.id === holidayReasonId || j.descricao === holidayReasonId);
+        if (!selectedJust) {
+            toast.error("Selecione um motivo de Feriado ou Abono.");
+            return;
+        }
+
+        setIsLaunchingHoliday(true);
+        try {
+            const res = await launchHolidayForAdjustment({
+                adjustmentId: fixModalItem.id,
+                justificativaCodigo: selectedJust.codigo || selectedJust.id,
+                observacao: fixNotes || "Feriado/Abono lançado pelo RH via Hub",
+                abonar: selectedJust.abonar
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setFixModalItem(null);
+                setAdjustments(prev => prev.map(a => a.id === fixModalItem.id ? { ...a, status: "APPROVED_SYNCED", secullumStatus: "SUCESSO", secullumReasonName: selectedJust.descricao } : a));
+            } else {
+                toast.error(res.message);
+            }
+        } catch {
+            toast.error("Erro ao lançar feriado/abono.");
+        } finally {
+            setIsLaunchingHoliday(false);
+        }
     };
 
     const handleSaveFix = async () => {
@@ -568,25 +639,25 @@ export default function PunchAdjustmentsClient({
 
     return (
         <div className="space-y-6">
-            {/* Header & Ações Rápidas (Exato Padrão Atestados) */}
-            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-2 border-b border-slate-200">
+            {/* Header & Ações Rápidas (Design Corporativo Moderno) */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-slate-200">
                 <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/80">
-                            <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                            Nexus Operacional + Secullum Ponto Web
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-sky-50 text-sky-700 border border-sky-200">
+                            <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                            Nexus + Secullum Web
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                            <MessageSquare className="w-3 h-3 text-emerald-600" />
-                            Grupo WhatsApp Conectado (@Menção do Gestor)
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            WhatsApp Conectado
                         </span>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
-                        <Clock className="w-8 h-8 text-sky-600" />
-                        Automação de Ajuste de Batidas
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+                        <Clock className="w-7 h-7 text-indigo-600" />
+                        Ajustes de Ponto & Ocorrências
                     </h1>
-                    <p className="text-sm text-slate-500 font-medium mt-1">
-                        Inconsistências do Nexus tratadas via WhatsApp pelos líderes, auditadas com filtro de batida off-line e integradas ao Secullum.
+                    <p className="text-xs text-slate-500 font-medium mt-1">
+                        Tratamento e auditoria de inconsistências, apontamentos dos líderes via WhatsApp e integração com Secullum.
                     </p>
                 </div>
 
@@ -901,27 +972,27 @@ export default function PunchAdjustmentsClient({
                     </div>
                 </div>
 
-                {/* Tabela de Ajustes (Exato Padrão Atestados) */}
-                <div className="rounded-xl border border-slate-200 overflow-hidden w-full overflow-x-auto">
+                {/* Tabela de Ajustes (Design Corporativo Compacto) */}
+                <div className="rounded-xl border border-slate-200 overflow-hidden w-full overflow-x-auto shadow-sm bg-white">
                     <Table className="min-w-[900px]">
                         <TableHeader className="bg-slate-50 border-b border-slate-200">
                             <TableRow>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Código / Data</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Colaborador</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Contrato & Posto</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Gestor Responsável</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Marcação Solicitada</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5">Status</TableHead>
-                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3.5 text-right">Ações do RH</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3 w-[150px]">Código / Data</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3">Colaborador</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3">Contrato & Posto</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3">Gestor Responsável</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3">Marcação Solicitada</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3">Status</TableHead>
+                                <TableHead className="font-bold text-slate-700 text-xs uppercase tracking-wider py-3 text-right">Ação</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredItems.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-48 text-center text-slate-400">
+                                    <TableCell colSpan={7} className="h-40 text-center text-slate-400">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <div className="p-3 bg-slate-100 rounded-full text-slate-400">
-                                                <Clock className="w-6 h-6" />
+                                                <Clock className="w-5 h-5" />
                                             </div>
                                             <p className="text-sm font-semibold text-slate-600">Nenhum ajuste de batida encontrado</p>
                                             <p className="text-xs text-slate-400">Nenhuma inconsistência pendente com os filtros selecionados.</p>
@@ -930,179 +1001,87 @@ export default function PunchAdjustmentsClient({
                                 </TableRow>
                             ) : (
                                 filteredItems.map((item) => {
-                                    const isPendingRH = item.status === "PENDING_AUDIT";
-                                    const isDone = item.status === "APPROVED_SYNCED";
+                                    const rawManager = item.requestedByName || item.client?.accountManager?.name;
+                                    const displayManager = item.source === "AUTO_INTERVAL"
+                                        ? "⚡ Robô de Intervalo (Hub)"
+                                        : (rawManager === "Jvs Facilities" || !rawManager)
+                                            ? (item.client?.accountManager?.name || "Emanuelle de Almeida Santos")
+                                            : rawManager;
 
                                     return (
-                                        <TableRow key={item.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
+                                        <TableRow key={item.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100 h-12">
                                             {/* Código e Data */}
-                                            <TableCell className="py-4 font-medium">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            <TableCell className="py-2.5 font-medium whitespace-nowrap">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-xs px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                                                         #{item.code}
                                                     </span>
+                                                    <span className="text-xs text-slate-600 font-semibold">
+                                                        {formatDataExibicao(item.date)}
+                                                    </span>
                                                 </div>
-                                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 font-normal">
-                                                    <Calendar className="w-3 h-3 text-slate-400" />
-                                                    {formatDataExibicao(item.date)}
-                                                </p>
-                                                {item.requestedAt && (
-                                                    <p className="text-[11px] text-indigo-600 mt-0.5 flex items-center gap-1 font-medium" title="Data e hora em que o gestor solicitou">
-                                                        <Clock className="w-3 h-3 text-indigo-400" />
-                                                        {isAbsence(item) ? "Falta confirmada em " : "Solicitado "} {format(new Date(item.requestedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                                                    </p>
-                                                )}
-                                                {item.resolvedAt && (
-                                                    <p className="text-[11px] text-emerald-700 mt-0.5 flex items-center gap-1 font-medium" title="Aceite / Aprovação pelo RH">
-                                                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                                        Aceite RH {item.resolvedByUser?.name ? `(${item.resolvedByUser.name})` : ""} em {format(new Date(item.resolvedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                                                    </p>
-                                                )}
                                             </TableCell>
 
                                             {/* Colaborador */}
-                                            <TableCell className="py-4">
-                                                <div className="font-bold text-slate-900 text-sm">
+                                            <TableCell className="py-2.5">
+                                                <div className="font-bold text-slate-900 text-xs truncate max-w-[200px]" title={item.employee?.name || ""}>
                                                     {item.employee?.name}
                                                 </div>
-                                                <div className="text-xs text-slate-500 font-mono mt-0.5">
+                                                <div className="text-[10px] text-slate-400 font-mono">
                                                     CPF: {item.employee?.cpf}
                                                 </div>
                                             </TableCell>
 
                                             {/* Contrato e Posto */}
-                                            <TableCell className="py-4">
-                                                <div className="text-slate-800 font-semibold text-xs flex items-center gap-1.5">
-                                                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                                                    {item.client?.name || "Sem Contrato"}
+                                            <TableCell className="py-2.5">
+                                                <div className="text-slate-800 font-semibold text-xs flex items-center gap-1 truncate max-w-[180px]" title={item.client?.name || "Sem Contrato"}>
+                                                    <Building2 className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                                    <span className="truncate">{item.client?.name || "Sem Contrato"}</span>
                                                 </div>
-                                                <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                                    <MapPin className="w-3 h-3 text-slate-400" />
+                                                <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
                                                     {item.posto?.role?.name || "Geral"}
                                                 </div>
                                             </TableCell>
 
                                             {/* Gestor Responsável */}
-                                            <TableCell className="py-4">
-                                                <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                                                    <User className="w-3.5 h-3.5 text-indigo-500" />
-                                                    {item.requestedByName || item.client?.accountManager?.name || "Não atribuído"}
+                                            <TableCell className="py-2.5">
+                                                <div className="text-xs font-semibold text-slate-800 flex items-center gap-1 truncate max-w-[180px]" title={displayManager}>
+                                                    <User className="w-3 h-3 text-indigo-500 flex-shrink-0" />
+                                                    <span className="truncate">{displayManager}</span>
                                                 </div>
-                                                {item.requestedByName && item.client?.accountManager?.name && item.requestedByName !== item.client.accountManager.name && (
-                                                    <div className="text-[10px] text-slate-400">
-                                                        Conta: {item.client.accountManager.name}
-                                                    </div>
-                                                )}
-                                                {item.isAccountManager && (
-                                                    <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                                                        Gestor da Conta
-                                                    </span>
-                                                )}
                                             </TableCell>
 
                                             {/* Marcação Solicitada */}
-                                            <TableCell className="py-4">
-                                                <div className="text-xs font-bold text-slate-900">
-                                                    {item.requestedTime || item.expectedTime} ({item.punchType})
+                                            <TableCell className="py-2.5 max-w-[240px]">
+                                                <div className="text-xs font-bold text-slate-850 truncate">
+                                                    {item.requestedTime || item.expectedTime || "Ajuste de Ponto"}
                                                 </div>
-                                                <div className="text-xs text-amber-700 font-semibold mt-0.5">
-                                                    {item.secullumReasonName || "Aguardando definição"}
+                                                <div className="text-[11px] text-slate-500 truncate flex items-center gap-1.5">
+                                                    <span className="truncate">{item.secullumReasonName || "Sem motivo informado"}</span>
+                                                    {(item.isManagerError || item.detectedPunches) && (
+                                                        <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold flex-shrink-0" title={item.detectedPunches || "Constam marcações no Secullum"}>
+                                                            <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                                            Secullum
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                {item.source === "AUTO_INTERVAL" && (
-                                                    <div className="text-[11px] text-emerald-700 font-semibold mt-0.5 flex items-center gap-1">
-                                                        <Zap className="w-3 h-3" /> Lançado automaticamente
-                                                    </div>
-                                                )}
-                                                {item.punchScope && (
-                                                    <div className="text-[11px] text-indigo-700 font-semibold mt-0.5">
-                                                        Marcações: {({ ENTRADA: "Só Entrada", SAIDA: "Só Saída", INTERVALO: "Intervalo", TODOS: "Dia Completo" } as Record<string, string>)[item.punchScope] || item.punchScope}
-                                                    </div>
-                                                )}
-                                                {(item.isManagerError || item.detectedPunches) && (
-                                                    <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 font-medium">
-                                                        <div className="flex items-center gap-1 font-bold text-amber-800">
-                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                                                            <span>Batidas detectadas no Secullum:</span>
-                                                        </div>
-                                                        <p className="font-mono text-[10px] mt-0.5 text-amber-950 font-bold bg-amber-100/60 px-1 py-0.5 rounded">{item.detectedPunches || "Constam marcações no ponto"}</p>
-                                                        {item.managerErrorDetails && (
-                                                            <p className="text-[10px] text-rose-700 font-semibold mt-1">{item.managerErrorDetails}</p>
-                                                        )}
-                                                    </div>
-                                                )}
                                             </TableCell>
 
                                             {/* Status */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-2.5 whitespace-nowrap">
                                                 {getStatusBadge(item)}
                                             </TableCell>
 
                                             {/* Ações */}
-                                            <TableCell className="py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2 flex-wrap">
-                                                    {/* Checar Secullum em tempo real */}
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleCheckSecullum(item)}
-                                                        disabled={checkingId === item.id}
-                                                        title="Verificar se o colaborador já possui batida offline no Secullum"
-                                                        className="h-8 px-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg"
-                                                    >
-                                                        <RefreshCw className={`w-3.5 h-3.5 ${checkingId === item.id ? "animate-spin text-sky-600" : "text-slate-500"}`} />
-                                                    </Button>
-
-                                                    {/* Lançar Batida Faltante (Corrigir Falta Indevida do Gestor) */}
-                                                    {(item.detectedPunches || item.isManagerError || isPendingRH) && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleOpenFixModal(item)}
-                                                            title="Lançar batida faltante identificada no Secullum (evita falta indevida)"
-                                                            className="h-8 px-2.5 bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm"
-                                                        >
-                                                            <Wrench className="w-3.5 h-3.5 text-amber-700" />
-                                                            <span>Lançar Faltante</span>
-                                                        </Button>
-                                                    )}
-
-                                                    {/* Botão de Aprovação e Injeção no Secullum */}
-                                                    {isPendingRH && (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleApprove(item.id)}
-                                                            disabled={approvingId === item.id}
-                                                            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm rounded-lg flex items-center gap-1.5"
-                                                        >
-                                                            <Check className="w-3.5 h-3.5" />
-                                                            <span>{approvingId === item.id ? "Gravando..." : item.secullumReasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar Falta no Secullum" : "Aprovar no Secullum"}</span>
-                                                        </Button>
-                                                    )}
-
-                                                    {/* Descartar se a batida offline existir */}
-                                                    {isPendingRH && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleDiscard(item.id, "OFFLINE_FOUND")}
-                                                            className="h-8 px-2.5 border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs rounded-lg"
-                                                        >
-                                                            Descartar
-                                                        </Button>
-                                                    )}
-
-                                                    {/* Excluir definitivamente */}
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(item)}
-                                                        disabled={deletingId === item.id}
-                                                        title="Excluir ocorrência"
-                                                        className="h-8 px-2 border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg"
-                                                    >
-                                                        <Trash2 className={`w-3.5 h-3.5 ${deletingId === item.id ? "animate-pulse" : ""}`} />
-                                                    </Button>
-                                                </div>
+                                            <TableCell className="py-2.5 text-right whitespace-nowrap">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleOpenFixModal(item)}
+                                                    className="h-8 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm rounded-lg inline-flex items-center gap-1"
+                                                >
+                                                    <span>Tratar / Detalhes</span>
+                                                    <ChevronRight className="w-3.5 h-3.5 opacity-80" />
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -1226,151 +1205,242 @@ export default function PunchAdjustmentsClient({
                 </DialogContent>
             </Dialog>
 
-            {/* Modal de Lançar Batida Faltante / Corrigir Erro do Gestor */}
+            {/* Modal de Tratativa / Auditoria / Lançamento no Secullum */}
             <Dialog open={!!fixModalItem} onOpenChange={(open) => !open && setFixModalItem(null)}>
-                <DialogContent className="sm:max-w-xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+                <DialogContent className="sm:max-w-2xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <div className="flex items-center gap-2 text-amber-600 mb-1">
+                        <div className="flex items-center gap-2 text-indigo-600 mb-1">
                             <Wrench className="w-5 h-5" />
                             <DialogTitle className="text-xl font-bold text-slate-900">
-                                Lançar Batida Faltante & Corrigir Ponto
+                                Tratativa de Ocorrência & Ponto Secullum
                             </DialogTitle>
                         </div>
                         <DialogDescription className="text-xs text-slate-500">
-                            Insira ou corrija os horários no Secullum. O sistema manterá o registro para auditoria e indicadores de apontamento divergente do gestor.
+                            Audite os apontamentos do gestor, lance batidas faltantes ou aplique Feriado / Abono diretamente no Secullum Web.
                         </DialogDescription>
                     </DialogHeader>
 
                     {fixModalItem && (
-                        <div className="space-y-4 pt-2">
+                        <div className="space-y-4 pt-1">
                             {/* Card de Resumo da Ocorrência */}
                             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
                                 <div className="flex justify-between items-center">
-                                    <span className="font-bold text-slate-800 text-sm">{fixModalItem.employee?.name}</span>
+                                    <span className="font-bold text-slate-900 text-sm">{fixModalItem.employee?.name}</span>
                                     <span className="font-mono text-xs px-2 py-0.5 bg-indigo-100 text-indigo-800 font-bold rounded">#{fixModalItem.code}</span>
                                 </div>
-                                <div className="text-slate-600">
-                                    <strong>Data:</strong> {formatDataExibicao(fixModalItem.date)} | <strong>CPF:</strong> {fixModalItem.employee?.cpf}
+                                <div className="text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
+                                    <span><strong>Data:</strong> {formatDataExibicao(fixModalItem.date)}</span>
+                                    <span><strong>CPF:</strong> {fixModalItem.employee?.cpf}</span>
+                                    <span><strong>Contrato:</strong> {fixModalItem.client?.name || "Sem Contrato"}</span>
+                                    <span><strong>Gestor:</strong> {fixModalItem.source === "AUTO_INTERVAL" ? "⚡ Robô de Intervalo (Hub)" : (fixModalItem.requestedByName === "Jvs Facilities" || !fixModalItem.requestedByName) ? (fixModalItem.client?.accountManager?.name || "Emanuelle de Almeida Santos") : fixModalItem.requestedByName}</span>
                                 </div>
-                                <div className="text-slate-600">
-                                    <strong>Gestor:</strong> {fixModalItem.requestedByName || "Não identificado"} ({fixModalItem.client?.name || "Sem Contrato"})
+                                <div className="text-slate-700 pt-1 border-t border-slate-200/60 mt-1">
+                                    <strong>Apontamento Solicitado:</strong> {fixModalItem.requestedTime || fixModalItem.expectedTime} ({fixModalItem.punchType}) · <span className="font-semibold text-amber-800">{fixModalItem.secullumReasonName || "Sem motivo"}</span>
                                 </div>
-                                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-medium mt-2">
-                                    <span className="font-bold text-amber-800 block mb-0.5">⚠️ Apontamento do Gestor vs Secullum:</span>
-                                    Gestor apontou: <strong className="text-rose-700">{fixModalItem.secullumReasonName || "FALTA"}</strong>
-                                    {fixModalItem.detectedPunches && (
-                                        <div className="mt-1 font-mono text-[11px] text-amber-950 font-bold">
-                                            Marcações localizadas: {fixModalItem.detectedPunches}
-                                        </div>
-                                    )}
-                                </div>
+                                {(fixModalItem.isManagerError || fixModalItem.detectedPunches) && (
+                                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-medium mt-1.5">
+                                        <span className="font-bold text-amber-800 block mb-0.5 flex items-center gap-1">
+                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                            Batidas já detectadas no Secullum:
+                                        </span>
+                                        <p className="font-mono text-[11px] text-amber-950 font-bold bg-amber-100/70 px-1.5 py-0.5 rounded">
+                                            {fixModalItem.detectedPunches || "Constam marcações no espelho"}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Inputs dos Horários das Batidas */}
-                            <div>
-                                <Label className="text-xs font-bold text-slate-700 block mb-2">
-                                    Horários das Marcações (HH:mm)
-                                </Label>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {/* Seção 1: Horários das Marcações (Preenchidos da Escala) */}
+                            <div className="p-3.5 border border-slate-200 rounded-xl bg-white space-y-2.5">
+                                <div className="flex justify-between items-center">
+                                    <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                                        <span>Horários das Marcações (HH:mm)</span>
+                                    </Label>
+                                    {isLoadingSchedule && (
+                                        <span className="text-[10px] text-indigo-600 font-semibold animate-pulse">
+                                            Carregando jornada do Secullum...
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     <div>
                                         <span className="text-[11px] font-semibold text-slate-600 block mb-1">Entrada 1</span>
                                         <Input
                                             type="text"
-                                            placeholder="Ex: 22:02"
+                                            placeholder="Ex: 06:00"
                                             value={fixPunches.Entrada1 || ""}
                                             onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada1: e.target.value }))}
-                                            className="h-9 text-xs font-mono font-bold"
+                                            className="h-8 text-xs font-mono font-bold"
                                         />
                                     </div>
                                     <div>
                                         <span className="text-[11px] font-semibold text-slate-600 block mb-1">Saída 1 (Almoço)</span>
                                         <Input
                                             type="text"
-                                            placeholder="Ex: 00:17"
+                                            placeholder="Ex: 12:00"
                                             value={fixPunches.Saida1 || ""}
                                             onChange={(e) => setFixPunches(prev => ({ ...prev, Saida1: e.target.value }))}
-                                            className="h-9 text-xs font-mono font-bold"
+                                            className="h-8 text-xs font-mono font-bold"
                                         />
                                     </div>
                                     <div>
                                         <span className="text-[11px] font-semibold text-amber-700 block mb-1">Entrada 2 (Retorno)</span>
                                         <Input
                                             type="text"
-                                            placeholder="Ex: 01:17"
+                                            placeholder="Ex: 13:00"
                                             value={fixPunches.Entrada2 || ""}
                                             onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada2: e.target.value }))}
-                                            className="h-9 text-xs font-mono font-bold border-amber-300 bg-amber-50/50"
+                                            className="h-8 text-xs font-mono font-bold border-amber-300 bg-amber-50/40"
                                         />
                                     </div>
                                     <div>
                                         <span className="text-[11px] font-semibold text-slate-600 block mb-1">Saída 2 (Fim Turno)</span>
                                         <Input
                                             type="text"
-                                            placeholder="Ex: 06:07"
+                                            placeholder="Ex: 18:00"
                                             value={fixPunches.Saida2 || ""}
                                             onChange={(e) => setFixPunches(prev => ({ ...prev, Saida2: e.target.value }))}
-                                            className="h-9 text-xs font-mono font-bold"
+                                            className="h-8 text-xs font-mono font-bold"
                                         />
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2.5 mt-2.5">
-                                    <div>
-                                        <span className="text-[11px] font-semibold text-slate-500 block mb-1">Entrada 3 (Opcional)</span>
-                                        <Input
-                                            type="text"
-                                            placeholder="Opcional"
-                                            value={fixPunches.Entrada3 || ""}
-                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada3: e.target.value }))}
-                                            className="h-8 text-xs font-mono"
-                                        />
-                                    </div>
-                                    <div>
-                                        <span className="text-[11px] font-semibold text-slate-500 block mb-1">Saída 3 (Opcional)</span>
-                                        <Input
-                                            type="text"
-                                            placeholder="Opcional"
-                                            value={fixPunches.Saida3 || ""}
-                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Saida3: e.target.value }))}
-                                            className="h-8 text-xs font-mono"
-                                        />
-                                    </div>
+                                <div className="pt-1 flex justify-end">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={handleSaveFix}
+                                        disabled={isSavingFix}
+                                        className="h-8 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5"
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>{isSavingFix ? "Gravando..." : "Gravar Batidas no Secullum"}</span>
+                                    </Button>
                                 </div>
                             </div>
 
-                            {/* Observações / Auditoria */}
+                            {/* Seção 2: Lançar Feriado / Abono no Secullum */}
+                            <div className="p-3.5 border border-indigo-100 bg-indigo-50/30 rounded-xl space-y-2">
+                                <Label className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>Lançar Feriado / Abono / Justificativa no Secullum</span>
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                    <Select value={holidayReasonId} onValueChange={setHolidayReasonId}>
+                                        <SelectTrigger className="h-8 text-xs bg-white border-indigo-200">
+                                            <SelectValue placeholder="Selecione Feriado, Abono, Folga..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {justifications.map((j) => (
+                                                <SelectItem key={j.id} value={j.id} className="text-xs">
+                                                    {j.descricao}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={handleLaunchHoliday}
+                                        disabled={isLaunchingHoliday || !holidayReasonId}
+                                        className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm whitespace-nowrap flex items-center gap-1"
+                                    >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>{isLaunchingHoliday ? "Lançando..." : "Lançar no Secullum"}</span>
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Observações / Justificativa */}
                             <div>
                                 <Label className="text-xs font-bold text-slate-700 block mb-1">
-                                    Justificativa do RH / Auditoria
+                                    Observação / Justificativa de Auditoria
                                 </Label>
                                 <textarea
                                     rows={2}
                                     value={fixNotes}
                                     onChange={(e) => setFixNotes(e.target.value)}
-                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
-                                    placeholder="Motivo da intervenção do RH..."
+                                    className="w-full text-xs p-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+                                    placeholder="Observações da auditoria do RH..."
                                 />
                             </div>
 
-                            <DialogFooter className="pt-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setFixModalItem(null)}
-                                    className="border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    type="button"
-                                    onClick={handleSaveFix}
-                                    disabled={isSavingFix}
-                                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-1.5"
-                                >
-                                    <Check className="w-4 h-4" />
-                                    <span>{isSavingFix ? "Gravando no Secullum..." : "Gravar no Secullum & Atualizar Indicadores"}</span>
-                                </Button>
-                            </DialogFooter>
+                            {/* Barra de Ações Rápidas no Rodapé */}
+                            <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    {/* Checar Secullum em tempo real */}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleCheckSecullum(fixModalItem)}
+                                        disabled={checkingId === fixModalItem.id}
+                                        className="h-8 text-xs text-slate-600 border-slate-200 hover:bg-slate-100 rounded-lg flex items-center gap-1"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${checkingId === fixModalItem.id ? "animate-spin text-sky-600" : ""}`} />
+                                        <span>Checar Secullum</span>
+                                    </Button>
+
+                                    {/* Descartar */}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            handleDiscard(fixModalItem.id, "OFFLINE_FOUND");
+                                            setFixModalItem(null);
+                                        }}
+                                        className="h-8 text-xs text-slate-600 border-slate-200 hover:bg-slate-100 rounded-lg"
+                                    >
+                                        Descartar
+                                    </Button>
+
+                                    {/* Excluir Definitivamente */}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            handleDelete(fixModalItem);
+                                            setFixModalItem(null);
+                                        }}
+                                        className="h-8 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg flex items-center gap-1"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Excluir</span>
+                                    </Button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setFixModalItem(null)}
+                                        className="h-8 text-xs border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-lg"
+                                    >
+                                        Fechar
+                                    </Button>
+
+                                    {/* Aprovar Ajuste Original no Secullum */}
+                                    {fixModalItem.status === "PENDING_AUDIT" && (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={async () => {
+                                                await handleApprove(fixModalItem.id);
+                                                setFixModalItem(null);
+                                            }}
+                                            disabled={approvingId === fixModalItem.id}
+                                            className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5"
+                                        >
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>{approvingId === fixModalItem.id ? "Aprovando..." : fixModalItem.secullumReasonName === "FALTA CONFIRMADA PELO GESTOR" ? "Lançar Falta no Secullum" : "Aprovar no Secullum"}</span>
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </DialogContent>

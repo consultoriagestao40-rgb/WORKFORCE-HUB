@@ -409,13 +409,49 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
         try {
             const res = await approveAndSyncPunchAdjustment(r.adjustment.id);
             if (!res.success) return toast.error(res.message || "Erro ao lançar no Secullum.");
-            toast.success(res.message || "Lançado no Secullum com sucesso!");
+            toast.success(res.message || "Ajuste aprovado e gravado no Secullum com sucesso!");
+            
+            const applied: Record<string, string> = { ...((res as any).appliedPunches || {}) };
+            if (r.adjustment?.requestedTime && Object.keys(applied).length === 0) {
+                const matches = r.adjustment.requestedTime.matchAll(/(?:(E|S|Entrada|Saida)\s*([123]))\s+(\d{1,2}:\d{2})/gi);
+                for (const m of matches) {
+                    const prefix = m[1].toUpperCase().startsWith("E") ? "Entrada" : "Saida";
+                    const num = m[2];
+                    applied[`${prefix}${num}`] = m[3];
+                }
+            }
+
             setRows(prev => prev.map(x => (x.key === r.key && x.adjustment ? {
                 ...x,
                 pending: false,
                 pendingKind: null,
+                actual: { ...x.actual, ...applied },
+                missing: [],
                 adjustment: { ...x.adjustment, status: "APPROVED_SYNCED", secullumStatus: "SUCESSO" }
             } : x)));
+
+            // Atualiza os cartões dos colaboradores (incluindo o modal de espelho aberto)
+            setEmployees(prev => prev.map(card => {
+                if (card.employeeId !== r.employeeId) return card;
+                const nextDays = card.days.map(d => {
+                    const matches = (d.rowKey === r.key) || (d.adjustment?.id === r.adjustment?.id) || (d.date === r.date);
+                    if (!matches) return d;
+                    return {
+                        ...d,
+                        actual: { ...d.actual, ...applied },
+                        missing: [],
+                        rowKey: null,
+                        adjustment: d.adjustment ? {
+                            ...d.adjustment,
+                            status: "APPROVED_SYNCED",
+                            secullumStatus: "SUCESSO",
+                            resolvedByName: "RH",
+                            resolvedAt: new Date().toISOString()
+                        } : null
+                    };
+                });
+                return { ...card, days: nextDays };
+            }));
         } catch (e: any) {
             toast.error(e.message || "Erro ao aprovar.");
         } finally {
@@ -908,17 +944,18 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                 {[...card.days].sort((a, b) => (a.date < b.date ? -1 : 1)).map((day: EmployeeDay) => {
                                                     const r = day.rowKey ? rowByKey.get(day.rowKey) || null : null;
                                                     const activeAdj = day.adjustment || r?.adjustment || null;
-                                                    const isPending = !!r?.pending;
+                                                    const isApproved = activeAdj?.status === "APPROVED_SYNCED";
+                                                    const isPending = !isApproved && !!r?.pending;
                                                     const isSending = r ? sendingKeys.has(r.key) : false;
                                                     const isResending = r ? resendingKeys.has(r.key) : false;
                                                     const sends = activeAdj?.sendCount || 0;
                                                     const adjBadge = activeAdj ? ADJ_STATUS_LABEL[activeAdj.status] : null;
-                                                    const isAbsenceDay = (activeAdj?.reasonName?.toUpperCase().includes("FALTA")) || Object.values(day.actual).some(v => /falta/i.test(v || ""));
+                                                    const isAbsenceDay = !isApproved && ((activeAdj?.reasonName?.toUpperCase().includes("FALTA")) || Object.values(day.actual).some(v => /falta/i.test(v || "")));
 
                                                     return (
                                                         <TableRow
                                                             key={day.date}
-                                                            className={`border-b border-slate-100 ${isPending ? (r?.pendingKind === "NOVO" ? "bg-rose-50/40" : "bg-amber-50/40") : isAbsenceDay && activeAdj ? "bg-rose-50/20" : ""}`}
+                                                            className={`border-b border-slate-100 ${isPending ? (r?.pendingKind === "NOVO" ? "bg-rose-50/40" : "bg-amber-50/40") : isApproved ? "bg-emerald-50/20" : isAbsenceDay && activeAdj ? "bg-rose-50/20" : ""}`}
                                                         >
                                                             <TableCell className="px-2 py-2 whitespace-nowrap">
                                                                 <div className={`font-black ${day.weekday === 0 ? "text-rose-600" : "text-slate-800"}`}>{fmtDate(day.date)}</div>
@@ -926,7 +963,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                             </TableCell>
                                                             {cols.map(c => {
                                                                 const val = day.actual[c];
-                                                                const missing = !!r && r.missing.includes(c);
+                                                                const missing = !val && !isApproved && Boolean(r && r.missing.includes(c));
                                                                 const isText = val && !/^\d{1,2}:\d{2}$/.test(val);
                                                                 const isFolgaDay = day.dayOff && Object.keys(day.actual).length === 0 && !day.leaveNote;
                                                                 const folgaCell = isFolgaDay && cols.indexOf(c) < 4;
@@ -1122,7 +1159,7 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </Button>
                                                                     </div>
                                                                 )}
-                                                                {r && r.pendingKind === "AGUARDANDO_RH" && (
+                                                                {r && r.pendingKind === "AGUARDANDO_RH" && !isApproved && (
                                                                     <div className="flex items-center justify-end gap-1.5">
                                                                         <Button size="sm" variant="outline" onClick={() => openDayTreatment(card, day)}
                                                                             className="h-8 rounded-xl border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs px-2.5 gap-1 cursor-pointer"
@@ -1137,12 +1174,12 @@ export default function PunchInconsistenciesClient({ clients, managers, hideHead
                                                                         </Button>
                                                                     </div>
                                                                 )}
-                                                                {r && r.status === "IGNORADO" && (
+                                                                {r && r.status === "IGNORADO" && !isApproved && (
                                                                     <Button size="sm" variant="outline" onClick={() => doUnignore(r)} className="h-8 rounded-xl text-slate-600 text-xs font-semibold hover:bg-slate-100 cursor-pointer">
                                                                         <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reativar
                                                                     </Button>
                                                                 )}
-                                                                {!r && !(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
+                                                                {(!r || isApproved) && !(day.dayOff && Object.keys(day.actual).length === 0) && !day.leaveNote && (
                                                                     <Button size="sm" variant={activeAdj ? "outline" : "ghost"} onClick={() => openDayTreatment(card, day)}
                                                                         className={`h-7 text-[11px] font-semibold rounded-lg px-2 cursor-pointer ${activeAdj ? "border-slate-300 text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300" : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"}`}
                                                                         title="Ajustar batidas ou abonar este dia">

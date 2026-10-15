@@ -465,6 +465,7 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
         const isFalta = (adj.secullumReasonId || "").toUpperCase() === "FALTA";
         let res: { success: boolean; message: string; raw?: any };
         let insertedTime: string | null = null;
+        const appliedPunches: Record<string, string> = {};
 
         if (isFalta) {
             // Falta confirmada pelo gestor: lança a justificativa FALTA (sem abonar) nas jornadas sem batida
@@ -553,6 +554,22 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
             while ((reqMatch = reqRe.exec(reqText)) !== null) {
                 const col = `${/^entrada/i.test(reqMatch[1]) ? "Entrada" : "Saida"}${reqMatch[2]}`;
                 requestedByColumn[col] = reqMatch[3].padStart(5, "0");
+            }
+
+            // Fallback para marcações sem rótulo explícito (ex: "06:00 / 12:00 / 13:00 / 18:00")
+            if (Object.keys(requestedByColumn).length === 0) {
+                const rawTimes = reqText.match(/\b\d{1,2}:\d{2}\b/g) || [];
+                if (rawTimes.length >= 4) {
+                    requestedByColumn["Entrada1"] = rawTimes[0]!.padStart(5, "0");
+                    requestedByColumn["Saida1"] = rawTimes[1]!.padStart(5, "0");
+                    requestedByColumn["Entrada2"] = rawTimes[2]!.padStart(5, "0");
+                    requestedByColumn["Saida2"] = rawTimes[3]!.padStart(5, "0");
+                } else if (rawTimes.length === 2) {
+                    requestedByColumn["Entrada1"] = rawTimes[0]!.padStart(5, "0");
+                    requestedByColumn["Saida2"] = rawTimes[1]!.padStart(5, "0");
+                } else if (rawTimes.length === 1 && fallbackColumn) {
+                    requestedByColumn[fallbackColumn] = rawTimes[0]!.padStart(5, "0");
+                }
             }
             const hasRequested = Object.keys(requestedByColumn).length > 0;
             if (!dia && !hasRequested) return fail("Não foi possível ler o horário previsto do colaborador no Secullum.");
@@ -648,10 +665,15 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                     revalidatePath("/admin/operations");
                     revalidatePath("/admin/requests");
 
+                    for (const c of plan.skipped) {
+                        if (existing[c]) appliedPunches[c] = existing[c]!;
+                    }
+
                     return {
                         success: true,
                         message: `Marcações já identificadas no Secullum (${existingDetails}). Ajuste finalizado com sucesso!`,
-                        adjustment: updated
+                        adjustment: updated,
+                        appliedPunches
                     };
                 }
 
@@ -660,6 +682,10 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
 
             const done: string[] = [];
             const errors: string[] = [];
+            for (const c of plan.skipped) {
+                if (existing[c]) appliedPunches[c] = existing[c]!;
+            }
+
             for (const p of plan.punches) {
                 const r = await client.lancarBatidaManual({
                     cpf: adj.employee.cpf,
@@ -668,8 +694,12 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
                     coluna: p.coluna,
                     motivo: `${adj.secullumReasonName || "Ajuste de ponto"} | ${obs}`
                 });
-                if (r.success) done.push(`${p.coluna} ${p.hora} (prev. ${p.previsto})`);
-                else errors.push(`${p.coluna}: ${r.message}`);
+                if (r.success) {
+                    done.push(`${p.coluna} ${p.hora} (prev. ${p.previsto})`);
+                    appliedPunches[p.coluna] = p.hora;
+                } else {
+                    errors.push(`${p.coluna}: ${r.message}`);
+                }
             }
 
             insertedTime = plan.punches
@@ -712,10 +742,16 @@ export async function approveAndSyncPunchAdjustment(adjustmentId: string) {
             }
         });
 
+        revalidatePath("/admin/punch-adjustments");
         revalidatePath("/admin/operations");
         revalidatePath("/admin/requests");
 
-        return { success: true, message: res.message || "Ponto ajustado e gravado no Secullum com sucesso!", adjustment: updated };
+        return {
+            success: true,
+            message: res.message || "Ponto ajustado e gravado no Secullum com sucesso!",
+            adjustment: updated,
+            appliedPunches
+        };
     } catch (error: any) {
         console.error("[approveAndSyncPunchAdjustment] Erro:", error);
         return { success: false, message: error.message };
