@@ -23,9 +23,12 @@ import {
     ShieldAlert,
     Filter,
     Trash2,
-    CalendarX2
+    CalendarX2,
+    BarChart3,
+    Wrench
 } from "lucide-react";
 import PunchInconsistenciesClient from "@/components/admin/PunchInconsistenciesClient";
+import ManagerPunchAuditAnalytics from "@/components/admin/ManagerPunchAuditAnalytics";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -66,7 +69,9 @@ import {
     discardPunchAdjustment,
     createPunchAdjustmentAlert,
     sendPunchAdjustmentAlertAction,
-    deletePunchAdjustment
+    deletePunchAdjustment,
+    autoCheckAllPendingOfflinePunches,
+    fixAndSyncIncompletePunch
 } from "@/actions/punch-adjustments";
 import { autoFixIntervals } from "@/actions/punch-inconsistencies";
 
@@ -89,6 +94,10 @@ interface PunchAdjustmentItem {
     isAccountManager: boolean;
     secullumStatus: string | null;
     secullumResponseLog: string | null;
+    isManagerError?: boolean;
+    managerErrorType?: string | null;
+    managerErrorDetails?: string | null;
+    detectedPunches?: string | null;
     resolvedAt?: string | Date | null;
     resolvedByUser?: {
         id: string;
@@ -131,7 +140,7 @@ interface Props {
     whatsappGroups?: Array<{ id: string; name: string; phone: string }>;
     clients?: Array<{ id: string; name: string }>;
     managers?: Array<{ id: string; name: string; hasPhone: boolean }>;
-    initialMainTab?: "ADJUSTMENTS" | "INCONSISTENCIES";
+    initialMainTab?: "ADJUSTMENTS" | "INCONSISTENCIES" | "MANAGERS";
 }
 
 export default function PunchAdjustmentsClient({
@@ -143,7 +152,7 @@ export default function PunchAdjustmentsClient({
     managers = [],
     initialMainTab = "INCONSISTENCIES"
 }: Props) {
-    const [activeMainTab, setActiveMainTab] = useState<"ADJUSTMENTS" | "INCONSISTENCIES">(initialMainTab);
+    const [activeMainTab, setActiveMainTab] = useState<"ADJUSTMENTS" | "INCONSISTENCIES" | "MANAGERS">(initialMainTab);
     const [adjustments, setAdjustments] = useState<PunchAdjustmentItem[]>(initialAdjustments);
     const [justifications, setJustifications] = useState<JustificationItem[]>(initialJusts);
     const [activeTab, setActiveTab] = useState<string>("ALL");
@@ -152,6 +161,106 @@ export default function PunchAdjustmentsClient({
     const [approvingId, setApprovingId] = useState<string | null>(null);
     const [isSyncingJusts, setIsSyncingJusts] = useState(false);
     const [isAutoFixing, setIsAutoFixing] = useState(false);
+    const [isAutoCheckingOffline, setIsAutoCheckingOffline] = useState(false);
+
+    // Modal de Lançar Batida Faltante / Corrigir Erro do Gestor
+    const [fixModalItem, setFixModalItem] = useState<PunchAdjustmentItem | null>(null);
+    const [fixPunches, setFixPunches] = useState<Record<string, string>>({
+        Entrada1: "",
+        Saida1: "",
+        Entrada2: "",
+        Saida2: "",
+        Entrada3: "",
+        Saida3: ""
+    });
+    const [fixNotes, setFixNotes] = useState("");
+    const [isSavingFix, setIsSavingFix] = useState(false);
+
+    const handleOpenFixModal = (item: PunchAdjustmentItem) => {
+        const initial: Record<string, string> = {
+            Entrada1: "",
+            Saida1: "",
+            Entrada2: "",
+            Saida2: "",
+            Entrada3: "",
+            Saida3: ""
+        };
+
+        const detected = item.detectedPunches || item.secullumResponseLog || "";
+        const parts = detected.split("|");
+        for (const part of parts) {
+            const trimmed = part.trim();
+            const match = trimmed.match(/(E1|S1|E2|S2|E3|S3)\s*:\s*(\d{1,2}:\d{2})/i);
+            if (match) {
+                const label = match[1].toUpperCase();
+                const hora = match[2];
+                if (label === "E1") initial.Entrada1 = hora;
+                else if (label === "S1") initial.Saida1 = hora;
+                else if (label === "E2") initial.Entrada2 = hora;
+                else if (label === "S2") initial.Saida2 = hora;
+                else if (label === "E3") initial.Entrada3 = hora;
+                else if (label === "S3") initial.Saida3 = hora;
+            }
+        }
+
+        setFixPunches(initial);
+        setFixNotes(`Gestor informou "${item.secullumReasonName || "FALTA"}" indevidamente. Colaborador possui batidas; lançada batida faltante pelo RH.`);
+        setFixModalItem(item);
+    };
+
+    const handleSaveFix = async () => {
+        if (!fixModalItem) return;
+        const punchesToSend: Array<{ coluna: string; hora: string }> = [];
+        for (const [col, val] of Object.entries(fixPunches)) {
+            const h = val?.trim();
+            if (h && /^\d{1,2}:\d{2}$/.test(h)) {
+                punchesToSend.push({ coluna: col, hora: h });
+            }
+        }
+
+        if (punchesToSend.length === 0) {
+            toast.error("Informe pelo menos um horário válido no formato HH:mm.");
+            return;
+        }
+
+        setIsSavingFix(true);
+        try {
+            const res = await fixAndSyncIncompletePunch({
+                adjustmentId: fixModalItem.id,
+                punches: punchesToSend,
+                notes: fixNotes
+            });
+            if (res.success) {
+                toast.success(res.message);
+                setFixModalItem(null);
+                window.location.reload();
+            } else {
+                toast.error(res.message);
+            }
+        } catch {
+            toast.error("Erro ao salvar batida corrigida.");
+        } finally {
+            setIsSavingFix(false);
+        }
+    };
+
+    // Baixa automática de batidas offline em massa
+    const handleAutoCheckOffline = async () => {
+        setIsAutoCheckingOffline(true);
+        try {
+            const res = await autoCheckAllPendingOfflinePunches();
+            if (res.success) {
+                toast.success(res.message, { duration: 8000 });
+                window.location.reload();
+            } else {
+                toast.error(res.message);
+            }
+        } catch {
+            toast.error("Erro ao verificar batidas offline.");
+        } finally {
+            setIsAutoCheckingOffline(false);
+        }
+    };
 
     // Varre os últimos 7 dias e lança automaticamente o intervalo esquecido (entrada/saída conferem com a escala)
     const handleAutoFixIntervals = async () => {
@@ -484,6 +593,17 @@ export default function PunchAdjustmentsClient({
                 <div className="flex items-center gap-3">
                     <Button
                         variant="outline"
+                        onClick={handleAutoCheckOffline}
+                        disabled={isAutoCheckingOffline}
+                        title="Varre todas as pendências no Secullum e baixa automaticamente se a batida já constar no ponto"
+                        className="bg-white border-purple-200 hover:bg-purple-50 text-purple-700 font-semibold rounded-xl h-10 shadow-sm"
+                    >
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isAutoCheckingOffline ? "animate-spin text-purple-600" : "text-purple-600"}`} />
+                        <span>{isAutoCheckingOffline ? "Verificando..." : "Baixar Batidas Offline"}</span>
+                    </Button>
+
+                    <Button
+                        variant="outline"
                         onClick={handleAutoFixIntervals}
                         disabled={isAutoFixing}
                         title="Lança automaticamente o intervalo quando entrada e saída conferem com a escala"
@@ -513,7 +633,7 @@ export default function PunchAdjustmentsClient({
                 </div>
             </div>
 
-            {/* Abas Principais: 1. Inconsistências (Secullum) | 2. Gestão de Ajustes (Solicitações/Respostas) */}
+            {/* Abas Principais: 1. Inconsistências (Secullum) | 2. Gestão de Ajustes (Solicitações/Respostas) | 3. Auditoria & Ranking de Gestores */}
             <div className="flex border-b border-slate-200">
                 <button
                     id="tab-inconsistencies"
@@ -550,6 +670,23 @@ export default function PunchAdjustmentsClient({
                         </span>
                     )}
                 </button>
+
+                <button
+                    id="tab-managers"
+                    type="button"
+                    onClick={() => setActiveMainTab("MANAGERS")}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition-all duration-150 ${
+                        activeMainTab === "MANAGERS"
+                            ? "border-amber-600 text-amber-600 bg-amber-50/40"
+                            : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                    }`}
+                >
+                    <BarChart3 className="w-4 h-4 text-amber-500" />
+                    <span>Ranking & Auditoria de Gestores</span>
+                    <span className="text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                        Abonos & Erros
+                    </span>
+                </button>
             </div>
 
             {activeMainTab === "INCONSISTENCIES" ? (
@@ -558,6 +695,8 @@ export default function PunchAdjustmentsClient({
                     managers={managers}
                     hideHeader={true}
                 />
+            ) : activeMainTab === "MANAGERS" ? (
+                <ManagerPunchAuditAnalytics />
             ) : (
                 <>
             {/* Cards de Métricas (Exato Padrão Atestados) */}
@@ -879,6 +1018,18 @@ export default function PunchAdjustmentsClient({
                                                         Marcações: {({ ENTRADA: "Só Entrada", SAIDA: "Só Saída", INTERVALO: "Intervalo", TODOS: "Dia Completo" } as Record<string, string>)[item.punchScope] || item.punchScope}
                                                     </div>
                                                 )}
+                                                {(item.isManagerError || item.detectedPunches) && (
+                                                    <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-900 font-medium">
+                                                        <div className="flex items-center gap-1 font-bold text-amber-800">
+                                                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                                                            <span>Batidas detectadas no Secullum:</span>
+                                                        </div>
+                                                        <p className="font-mono text-[10px] mt-0.5 text-amber-950 font-bold bg-amber-100/60 px-1 py-0.5 rounded">{item.detectedPunches || "Constam marcações no ponto"}</p>
+                                                        {item.managerErrorDetails && (
+                                                            <p className="text-[10px] text-rose-700 font-semibold mt-1">{item.managerErrorDetails}</p>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </TableCell>
 
                                             {/* Status */}
@@ -888,7 +1039,7 @@ export default function PunchAdjustmentsClient({
 
                                             {/* Ações */}
                                             <TableCell className="py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-2 flex-wrap">
                                                     {/* Checar Secullum em tempo real */}
                                                     <Button
                                                         variant="outline"
@@ -900,6 +1051,20 @@ export default function PunchAdjustmentsClient({
                                                     >
                                                         <RefreshCw className={`w-3.5 h-3.5 ${checkingId === item.id ? "animate-spin text-sky-600" : "text-slate-500"}`} />
                                                     </Button>
+
+                                                    {/* Lançar Batida Faltante (Corrigir Falta Indevida do Gestor) */}
+                                                    {(item.detectedPunches || item.isManagerError || isPendingRH) && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleOpenFixModal(item)}
+                                                            title="Lançar batida faltante identificada no Secullum (evita falta indevida)"
+                                                            className="h-8 px-2.5 bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm"
+                                                        >
+                                                            <Wrench className="w-3.5 h-3.5 text-amber-700" />
+                                                            <span>Lançar Faltante</span>
+                                                        </Button>
+                                                    )}
 
                                                     {/* Botão de Aprovação e Injeção no Secullum */}
                                                     {isPendingRH && (
@@ -1058,6 +1223,156 @@ export default function PunchAdjustmentsClient({
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Lançar Batida Faltante / Corrigir Erro do Gestor */}
+            <Dialog open={!!fixModalItem} onOpenChange={(open) => !open && setFixModalItem(null)}>
+                <DialogContent className="sm:max-w-xl bg-white border border-slate-200 text-slate-900 shadow-2xl rounded-2xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 text-amber-600 mb-1">
+                            <Wrench className="w-5 h-5" />
+                            <DialogTitle className="text-xl font-bold text-slate-900">
+                                Lançar Batida Faltante & Corrigir Ponto
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Insira ou corrija os horários no Secullum. O sistema manterá o registro para auditoria e indicadores de apontamento divergente do gestor.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {fixModalItem && (
+                        <div className="space-y-4 pt-2">
+                            {/* Card de Resumo da Ocorrência */}
+                            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                                <div className="flex justify-between items-center">
+                                    <span className="font-bold text-slate-800 text-sm">{fixModalItem.employee?.name}</span>
+                                    <span className="font-mono text-xs px-2 py-0.5 bg-indigo-100 text-indigo-800 font-bold rounded">#{fixModalItem.code}</span>
+                                </div>
+                                <div className="text-slate-600">
+                                    <strong>Data:</strong> {formatDataExibicao(fixModalItem.date)} | <strong>CPF:</strong> {fixModalItem.employee?.cpf}
+                                </div>
+                                <div className="text-slate-600">
+                                    <strong>Gestor:</strong> {fixModalItem.requestedByName || "Não identificado"} ({fixModalItem.client?.name || "Sem Contrato"})
+                                </div>
+                                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 font-medium mt-2">
+                                    <span className="font-bold text-amber-800 block mb-0.5">⚠️ Apontamento do Gestor vs Secullum:</span>
+                                    Gestor apontou: <strong className="text-rose-700">{fixModalItem.secullumReasonName || "FALTA"}</strong>
+                                    {fixModalItem.detectedPunches && (
+                                        <div className="mt-1 font-mono text-[11px] text-amber-950 font-bold">
+                                            Marcações localizadas: {fixModalItem.detectedPunches}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Inputs dos Horários das Batidas */}
+                            <div>
+                                <Label className="text-xs font-bold text-slate-700 block mb-2">
+                                    Horários das Marcações (HH:mm)
+                                </Label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-600 block mb-1">Entrada 1</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Ex: 22:02"
+                                            value={fixPunches.Entrada1 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada1: e.target.value }))}
+                                            className="h-9 text-xs font-mono font-bold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-600 block mb-1">Saída 1 (Almoço)</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Ex: 00:17"
+                                            value={fixPunches.Saida1 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Saida1: e.target.value }))}
+                                            className="h-9 text-xs font-mono font-bold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-amber-700 block mb-1">Entrada 2 (Retorno)</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Ex: 01:17"
+                                            value={fixPunches.Entrada2 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada2: e.target.value }))}
+                                            className="h-9 text-xs font-mono font-bold border-amber-300 bg-amber-50/50"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-600 block mb-1">Saída 2 (Fim Turno)</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Ex: 06:07"
+                                            value={fixPunches.Saida2 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Saida2: e.target.value }))}
+                                            className="h-9 text-xs font-mono font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-500 block mb-1">Entrada 3 (Opcional)</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Opcional"
+                                            value={fixPunches.Entrada3 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Entrada3: e.target.value }))}
+                                            className="h-8 text-xs font-mono"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="text-[11px] font-semibold text-slate-500 block mb-1">Saída 3 (Opcional)</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Opcional"
+                                            value={fixPunches.Saida3 || ""}
+                                            onChange={(e) => setFixPunches(prev => ({ ...prev, Saida3: e.target.value }))}
+                                            className="h-8 text-xs font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Observações / Auditoria */}
+                            <div>
+                                <Label className="text-xs font-bold text-slate-700 block mb-1">
+                                    Justificativa do RH / Auditoria
+                                </Label>
+                                <textarea
+                                    rows={2}
+                                    value={fixNotes}
+                                    onChange={(e) => setFixNotes(e.target.value)}
+                                    className="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                                    placeholder="Motivo da intervenção do RH..."
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setFixModalItem(null)}
+                                    className="border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold rounded-xl"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleSaveFix}
+                                    disabled={isSavingFix}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-sm flex items-center gap-1.5"
+                                >
+                                    <Check className="w-4 h-4" />
+                                    <span>{isSavingFix ? "Gravando no Secullum..." : "Gravar no Secullum & Atualizar Indicadores"}</span>
+                                </Button>
+                            </DialogFooter>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

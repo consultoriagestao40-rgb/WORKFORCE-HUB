@@ -1390,6 +1390,10 @@ model AttendancePunchAdjustment {
   resolvedAt            DateTime?
   secullumStatus        String?   // SUCESSO, ERRO, EXISTENTE_OFFLINE
   secullumResponseLog   String?
+  isManagerError        Boolean   @default(false)
+  managerErrorType      String?   // FALTA_COM_BATIDA_EXISTENTE, HORARIO_DIVERGENTE, COLABORADOR_TRABALHOU, OUTRO
+  managerErrorDetails   String?
+  detectedPunches       String?   // Batidas localizadas no Secullum (ex: "E1: 22:02 | S1: 00:17 | E2: 06:07")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

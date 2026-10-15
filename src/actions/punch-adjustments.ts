@@ -377,16 +377,18 @@ export async function checkPunchAgainstSecullum(adjustmentId: string) {
         // existente não resolve o ajuste, então NÃO descarta.
         const isIncompleteDay = detectedPunchTimes.length % 2 === 1;
         const hasPunch = detectedPunchTimes.length > 0 && !isIncompleteDay;
+        const punchSummary = detectedPunchTimes.join(" | ");
+        const isAbsenceReason = adj.secullumReasonId === "FALTA" || Boolean(adj.secullumReasonName?.toUpperCase().includes("FALTA"));
 
         let updatedAdj = null;
         if (hasPunch) {
-            const punchSummary = detectedPunchTimes.join(" | ");
             updatedAdj = await prisma.attendancePunchAdjustment.update({
                 where: { id: adjustmentId },
                 data: {
                     status: "DISCARDED_OFFLINE_FOUND",
                     secullumStatus: "SUCESSO",
                     secullumResponseLog: `Batidas detectadas no Secullum: ${punchSummary}`,
+                    detectedPunches: punchSummary,
                     resolvedByUserId: user?.id || null,
                     resolvedAt: new Date(),
                     notes: adj.notes ? `${adj.notes} | Batidas offline detectadas no Secullum (${punchSummary})` : `Batidas offline detectadas no Secullum (${punchSummary})`,
@@ -396,15 +398,30 @@ export async function checkPunchAgainstSecullum(adjustmentId: string) {
             revalidatePath("/admin/punch-adjustments");
             revalidatePath("/admin/operations");
             revalidatePath("/admin/requests");
+        } else if (detectedPunchTimes.length > 0 && isAbsenceReason) {
+            // Gestor confirmou FALTA, mas constam batidas parciais no Secullum! (Erro do gestor)
+            updatedAdj = await prisma.attendancePunchAdjustment.update({
+                where: { id: adjustmentId },
+                data: {
+                    isManagerError: true,
+                    managerErrorType: "FALTA_COM_BATIDA_EXISTENTE",
+                    managerErrorDetails: `Gestor confirmou falta, mas constam ${detectedPunchTimes.length} batida(s) no Secullum (${punchSummary})`,
+                    detectedPunches: punchSummary,
+                    secullumResponseLog: `⚠️ Divergência do Gestor: Ponto com batidas detectadas (${punchSummary})`,
+                    updatedAt: new Date()
+                }
+            });
+            revalidatePath("/admin/punch-adjustments");
         }
 
         return {
             hasPunch,
             punches: detectedPunchTimes,
+            isManagerError: detectedPunchTimes.length > 0 && isAbsenceReason,
             message: hasPunch 
                 ? `Batida encontrada no Secullum: ${detectedPunchTimes.join(" | ")}`
                 : isIncompleteDay
-                    ? `Dia incompleto no Secullum (${detectedPunchTimes.join(" | ")}). Ajuste mantido para lançamento.`
+                    ? `⚠️ Dia incompleto no Secullum (${detectedPunchTimes.join(" | ")}). Ajuste mantido para lançamento de batida faltante.`
                     : "Nenhuma batida registrada no Secullum nesta data.",
             adjustment: updatedAdj
         };
@@ -796,4 +813,371 @@ export async function getPendingAdjustmentsForD1() {
 export async function sendPunchAdjustmentAlertAction(adjustmentId: string, targetGroup?: string) {
     const { sendPunchAdjustmentWhatsAppAlert } = await import("@/lib/punch-whatsapp");
     return await sendPunchAdjustmentWhatsAppAlert(adjustmentId, targetGroup);
+}
+
+/**
+ * Varre automaticamente os ajustes pendentes no Secullum e:
+ * 1. Baixa como DISCARDED_OFFLINE_FOUND os que já possuem batidas completas (sem precisar clicar 1 por 1)
+ * 2. Detecta e sinaliza erros do gestor (ex: confirmou falta mas existem batidas)
+ */
+export async function autoCheckAllPendingOfflinePunches() {
+    try {
+        const user = await getCurrentUser().catch(() => null);
+        const config = await getBenefitsConfig();
+        const bankId = config?.secullumCompanyId?.trim();
+        const token = config?.secullumApiToken?.trim();
+        const apiUrl = config?.secullumApiUrl?.trim();
+
+        if (!bankId || !token) {
+            return { success: false, message: "Secullum não configurado.", checked: 0, offlineFound: 0, errorsFound: 0 };
+        }
+
+        // Buscar ocorrências onde ainda não foi batido o martelo ou estão pendentes de conferência do RH
+        const pendings = await prisma.attendancePunchAdjustment.findMany({
+            where: {
+                status: { in: ["PENDING_AUDIT", "PENDING_RESPONSE", "PENDING_REASON", "PENDING_SCOPE"] }
+            },
+            include: { employee: true },
+            orderBy: { date: "desc" },
+            take: 200
+        });
+
+        if (pendings.length === 0) {
+            return { success: true, message: "Nenhum ajuste pendente para checagem.", checked: 0, offlineFound: 0, errorsFound: 0 };
+        }
+
+        const client = new SecullumApiClient(token, bankId, apiUrl);
+        let offlineFoundCount = 0;
+        let errorsFoundCount = 0;
+
+        // Processar em lotes de 6 para não sobrecarregar a API
+        const chunkSize = 6;
+        for (let i = 0; i < pendings.length; i += chunkSize) {
+            const chunk = pendings.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(async (adj) => {
+                if (!adj.employee?.cpf) return;
+                try {
+                    const { dateStr } = spDateParts(adj.date);
+                    const cleanCpf = adj.employee.cpf.replace(/\D/g, "");
+                    const registro = await client.getRegistroDoDia(cleanCpf, dateStr).catch(() => null);
+
+                    let detectedPunchTimes: string[] = [];
+                    if (registro) {
+                        const cols = [
+                            { key: "Entrada1", label: "E1" },
+                            { key: "Saida1", label: "S1" },
+                            { key: "Entrada2", label: "E2" },
+                            { key: "Saida2", label: "S2" },
+                            { key: "Entrada3", label: "E3" },
+                            { key: "Saida3", label: "S3" },
+                        ];
+                        for (const col of cols) {
+                            const val = registro[col.key];
+                            if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val.trim())) {
+                                detectedPunchTimes.push(`${col.label}: ${val.trim()}`);
+                            }
+                        }
+                    }
+
+                    if (detectedPunchTimes.length === 0) {
+                        const calcData = await client.getCalculos(cleanCpf, dateStr, dateStr).catch(() => null);
+                        if (calcData?.Linhas && calcData?.Colunas) {
+                            for (const linha of calcData.Linhas) {
+                                if (String(linha.Key || "").startsWith(dateStr) && Array.isArray(linha.Value)) {
+                                    calcData.Colunas.forEach((colName: string, idx: number) => {
+                                        const val = linha.Value[idx];
+                                        if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val.trim())) {
+                                            if (/Entrada\s*1/i.test(colName)) detectedPunchTimes.push(`E1: ${val.trim()}`);
+                                            else if (/Sa[ií]da\s*1/i.test(colName)) detectedPunchTimes.push(`S1: ${val.trim()}`);
+                                            else if (/Entrada\s*2/i.test(colName)) detectedPunchTimes.push(`E2: ${val.trim()}`);
+                                            else if (/Sa[ií]da\s*2/i.test(colName)) detectedPunchTimes.push(`S2: ${val.trim()}`);
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    const isIncompleteDay = detectedPunchTimes.length % 2 === 1;
+                    const hasFullPunch = detectedPunchTimes.length > 0 && !isIncompleteDay;
+                    const isAbsence = adj.secullumReasonId === "FALTA" || Boolean(adj.secullumReasonName?.toUpperCase().includes("FALTA"));
+                    const punchSummary = detectedPunchTimes.join(" | ");
+
+                    if (hasFullPunch) {
+                        offlineFoundCount++;
+                        await prisma.attendancePunchAdjustment.update({
+                            where: { id: adj.id },
+                            data: {
+                                status: "DISCARDED_OFFLINE_FOUND",
+                                secullumStatus: "SUCESSO",
+                                secullumResponseLog: `Batidas detectadas no Secullum: ${punchSummary}`,
+                                detectedPunches: punchSummary,
+                                resolvedByUserId: user?.id || null,
+                                resolvedAt: new Date(),
+                                notes: adj.notes ? `${adj.notes} | Batidas offline detectadas automaticamente (${punchSummary})` : `Batidas offline detectadas automaticamente (${punchSummary})`,
+                                updatedAt: new Date()
+                            }
+                        });
+                    } else if (detectedPunchTimes.length > 0 && isAbsence) {
+                        errorsFoundCount++;
+                        await prisma.attendancePunchAdjustment.update({
+                            where: { id: adj.id },
+                            data: {
+                                isManagerError: true,
+                                managerErrorType: "FALTA_COM_BATIDA_EXISTENTE",
+                                managerErrorDetails: `Gestor confirmou falta indevida: constam ${detectedPunchTimes.length} batidas no Secullum (${punchSummary})`,
+                                detectedPunches: punchSummary,
+                                secullumResponseLog: `⚠️ Divergência do Gestor: Ponto com batidas detectadas (${punchSummary})`,
+                                updatedAt: new Date()
+                            }
+                        });
+                    } else if (detectedPunchTimes.length > 0) {
+                        await prisma.attendancePunchAdjustment.update({
+                            where: { id: adj.id },
+                            data: {
+                                detectedPunches: punchSummary,
+                                secullumResponseLog: `Batidas parciais no Secullum: ${punchSummary}`,
+                                updatedAt: new Date()
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error(`Erro ao checar batida do ajuste ${adj.id}:`, e);
+                }
+            }));
+        }
+
+        revalidatePath("/admin/punch-adjustments");
+        revalidatePath("/admin/operations");
+
+        let msg = `Varredura de batidas offline concluída (${pendings.length} ocorrências checadas).`;
+        if (offlineFoundCount > 0) msg += ` ⚡ ${offlineFoundCount} batida(s) offline confirmadas e baixadas automaticamente.`;
+        if (errorsFoundCount > 0) msg += ` ⚠️ ${errorsFoundCount} divergência(s) de gestor identificadas.`;
+        if (offlineFoundCount === 0 && errorsFoundCount === 0) msg += " Nenhuma nova batida offline detectada nesta varredura.";
+
+        return {
+            success: true,
+            message: msg,
+            checked: pendings.length,
+            offlineFound: offlineFoundCount,
+            errorsFound: errorsFoundCount
+        };
+    } catch (error: any) {
+        console.error("[autoCheckAllPendingOfflinePunches] Erro:", error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Lança as batidas faltantes corrigindo o apontamento errado do gestor
+ */
+export async function fixAndSyncIncompletePunch(params: {
+    adjustmentId: string;
+    punches: Array<{ coluna: string; hora: string }>;
+    notes?: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        const adj = await prisma.attendancePunchAdjustment.findUnique({
+            where: { id: params.adjustmentId },
+            include: { employee: true }
+        });
+
+        if (!adj || !adj.employee.cpf) {
+            return { success: false, message: "Ajuste ou CPF do colaborador não localizado." };
+        }
+
+        const config = await getBenefitsConfig();
+        const bankId = config?.secullumCompanyId?.trim();
+        const token = config?.secullumApiToken?.trim();
+        const apiUrl = config?.secullumApiUrl?.trim();
+
+        if (!bankId || !token) {
+            return { success: false, message: "Secullum não configurado." };
+        }
+
+        const client = new SecullumApiClient(token, bankId, apiUrl);
+        const { dateStr } = spDateParts(adj.date);
+
+        for (const p of params.punches) {
+            const hora = p.hora.trim();
+            if (!hora) continue;
+            const res = await client.lancarBatidaManual({
+                cpf: adj.employee.cpf,
+                data: dateStr,
+                coluna: p.coluna,
+                hora: hora,
+                motivo: `Ajuste RH | ${params.notes || "Batida faltante lançada"} | Anterior: ${adj.secullumReasonName || "Falta"}`.slice(0, 200)
+            });
+            if (!res.success) {
+                return { success: false, message: `Erro ao gravar ${p.coluna} no Secullum: ${res.message}` };
+            }
+        }
+
+        const summary = params.punches.map(p => `${p.coluna}: ${p.hora}`).join(" | ");
+
+        await prisma.attendancePunchAdjustment.update({
+            where: { id: params.adjustmentId },
+            data: {
+                status: "APPROVED_SYNCED",
+                secullumStatus: "SUCESSO",
+                secullumResponseLog: `Batidas ajustadas e gravadas pelo RH: ${summary}`,
+                isManagerError: true,
+                managerErrorType: "FALTA_COM_BATIDA_EXISTENTE",
+                managerErrorDetails: params.notes || `Gestor informou "${adj.secullumReasonName}", mas RH constatou batidas e lançou as faltantes.`,
+                notes: adj.notes ? `${adj.notes} | Corrigido pelo RH (${summary})` : `Corrigido pelo RH (${summary})`,
+                resolvedByUserId: user?.id || null,
+                resolvedAt: new Date(),
+                updatedAt: new Date()
+            }
+        });
+
+        revalidatePath("/admin/punch-adjustments");
+        revalidatePath("/admin/operations");
+
+        return { success: true, message: `✅ Batidas gravadas no Secullum com sucesso! (${summary})` };
+    } catch (error: any) {
+        console.error("[fixAndSyncIncompletePunch] Erro:", error);
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Retorna os indicadores completos de auditoria e performance de gestores
+ */
+export async function getManagerAuditMetrics() {
+    try {
+        const adjustments = await prisma.attendancePunchAdjustment.findMany({
+            include: {
+                employee: { select: { id: true, name: true, cpf: true } },
+                client: { select: { id: true, name: true, accountManager: { select: { id: true, name: true } } } },
+                posto: { select: { id: true, role: { select: { name: true } } } },
+                resolvedByUser: { select: { id: true, name: true } }
+            },
+            orderBy: { date: "desc" }
+        });
+
+        const gestoresMap = new Map<string, {
+            name: string;
+            total: number;
+            abonos: number;
+            faltas: number;
+            offlineFound: number;
+            erros: number;
+            errosList: any[];
+        }>();
+
+        const motivosMap = new Map<string, number>();
+
+        const mesesMap = new Map<string, {
+            mes: string;
+            total: number;
+            abonos: number;
+            faltas: number;
+            erros: number;
+            offline: number;
+        }>();
+
+        for (const adj of adjustments) {
+            const managerName = adj.requestedByName?.trim() || adj.client?.accountManager?.name?.trim() || "Gestor Não Atribuído";
+            const isAbono = Boolean(adj.secullumReasonName?.toUpperCase().includes("ABONO") || adj.secullumReasonId?.toUpperCase().includes("ABONO"));
+            const isFalta = Boolean(adj.secullumReasonId === "FALTA" || adj.secullumReasonName?.toUpperCase().includes("FALTA"));
+            const isOffline = adj.status === "DISCARDED_OFFLINE_FOUND";
+            const isError = adj.isManagerError || (isFalta && Boolean(adj.detectedPunches || adj.secullumResponseLog?.includes("Dia incompleto") || adj.secullumResponseLog?.includes("Batidas detectadas")));
+
+            if (!gestoresMap.has(managerName)) {
+                gestoresMap.set(managerName, {
+                    name: managerName,
+                    total: 0,
+                    abonos: 0,
+                    faltas: 0,
+                    offlineFound: 0,
+                    erros: 0,
+                    errosList: []
+                });
+            }
+            const g = gestoresMap.get(managerName)!;
+            g.total++;
+            if (isAbono) g.abonos++;
+            if (isFalta) g.faltas++;
+            if (isOffline) g.offlineFound++;
+            if (isError) {
+                g.erros++;
+                g.errosList.push({
+                    id: adj.id,
+                    code: adj.code,
+                    employeeName: adj.employee?.name || "Desconhecido",
+                    employeeCpf: adj.employee?.cpf || "",
+                    date: adj.date,
+                    clientName: adj.client?.name || "Sem Contrato",
+                    postoName: adj.posto?.role?.name || "Geral",
+                    requestedReason: adj.secullumReasonName || (isFalta ? "Falta Confirmada" : "Ajuste"),
+                    details: adj.managerErrorDetails || adj.secullumResponseLog || "Divergência de apontamento detectada",
+                    detectedPunches: adj.detectedPunches || adj.secullumResponseLog,
+                    status: adj.status,
+                    resolvedByName: adj.resolvedByUser?.name,
+                    resolvedAt: adj.resolvedAt
+                });
+            }
+
+            const motivoName = adj.secullumReasonName || (isFalta ? "FALTA CONFIRMADA" : isOffline ? "BATIDA OFFLINE" : "SEM REGISTRO (ESQUECIMENTO)");
+            motivosMap.set(motivoName, (motivosMap.get(motivoName) || 0) + 1);
+
+            const mesKey = new Date(adj.date).toISOString().slice(0, 7);
+            if (!mesesMap.has(mesKey)) {
+                mesesMap.set(mesKey, {
+                    mes: mesKey,
+                    total: 0,
+                    abonos: 0,
+                    faltas: 0,
+                    erros: 0,
+                    offline: 0
+                });
+            }
+            const m = mesesMap.get(mesKey)!;
+            m.total++;
+            if (isAbono) m.abonos++;
+            if (isFalta) m.faltas++;
+            if (isError) m.erros++;
+            if (isOffline) m.offline++;
+        }
+
+        const rankingAbonos = Array.from(gestoresMap.values())
+            .filter(g => g.abonos > 0)
+            .sort((a, b) => b.abonos - a.abonos);
+
+        const rankingErros = Array.from(gestoresMap.values())
+            .filter(g => g.erros > 0)
+            .sort((a, b) => b.erros - a.erros);
+
+        const rankingGeralGestores = Array.from(gestoresMap.values())
+            .sort((a, b) => b.total - a.total);
+
+        const rankingMotivos = Array.from(motivosMap.entries())
+            .map(([motivo, count]) => ({ motivo, count }))
+            .sort((a, b) => b.count - a.count);
+
+        const evolutivoMensal = Array.from(mesesMap.values())
+            .sort((a, b) => a.mes.localeCompare(b.mes));
+
+        const todosErrosDetalhados = Array.from(gestoresMap.values())
+            .flatMap(g => g.errosList.map(e => ({ ...e, managerName: g.name })))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return {
+            success: true,
+            totalAdjustments: adjustments.length,
+            totalAbonos: adjustments.filter(a => a.secullumReasonName?.toUpperCase().includes("ABONO")).length,
+            totalErros: todosErrosDetalhados.length,
+            rankingAbonos,
+            rankingErros,
+            rankingGeralGestores,
+            rankingMotivos,
+            evolutivoMensal,
+            todosErrosDetalhados
+        };
+    } catch (error: any) {
+        console.error("[getManagerAuditMetrics] Erro:", error);
+        return { success: false, message: error.message };
+    }
 }
