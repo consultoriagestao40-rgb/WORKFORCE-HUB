@@ -198,17 +198,32 @@ export async function createApprovalRequest(data: {
     const n1Required = data.n1Required !== undefined ? data.n1Required : (rule ? rule.n1Enabled : true);
     const n2Required = data.n2Required !== undefined ? data.n2Required : (rule ? rule.n2Enabled : true);
 
-    // Verificar se o solicitante possui superior imediato (N1)
+    // Verificar hierarquia e superior imediato do solicitante
     const requester = await prisma.user.findUnique({
         where: { id: user.id },
-        select: { id: true, managerId: true, isApproverN2: true, role: true }
+        select: { 
+            id: true, 
+            managerId: true, 
+            isApproverN1: true,
+            isApproverN2: true, 
+            role: true,
+            manager: {
+                select: { id: true, name: true, role: true, isApproverN1: true, isApproverN2: true }
+            }
+        }
     });
 
-    const hasN1 = !!requester?.managerId;
+    // Se o gestor imediato do solicitante já for um aprovador N2 (ou ADMIN da Diretoria como Cristiano),
+    // ou se o solicitante não tiver superior imediato:
+    // A solicitação NÃO precisa de N1 intermediário, sobe DIRETO para o N2!
+    // Aprovado no N2, o fluxo fica liberado imediatamente para o RH trabalhar.
+    const directManagerIsN2 = !!(requester?.manager?.isApproverN2 || requester?.manager?.role === 'ADMIN');
+    const hasN1 = !!(requester?.managerId && !directManagerIsN2);
 
     // REGRA DE N1 E N2:
-    // Se o solicitante NÃO possui superior imediato (N1), a solicitação sobe DIRETO para o N2!
-    // Se o solicitante possui N1, passa primeiro pelo N1 e depois pelo N2.
+    // 1. Quem tem gestor N1 (ex: equipe do Wellington) -> passa primeiro pelo N1 (Wellington), depois sobe para o N2 (Cristiano) e libera pro RH.
+    // 2. Quem está ligado direto ao N2 (ex: Kesia ligada ao Cristiano) -> vai DIRETO para o N2 (Cristiano), aprovou lá já libera pro RH.
+    // 3. Quem não tem superior imediato -> vai DIRETO para o N2.
     let initialStatus: ApprovalStatus;
     let effectiveN1Required = n1Required;
 

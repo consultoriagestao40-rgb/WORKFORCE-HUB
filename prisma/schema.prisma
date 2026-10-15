@@ -59,6 +59,7 @@ model User {
   managerId                  String?
   manager                    User?                       @relation("UserSubordination", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates               User[]                      @relation("UserSubordination")
+  isApproverN1               Boolean                     @default(false)
   isApproverN2               Boolean                     @default(false)
 }
 

@@ -45,8 +45,10 @@ export interface SystemUserData {
     role: string;
     isActive?: boolean;
     managerId?: string | null;
-    manager?: { id: string; name: string; role: string } | null;
+    manager?: { id: string; name: string; role: string; isApproverN1?: boolean; isApproverN2?: boolean } | null;
+    isApproverN1?: boolean;
     isApproverN2?: boolean;
+    subordinates?: Array<{ id: string; name: string; username: string; role: string; isActive?: boolean }>;
 }
 
 interface WorkflowRulesConfigProps {

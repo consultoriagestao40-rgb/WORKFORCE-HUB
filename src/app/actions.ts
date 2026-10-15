@@ -2455,10 +2455,120 @@ export async function getUsers() {
         orderBy: { name: 'asc' },
         include: {
             manager: {
-                select: { id: true, name: true, role: true }
+                select: { id: true, name: true, role: true, isApproverN1: true, isApproverN2: true }
+            },
+            subordinates: {
+                select: { id: true, name: true, role: true, username: true, isActive: true },
+                orderBy: { name: 'asc' }
             }
         }
     });
+}
+
+export async function createUser(formData: FormData) {
+    const userRole = await getCurrentUserRole();
+    if (userRole !== 'ADMIN') throw new Error("Unauthorized");
+
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const username = formData.get("username") as string;
+    const password = formData.get("password") as string;
+    const role = formData.get("role") as any;
+    const clientIds = formData.getAll("clientIds") as string[];
+    const phone = formData.get("phone") as string;
+    const managerId = (formData.get("managerId") as string) || null;
+    const isApproverN1 = formData.get("isApproverN1") === "true";
+    const isApproverN2 = formData.get("isApproverN2") === "true";
+    const subordinateIds = formData.getAll("subordinateIds") as string[];
+
+    const hashedPassword = await hashPassword(password);
+
+    const newUser = await prisma.user.create({
+        data: {
+            name,
+            email,
+            username,
+            password: hashedPassword,
+            role,
+            managerId: managerId && managerId !== "NONE" ? managerId : null,
+            isApproverN1,
+            isApproverN2,
+            isActive: true,
+            clientIds,
+            phone
+        }
+    });
+
+    if (subordinateIds.length > 0) {
+        await prisma.user.updateMany({
+            where: { id: { in: subordinateIds } },
+            data: { managerId: newUser.id }
+        });
+    }
+
+    revalidatePath("/admin/users");
+}
+
+export async function updateUser(formData: FormData) {
+    const userRole = await getCurrentUserRole();
+    if (userRole !== 'ADMIN') throw new Error("Unauthorized");
+
+    const id = formData.get("id") as string;
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const role = formData.get("role") as any;
+    const isActive = formData.get("isActive") === "true";
+    const password = formData.get("password") as string;
+    const clientIds = formData.getAll("clientIds") as string[];
+    const phone = formData.get("phone") as string;
+    const managerId = (formData.get("managerId") as string) || null;
+    const isApproverN1 = formData.get("isApproverN1") === "true";
+    const isApproverN2 = formData.get("isApproverN2") === "true";
+    const subordinateIds = formData.getAll("subordinateIds") as string[];
+    const hasSubordinatesPayload = formData.get("hasSubordinatesPayload") === "true";
+
+    const updateData: any = {
+        name,
+        email,
+        role,
+        managerId: managerId && managerId !== "NONE" ? managerId : null,
+        isApproverN1,
+        isApproverN2,
+        isActive,
+        clientIds,
+        phone
+    };
+
+    if (password && password.length > 0) {
+        updateData.password = await hashPassword(password);
+    }
+
+    await prisma.user.update({
+        where: { id },
+        data: updateData
+    });
+
+    // Se a lista de equipe subordinada foi informada, sincroniza os liderados deste gestor
+    if (hasSubordinatesPayload) {
+        // Remove gestão de quem não foi selecionado
+        await prisma.user.updateMany({
+            where: {
+                managerId: id,
+                id: { notIn: subordinateIds }
+            },
+            data: { managerId: null }
+        });
+
+        // Aloca os selecionados para este gestor
+        if (subordinateIds.length > 0) {
+            await prisma.user.updateMany({
+                where: { id: { in: subordinateIds } },
+                data: { managerId: id }
+            });
+        }
+    }
+
+    revalidatePath("/admin/users");
 }
 
 export async function importEmployeesBatch(data: any[]) {
@@ -2704,77 +2814,7 @@ export async function deleteEmployeesBatch(ids: string[]) {
 }
 
 
-export async function createUser(formData: FormData) {
-    const userRole = await getCurrentUserRole();
-    if (userRole !== 'ADMIN') throw new Error("Unauthorized");
 
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const username = formData.get("username") as string;
-    const password = formData.get("password") as string;
-    const role = formData.get("role") as any;
-    const clientIds = formData.getAll("clientIds") as string[];
-    const phone = formData.get("phone") as string;
-    const managerId = (formData.get("managerId") as string) || null;
-    const isApproverN2 = formData.get("isApproverN2") === "true";
-
-    const hashedPassword = await hashPassword(password);
-
-    await prisma.user.create({
-        data: {
-            name,
-            email,
-            username,
-            password: hashedPassword,
-            role,
-            managerId: managerId && managerId !== "NONE" ? managerId : null,
-            isApproverN2,
-            isActive: true,
-            clientIds,
-            phone
-        }
-    });
-
-    revalidatePath("/admin/users");
-}
-
-export async function updateUser(formData: FormData) {
-    const userRole = await getCurrentUserRole();
-    if (userRole !== 'ADMIN') throw new Error("Unauthorized");
-
-    const id = formData.get("id") as string;
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const role = formData.get("role") as any;
-    const isActive = formData.get("isActive") === "true";
-    const password = formData.get("password") as string;
-    const clientIds = formData.getAll("clientIds") as string[];
-    const phone = formData.get("phone") as string;
-    const managerId = (formData.get("managerId") as string) || null;
-    const isApproverN2 = formData.get("isApproverN2") === "true";
-
-    const updateData: any = {
-        name,
-        email,
-        role,
-        managerId: managerId && managerId !== "NONE" ? managerId : null,
-        isApproverN2,
-        isActive,
-        clientIds,
-        phone
-    };
-
-    if (password && password.length > 0) {
-        updateData.password = await hashPassword(password);
-    }
-
-    await prisma.user.update({
-        where: { id },
-        data: updateData
-    });
-
-    revalidatePath("/admin/users");
-}
 
 export async function deleteUser(id: string) {
     try {
