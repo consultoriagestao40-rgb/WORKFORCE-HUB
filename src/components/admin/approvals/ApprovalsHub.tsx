@@ -549,6 +549,11 @@ export function ApprovalsHub({
                                                 <div className="text-[11px] text-slate-500 font-normal">
                                                     {req.clientName || "Geral"} {req.postoName ? `• ${req.postoName}` : ""}
                                                 </div>
+                                                {req.description && (
+                                                    <div className="text-[11px] text-slate-600 font-medium italic truncate max-w-sm mt-0.5" title={req.description}>
+                                                        "{req.description}"
+                                                    </div>
+                                                )}
                                             </td>
 
                                             {/* 5. Status da Alçada */}
@@ -628,14 +633,20 @@ export function ApprovalsHub({
                                     </div>
                                 </div>
 
-                                {/* Justificativa da Solicitação */}
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-1">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                                        Motivo / Justificativa da Solicitação
-                                    </span>
-                                    <p className="text-xs text-slate-800 leading-relaxed pt-0.5">
-                                        {detailsModal.request.description || "Nenhuma observação informada."}
-                                    </p>
+                                {/* Texto / Justificativa da Solicitação */}
+                                <div className="bg-amber-50/40 p-4 rounded-xl border border-amber-200/80 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                                            <FileText className="w-3.5 h-3.5 text-amber-600" />
+                                            Texto do Pedido ({detailsModal.request.requesterName}):
+                                        </span>
+                                        <span className="text-[10px] text-amber-700/80 font-medium">
+                                            {safeFmtDate(detailsModal.request.createdAt)}
+                                        </span>
+                                    </div>
+                                    <div className="text-xs font-semibold text-slate-900 leading-relaxed bg-white p-3 rounded-lg border border-amber-200/60 shadow-xs">
+                                        "{detailsModal.request.description || "Nenhuma observação informada na abertura."}"
+                                    </div>
                                 </div>
 
                                 {/* ══════════════════════════════════════════════════════════
