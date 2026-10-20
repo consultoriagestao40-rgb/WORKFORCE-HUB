@@ -461,22 +461,41 @@ model RecruitmentTimeline {
 }
 
 model Vacation {
-  id         String   @id @default(uuid())
-  employeeId String
-  startDate  DateTime
-  endDate    DateTime
-  daysTaken  Int
-  daysSold   Int      @default(0)
-  notes      String?
-  processed     Boolean  @default(false)
-  createdById   String?
-  createdByName String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid())
+  employeeId         String
+  startDate          DateTime
+  endDate            DateTime
+  daysTaken          Int
+  daysSold           Int       @default(0)
+  notes              String?
+  processed          Boolean   @default(false)
+  createdById        String?
+  createdByName      String?
+  
+  // Esteira Operacional de Férias (DP & Contabilidade)
+  status             String    @default("PROGRAMADA") // PROGRAMADA, ENVIADO_CONTABILIDADE, AVISO_ASSINADO, PAGO, EM_GOZO, RETORNADO, CANCELADO
+  noticeDate         DateTime? // Data de emissão do aviso formal (CLT: 30 dias antes)
+  noticeSigned       Boolean   @default(false)
+  noticeSignedAt     DateTime?
+  sentToAccounting   Boolean   @default(false)
+  sentToAccountingAt DateTime?
+  paymentDeadline    DateTime? // Prazo legal de pagamento (Art. 145 CLT: até 2 dias antes do início)
+  paymentConfirmed   Boolean   @default(false)
+  paymentConfirmedAt DateTime?
+  paymentNotes       String?
+  receiptAmount      Float?    // Valor da remuneração de férias (adiantamento + 1/3)
+  returnedToWork     Boolean   @default(false)
+  returnedToWorkAt   DateTime?
+  attachmentUrl      String?   // Recibo ou comprovante assinado
+  extraFields        Json?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([endDate, processed])
+  @@index([status])
 }
 
 model AllowanceType {

@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/db";
 
+import { prisma } from "@/lib/db";
 import { differenceInYears, differenceInDays, addYears, format, isBefore } from "date-fns";
 import { VacationMonitorClient } from "@/components/admin/VacationMonitorClient";
+import { getVacationProcessesData } from "@/actions/vacation-workflow";
 
 type VacationStatus = 'critical' | 'warning' | 'ok';
 
@@ -89,7 +90,7 @@ async function getVacationData() {
             daysUntilLimit,
             concessiveLimitDate,
             status,
-            postoLabel, // New field,
+            postoLabel,
             companyName: emp.company?.name || 'Sem Empresa'
         };
     });
@@ -104,9 +105,16 @@ async function getVacationData() {
 }
 
 export default async function VacationMonitorPage() {
-    const { vacationData, stats } = await getVacationData();
+    const [{ vacationData, stats }, processesData] = await Promise.all([
+        getVacationData(),
+        getVacationProcessesData()
+    ]);
 
     return (
-        <VacationMonitorClient vacationData={vacationData} stats={stats} />
+        <VacationMonitorClient 
+            vacationData={vacationData} 
+            stats={stats} 
+            processesData={processesData} 
+        />
     );
 }
