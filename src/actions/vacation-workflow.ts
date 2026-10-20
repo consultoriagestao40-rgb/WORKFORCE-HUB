@@ -47,6 +47,13 @@ export interface VacationProcessItem {
         notes?: string;
     } | null;
 
+    // Etapa 1.5: Retorno da Contabilidade (Arquivo com Valores R$)
+    hasAccountingFile: boolean;
+    accountingFileName: string | null;
+    accountingFileUrl: string | null;
+    accountingReturnReceivedAt: string | null;
+    accountingReturnNotes: string | null;
+
     // Etapa 2: Assinatura do Aviso (Autentique / Manual)
     noticeSigned: boolean;
     noticeSignedAt: string | null;
@@ -168,6 +175,14 @@ export async function getVacationProcessesData(): Promise<{
         const postoSchedule = activeAssignment?.posto?.schedule || "-";
 
         const extra = (v.extraFields as any) || {};
+        const accountingFile = extra.accountingNoticeFile || null;
+        const accountingReturn = extra.accountingReturn || null;
+
+        const hasAccountingFile = !!(accountingFile?.fileBase64 || (v.attachmentUrl && v.attachmentUrl.startsWith("data:application/pdf")));
+        const accountingFileName = accountingFile?.fileName || (hasAccountingFile ? "Aviso_Ferias_Contabilidade.pdf" : null);
+        const accountingFileUrl = accountingFile?.fileBase64 || v.attachmentUrl || null;
+        const accountingReturnReceivedAt = accountingReturn?.receivedAt || (hasAccountingFile ? v.updatedAt.toISOString() : null);
+        const accountingReturnNotes = accountingReturn?.notes || null;
 
         return {
             id: v.id,
@@ -196,6 +211,12 @@ export async function getVacationProcessesData(): Promise<{
             sentToAccounting: v.sentToAccounting,
             sentToAccountingAt: v.sentToAccountingAt ? v.sentToAccountingAt.toISOString() : null,
             accountingEmailSent: extra.accountingEmailSent || null,
+
+            hasAccountingFile,
+            accountingFileName,
+            accountingFileUrl,
+            accountingReturnReceivedAt,
+            accountingReturnNotes,
 
             noticeSigned: v.noticeSigned,
             noticeSignedAt: v.noticeSignedAt ? v.noticeSignedAt.toISOString() : null,
@@ -412,61 +433,84 @@ export async function sendVacationNoticeToAutentique(vacationId: string): Promis
     const clientName = activeAssignment?.posto?.client?.name || "Operacional";
     const companyName = vacation.employee.company?.name || "RGR FACILITIES LTDA";
 
-    // 1. Gera PDF oficial do Aviso de Férias
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    let pdfBuffer: Buffer;
+    let fileName: string;
+    let isAccountingFile = false;
 
-    const { width, height } = page.getSize();
-    const margin = 50;
-    let cursorY = height - margin;
+    const extra = (vacation.extraFields as any) || {};
+    const accountingFile = extra?.accountingNoticeFile;
 
-    // Cabeçalho
-    page.drawText(companyName.toUpperCase(), { x: margin, y: cursorY, size: 14, font: fontBold, color: rgb(0.1, 0.1, 0.2) });
-    cursorY -= 18;
-    page.drawText("COMUNICAÇÃO DE AVISO DE FÉRIAS (ART. 135 DA CLT)", { x: margin, y: cursorY, size: 11, font: fontBold, color: rgb(0.3, 0.3, 0.7) });
-    cursorY -= 25;
+    // Se a contabilidade já devolveu o documento oficial com os valores, usa esse PDF!
+    if (accountingFile?.fileBase64) {
+        const raw = accountingFile.fileBase64;
+        const base64Data = raw.includes(";base64,") ? raw.split(";base64,")[1] : raw;
+        pdfBuffer = Buffer.from(base64Data, "base64");
+        fileName = accountingFile.fileName || `Aviso_Ferias_Calculo_${vacation.employee.name.replace(/\s+/g, "_")}.pdf`;
+        isAccountingFile = true;
+    } else if (vacation.attachmentUrl && vacation.attachmentUrl.startsWith("data:application/pdf")) {
+        const base64Data = vacation.attachmentUrl.split(";base64,")[1];
+        pdfBuffer = Buffer.from(base64Data, "base64");
+        fileName = `Aviso_Ferias_Calculo_${vacation.employee.name.replace(/\s+/g, "_")}.pdf`;
+        isAccountingFile = true;
+    } else {
+        // Fallback: gera minuta de aviso formal CLT
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([595.28, 841.89]); // A4
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    // Dados
-    page.drawText(`Empregado(a): ${vacation.employee.name}`, { x: margin, y: cursorY, size: 10, font: fontBold });
-    cursorY -= 15;
-    page.drawText(`CPF: ${vacation.employee.cpf}   |   Cargo: ${vacation.employee.role?.name || "-"}   |   Posto: ${clientName}`, { x: margin, y: cursorY, size: 9, font });
-    cursorY -= 25;
+        const { width, height } = page.getSize();
+        const margin = 50;
+        let cursorY = height - margin;
 
-    // Texto
-    const p1 = `Vimos por meio desta comunicar-lhe que, nos termos do Art. 135 da Consolidação das Leis do Trabalho (CLT), ser-lhe-ao concedidas ferias regulamentares relativas ao periodo aquisitivo correspondente.`;
-    page.drawText(p1, { x: margin, y: cursorY, size: 9.5, font, maxWidth: width - margin * 2 });
-    cursorY -= 35;
+        // Cabeçalho
+        page.drawText(companyName.toUpperCase(), { x: margin, y: cursorY, size: 14, font: fontBold, color: rgb(0.1, 0.1, 0.2) });
+        cursorY -= 18;
+        page.drawText("COMUNICAÇÃO DE AVISO DE FÉRIAS (ART. 135 DA CLT)", { x: margin, y: cursorY, size: 11, font: fontBold, color: rgb(0.3, 0.3, 0.7) });
+        cursorY -= 25;
 
-    page.drawText(`PERIODO DE GOZO: De ${startFmt} ate ${endFmt} (${vacation.daysTaken} dias corridos)`, { x: margin, y: cursorY, size: 10, font: fontBold, color: rgb(0.1, 0.2, 0.6) });
-    cursorY -= 16;
-    if (vacation.daysSold > 0) {
-        page.drawText(`Abono Pecuniario (Venda): ${vacation.daysSold} dias`, { x: margin, y: cursorY, size: 9.5, font });
+        // Dados
+        page.drawText(`Empregado(a): ${vacation.employee.name}`, { x: margin, y: cursorY, size: 10, font: fontBold });
+        cursorY -= 15;
+        page.drawText(`CPF: ${vacation.employee.cpf}   |   Cargo: ${vacation.employee.role?.name || "-"}   |   Posto: ${clientName}`, { x: margin, y: cursorY, size: 9, font });
+        cursorY -= 25;
+
+        // Texto
+        const p1 = `Vimos por meio desta comunicar-lhe que, nos termos do Art. 135 da Consolidação das Leis do Trabalho (CLT), ser-lhe-ao concedidas ferias regulamentares relativas ao periodo aquisitivo correspondente.`;
+        page.drawText(p1, { x: margin, y: cursorY, size: 9.5, font, maxWidth: width - margin * 2 });
+        cursorY -= 35;
+
+        page.drawText(`PERIODO DE GOZO: De ${startFmt} ate ${endFmt} (${vacation.daysTaken} dias corridos)`, { x: margin, y: cursorY, size: 10, font: fontBold, color: rgb(0.1, 0.2, 0.6) });
         cursorY -= 16;
+        if (vacation.daysSold > 0) {
+            page.drawText(`Abono Pecuniario (Venda): ${vacation.daysSold} dias`, { x: margin, y: cursorY, size: 9.5, font });
+            cursorY -= 16;
+        }
+        page.drawText(`Data de Retorno ao Trabalho: ${returnFmt}`, { x: margin, y: cursorY, size: 9.5, font: fontBold });
+        cursorY -= 25;
+
+        const p2 = `A remuneracao correspondente as ferias e o respectivo terco constitucional estarao a disposicao ate o dia ${paymentFmt} (Art. 145 da CLT).`;
+        page.drawText(p2, { x: margin, y: cursorY, size: 9.5, font, maxWidth: width - margin * 2 });
+        cursorY -= 40;
+
+        page.drawText(`Curitiba - PR, ${noticeDateFmt}.`, { x: margin, y: cursorY, size: 9.5, font });
+        cursorY -= 60;
+
+        // Assinaturas
+        page.drawText("________________________________________", { x: margin, y: cursorY, size: 10, font });
+        page.drawText("________________________________________", { x: width - margin - 200, y: cursorY, size: 10, font });
+        cursorY -= 14;
+        page.drawText(companyName, { x: margin, y: cursorY, size: 8.5, font: fontBold });
+        page.drawText("ASSINATURA DO EMPREGADO (CIENTE)", { x: width - margin - 200, y: cursorY, size: 8.5, font: fontBold });
+
+        const pdfBytes = await pdfDoc.save();
+        pdfBuffer = Buffer.from(pdfBytes);
+        fileName = `Aviso_Ferias_${vacation.employee.name.replace(/\s+/g, "_")}.pdf`;
     }
-    page.drawText(`Data de Retorno ao Trabalho: ${returnFmt}`, { x: margin, y: cursorY, size: 9.5, font: fontBold });
-    cursorY -= 25;
 
-    const p2 = `A remuneracao correspondente as ferias e o respectivo terco constitucional estarao a disposicao ate o dia ${paymentFmt} (Art. 145 da CLT).`;
-    page.drawText(p2, { x: margin, y: cursorY, size: 9.5, font, maxWidth: width - margin * 2 });
-    cursorY -= 40;
-
-    page.drawText(`Curitiba - PR, ${noticeDateFmt}.`, { x: margin, y: cursorY, size: 9.5, font });
-    cursorY -= 60;
-
-    // Assinaturas
-    page.drawText("________________________________________", { x: margin, y: cursorY, size: 10, font });
-    page.drawText("________________________________________", { x: width - margin - 200, y: cursorY, size: 10, font });
-    cursorY -= 14;
-    page.drawText(companyName, { x: margin, y: cursorY, size: 8.5, font: fontBold });
-    page.drawText("ASSINATURA DO EMPREGADO (CIENTE)", { x: width - margin - 200, y: cursorY, size: 8.5, font: fontBold });
-
-    const pdfBytes = await pdfDoc.save();
-    const pdfBuffer = Buffer.from(pdfBytes);
-
-    const fileName = `Aviso_Ferias_${vacation.employee.name.replace(/\s+/g, "_")}.pdf`;
-    const docName = `Aviso de Férias - ${vacation.employee.name} (${startFmt} a ${endFmt})`;
+    const docName = isAccountingFile && vacation.receiptAmount
+        ? `Aviso e Recibo de Férias (R$ ${vacation.receiptAmount.toFixed(2)}) - ${vacation.employee.name}`
+        : `Aviso de Férias - ${vacation.employee.name} (${startFmt} a ${endFmt})`;
 
     // 2. Dispara no Autentique
     const res = await sendAutentiqueDocument(vacation.employee.name, vacation.employee.phone, pdfBuffer, fileName, docName);
@@ -491,7 +535,7 @@ export async function sendVacationNoticeToAutentique(vacationId: string): Promis
     await prisma.log.create({
         data: {
             action: "AUTENTIQUE_FERIAS_ENVIADO",
-            details: `Aviso de Férias disparado via WhatsApp (Autentique) para ${vacation.employee.name} (${vacation.employee.phone}) por ${user.name}. DocID: ${docId}`,
+            details: `Aviso de Férias ${isAccountingFile ? '(Documento Oficial da Contabilidade com Valores R$)' : '(Minuta CLT)'} disparado via WhatsApp (Autentique) para ${vacation.employee.name} (${vacation.employee.phone}) por ${user.name}. DocID: ${docId}`,
             employeeId: vacation.employeeId,
             userId: user.id
         }
@@ -501,8 +545,74 @@ export async function sendVacationNoticeToAutentique(vacationId: string): Promis
 
     return {
         success: true,
-        message: `Aviso de Férias enviado com sucesso para o WhatsApp de ${vacation.employee.name}!`,
+        message: isAccountingFile
+            ? `Documento oficial da contabilidade com valores enviado com sucesso para o WhatsApp de ${vacation.employee.name}!`
+            : `Aviso de férias padrão enviado para o WhatsApp de ${vacation.employee.name}!`,
         docId
+    };
+}
+
+/**
+ * AUTOMAÇÃO 1.5: Registra o Retorno da Contabilidade com o Arquivo e Valores (R$)
+ */
+export async function saveAccountingReturnAction(params: {
+    vacationId: string;
+    receiptAmount: number;
+    fileBase64?: string;
+    fileName?: string;
+    notes?: string;
+}): Promise<{ success: boolean; message: string }> {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const vacation = await prisma.vacation.findUnique({
+        where: { id: params.vacationId },
+        include: { employee: true }
+    });
+
+    if (!vacation) throw new Error("Férias não encontradas.");
+
+    const extra = (vacation.extraFields as any) || {};
+    extra.accountingReturn = {
+        receivedAt: new Date().toISOString(),
+        receivedBy: user.name,
+        amount: params.receiptAmount,
+        fileName: params.fileName || null,
+        notes: params.notes || null
+    };
+
+    if (params.fileBase64) {
+        extra.accountingNoticeFile = {
+            fileName: params.fileName || `Aviso_Ferias_Calculo_${vacation.employee.name.replace(/\s+/g, "_")}.pdf`,
+            fileBase64: params.fileBase64,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: user.name
+        };
+    }
+
+    await prisma.vacation.update({
+        where: { id: params.vacationId },
+        data: {
+            receiptAmount: params.receiptAmount,
+            attachmentUrl: params.fileBase64 || vacation.attachmentUrl,
+            extraFields: extra
+        }
+    });
+
+    await prisma.log.create({
+        data: {
+            action: "FERIAS_RETORNO_CONTABILIDADE",
+            details: `Retorno da contabilidade registrado para ${vacation.employee.name}. Valor oficial: R$ ${params.receiptAmount.toFixed(2)}${params.fileName ? ` e arquivo anexado (${params.fileName})` : ''} por ${user.name}.`,
+            employeeId: vacation.employeeId,
+            userId: user.id
+        }
+    });
+
+    revalidatePath("/admin/vacation-monitor");
+
+    return {
+        success: true,
+        message: `Retorno da contabilidade registrado com sucesso! Valor R$ ${params.receiptAmount.toFixed(2)} e documento anexados ao card.`
     };
 }
 
