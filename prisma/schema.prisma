@@ -489,6 +489,16 @@ model Vacation {
   attachmentUrl      String?   // Recibo ou comprovante assinado
   extraFields        Json?
 
+  // Automação Autentique (Assinatura Eletrônica)
+  autentiqueDocId    String?
+  autentiqueStatus   String?   // ENVIADO, VISUALIZADO, ASSINADO
+  autentiqueSentAt   DateTime?
+
+  // Automação Conta Azul (Contas a Pagar)
+  contaAzulPayableId String?
+  contaAzulStatus    String?   // PENDENTE, PAGO
+  contaAzulSyncedAt  DateTime?
+
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)

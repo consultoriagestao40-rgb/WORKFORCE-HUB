@@ -114,10 +114,38 @@ export async function POST(request: Request) {
                 }
             }
 
+            // 3. Férias (Aviso de Férias assinado via Autentique)
+            const vacation = await prisma.vacation.findFirst({
+                where: { autentiqueDocId: docId },
+                include: { employee: true }
+            });
+
+            if (vacation) {
+                const nextStatus = vacation.paymentConfirmed ? "PAGO" : "AVISO_ASSINADO";
+                await prisma.vacation.update({
+                    where: { id: vacation.id },
+                    data: {
+                        noticeSigned: true,
+                        noticeSignedAt: new Date(),
+                        autentiqueStatus: 'ASSINADO',
+                        status: nextStatus
+                    }
+                });
+
+                await prisma.log.create({
+                    data: {
+                        action: "FERIAS_AVISO_ASSINADO_AUTENTIQUE",
+                        details: `Aviso de Férias assinado com sucesso via Autentique pelo colaborador ${vacation.employee.name}. DocID: ${docId}`,
+                        employeeId: vacation.employeeId
+                    }
+                });
+            }
+
             try {
                 revalidatePath("/admin/epi");
                 revalidatePath("/admin/dismissal-monitor");
                 revalidatePath("/admin/employees");
+                revalidatePath("/admin/vacation-monitor");
             } catch (revalErr) {
                 console.warn("Revalidation warning in webhook:", revalErr);
             }
@@ -126,7 +154,8 @@ export async function POST(request: Request) {
                 success: true,
                 event: "ASSINADO",
                 docId,
-                updatedEpisCount: updatedEpis.count
+                updatedEpisCount: updatedEpis.count,
+                vacationUpdated: !!vacation
             });
         }
 
@@ -197,10 +226,17 @@ export async function POST(request: Request) {
                 }
             }
 
+            // 3. Férias (Aviso Visualizado)
+            await prisma.vacation.updateMany({
+                where: { autentiqueDocId: docId, autentiqueStatus: 'ENVIADO' },
+                data: { autentiqueStatus: 'VISUALIZADO' }
+            });
+
             try {
                 revalidatePath("/admin/epi");
                 revalidatePath("/admin/dismissal-monitor");
                 revalidatePath("/admin/employees");
+                revalidatePath("/admin/vacation-monitor");
             } catch (revalErr) {
                 console.warn("Revalidation warning in webhook:", revalErr);
             }
