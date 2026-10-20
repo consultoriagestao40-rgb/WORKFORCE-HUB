@@ -48,7 +48,9 @@ export async function getApprovalRequests(filters?: {
         where.OR = [
             { title: { contains: term, mode: "insensitive" } },
             { employeeName: { contains: term, mode: "insensitive" } },
+            { employee: { name: { contains: term, mode: "insensitive" } } },
             { clientName: { contains: term, mode: "insensitive" } },
+            { client: { name: { contains: term, mode: "insensitive" } } },
             { postoName: { contains: term, mode: "insensitive" } },
             { requesterName: { contains: term, mode: "insensitive" } },
         ];
@@ -620,22 +622,21 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
             request.type === ApprovalType.MUDANCA_ESCALA ||
             request.type === ApprovalType.MUDANCA_HORARIO
         ) {
-            const { employeeId, targetPostoId, horarioSecullumNumero } = payload;
+            const { employeeId, postoId, targetPostoId, startDateStr, schedule, createVacancy, reason, horarioSecullumNumero, requesterName, requesterId } = payload;
+            const finalPostoId = postoId || targetPostoId;
 
-            if (employeeId && targetPostoId) {
-                // Desaloca posto anterior
-                await prisma.assignment.updateMany({
-                    where: { employeeId, endDate: null },
-                    data: { endDate: new Date() }
-                });
-
-                // Aloca no novo posto
-                await prisma.assignment.create({
-                    data: {
-                        employeeId,
-                        postoId: targetPostoId,
-                        startDate: new Date()
-                    }
+            if (employeeId && finalPostoId) {
+                const { internalExecuteAssignment } = await import("@/app/actions");
+                await internalExecuteAssignment({
+                    employeeId,
+                    postoId: finalPostoId,
+                    startDateStr,
+                    schedule,
+                    createVacancy,
+                    reason: reason || request.description || "Alocação Aprovada",
+                    requesterName: requesterName || request.requesterName,
+                    requesterId: requesterId || request.requesterId || undefined,
+                    approverName
                 });
             }
 
@@ -652,70 +653,36 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
             } else if (!secullum) {
                 secullumLogMsg = "Secullum não configurado ou credenciais ausentes.";
             } else {
-                secullumLogMsg = "Posto atualizado no WFH (sem código de horário específico para Secullum).";
+                secullumLogMsg = "Posto atualizado no WFH com sucesso.";
                 secullumSuccess = true;
             }
         }
 
         // ── 2. DESLIGAMENTO ──────────────────────────────────────────
         else if (request.type === ApprovalType.DESLIGAMENTO) {
-            const { employeeId, dataDemissao, processType, dismissalSubType, noticeType, notes } = payload;
+            const { internalExecuteDismissal } = await import("@/app/actions");
+            await internalExecuteDismissal({
+                employeeId: payload.employeeId || request.employeeId!,
+                processType: payload.processType || "Processo de Rescisão",
+                dismissalSubType: payload.dismissalSubType || "DISPENSA_SEM_AVISO",
+                initiative: payload.initiative || "EMPRESA",
+                noticeType: payload.noticeType || "INDENIZADO",
+                noticeDays: payload.noticeDays || 30,
+                startDate: payload.startDate,
+                endDate: payload.endDate,
+                reductionType: payload.reductionType || "NENHUMA",
+                unassignImmediately: payload.unassignImmediately !== false,
+                openVacancy: payload.openVacancy !== false,
+                notes: payload.notes || request.description || undefined,
+                attachment: payload.attachment || null,
+                terminationSimulation: payload.terminationSimulation || (request.snapshotProposed as any)?.terminationSimulation || null,
+                requesterName: payload.requesterName || request.requesterName,
+                requesterId: payload.requesterId || request.requesterId || undefined,
+                approverName
+            });
 
-            if (employeeId) {
-                // Atualiza situação do colaborador para Processo de Rescisão ou Inativo
-                let sit = await prisma.situation.findFirst({
-                    where: { name: processType || "Processo de Rescisão" }
-                });
-                if (!sit) {
-                    sit = await prisma.situation.create({
-                        data: { name: processType || "Processo de Rescisão", color: "#ec4899" }
-                    });
-                }
-
-                const dismissalDate = dataDemissao ? new Date(dataDemissao + "T12:00:00Z") : new Date();
-
-                await prisma.employee.update({
-                    where: { id: employeeId },
-                    data: {
-                        situationId: sit.id,
-                        extraFields: {
-                            ...(request.employee?.extraFields as any || {}),
-                            dismissalProcess: {
-                                type: processType || "Processo de Rescisão",
-                                dismissalSubType: dismissalSubType || "DISPENSA_SEM_AVISO",
-                                noticeType: noticeType || "INDENIZADO",
-                                startDate: dismissalDate,
-                                endDate: dismissalDate,
-                                notes: notes || null,
-                                approvedBy: approverName,
-                                approvedAt: new Date().toISOString()
-                            }
-                        }
-                    }
-                });
-
-                // Se solicitou desalocação imediata, encerra os postos ativos
-                await prisma.assignment.updateMany({
-                    where: { employeeId, endDate: null },
-                    data: { endDate: dismissalDate }
-                });
-            }
-
-            // Sincroniza baixa de demissão no Secullum
-            if (secullum && request.employee?.cpf) {
-                const demissaoStr = payload.dataDemissao || new Date().toISOString().split("T")[0];
-                const sRes = await secullum.lancarDemissao({
-                    cpf: request.employee.cpf,
-                    employeeName: request.employee.name,
-                    numeroFolha: undefined,
-                    dataDemissao: demissaoStr,
-                    motivo: payload.dismissalSubType || "Demissão Aprovada"
-                });
-                secullumSuccess = sRes.success;
-                secullumLogMsg = sRes.message;
-            } else {
-                secullumLogMsg = secullum ? "CPF não informado para Secullum." : "Secullum não configurado.";
-            }
+            secullumSuccess = true;
+            secullumLogMsg = "Desligamento efetivado e liberado para o DP com simulação de rescisão vinculada.";
         }
 
         // ── 3. FÉRIAS ────────────────────────────────────────────────

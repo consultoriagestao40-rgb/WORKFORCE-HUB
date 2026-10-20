@@ -8,11 +8,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, UserMinus, AlertCircle } from "lucide-react";
-import { assignEmployee, unassignEmployee } from "@/app/actions";
+import { UserPlus, UserMinus, AlertCircle, ShieldAlert, AlertTriangle, CheckSquare, Loader2, ArrowRightLeft, Sparkles, CheckCircle2 } from "lucide-react";
+import { assignEmployee, unassignEmployee, getPostoMovementImpact, PostoMovementImpactResult } from "@/app/actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Combobox } from "@/components/ui/combobox"; // NEW
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 interface AssignmentDialogProps {
     postoId: string;
@@ -32,14 +33,18 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
     const [createVacancy, setCreateVacancy] = useState(false);
     const [mode, setMode] = useState<'assign' | 'unassign'>('assign');
     const [selectedSituation, setSelectedSituation] = useState<string>("");
-    // const [employeeSearch, setEmployeeSearch] = useState(""); // REMOVED
     const [schedule, setSchedule] = useState(currentSchedule || "12x36");
-    const [employeeId, setEmployeeId] = useState(""); // NEW for Combobox
+    const [employeeId, setEmployeeId] = useState("");
     const [observation, setObservation] = useState("");
     const [noticeStartDate, setNoticeStartDate] = useState(new Date().toISOString().split('T')[0]);
     const [noticeEndDate, setNoticeEndDate] = useState("");
     const [terminationDate, setTerminationDate] = useState("");
     const [abandonmentStartDate, setAbandonmentStartDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // Análise de impactos de remuneração e benefícios
+    const [impactResult, setImpactResult] = useState<PostoMovementImpactResult | null>(null);
+    const [loadingImpact, setLoadingImpact] = useState(false);
+    const [checklistChecked, setChecklistChecked] = useState<Record<number, boolean>>({});
 
     useEffect(() => {
         if (open && currentSchedule) {
@@ -47,16 +52,50 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
         }
     }, [open, currentSchedule]);
 
+    // Carregar impacto de remuneração ao escolher o colaborador
+    useEffect(() => {
+        if (!employeeId || !open || mode !== 'assign') {
+            setImpactResult(null);
+            setChecklistChecked({});
+            return;
+        }
+
+        let isMounted = true;
+        setLoadingImpact(true);
+        getPostoMovementImpact(postoId, employeeId)
+            .then((res) => {
+                if (isMounted) {
+                    setImpactResult(res);
+                    setChecklistChecked({});
+                }
+            })
+            .catch((err) => {
+                console.error("Erro ao analisar impacto financeiro do posto:", err);
+            })
+            .finally(() => {
+                if (isMounted) setLoadingImpact(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [employeeId, postoId, open, mode]);
+
     // Filter logic moved to Combobox component
 
     async function handleSubmit(formData: FormData) {
         setError(null);
         setLoading(true);
         try {
-            const result = await assignEmployee(formData);
+            const result: any = await assignEmployee(formData);
             if (result?.error) {
                 setError(result.error);
+            } else if (result?.pendingApproval) {
+                toast.success(result.message || "Solicitação de movimentação encaminhada com sucesso para aprovação!");
+                setOpen(false);
+                setCreateVacancy(false);
             } else {
+                toast.success("Colaborador alocado com sucesso!");
                 setOpen(false);
                 setCreateVacancy(false);
             }
@@ -154,7 +193,7 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
             )}
 
             <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setError(null); setCreateVacancy(false); setSelectedSituation(""); setObservation(""); setNoticeStartDate(new Date().toISOString().split('T')[0]); setNoticeEndDate(""); setTerminationDate(""); setAbandonmentStartDate(new Date().toISOString().split('T')[0]); } }}>
-                <DialogContent>
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {mode === 'unassign' ? 'Desvincular Colaborador' : (activeEmployeeName ? 'Realocação de Posto' : 'Alocação de Posto')}
@@ -231,6 +270,103 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
                                 />
                             </div>
 
+                            {/* ANÁLISE DE IMPACTO DE REMUNERAÇÃO E BENEFÍCIOS (TRAVAS E CHECKLIST) */}
+                            {employeeId && (
+                                <>
+                                    {loadingImpact && (
+                                        <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
+                                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                                            <span>Analisando regras de insalubridade, vale alimentação e salários do posto...</span>
+                                        </div>
+                                    )}
+
+                                    {impactResult && (
+                                        <>
+                                            {impactResult.hasDivergences ? (
+                                                <div className={`p-4 rounded-2xl border-2 space-y-3 ${
+                                                    impactResult.hasCriticalDivergence 
+                                                        ? "bg-rose-50/50 border-rose-300" 
+                                                        : "bg-amber-50/50 border-amber-300"
+                                                }`}>
+                                                    <div className="flex items-start gap-2.5">
+                                                        <div className={`p-1.5 rounded-lg text-white shrink-0 mt-0.5 ${
+                                                            impactResult.hasCriticalDivergence ? "bg-rose-600" : "bg-amber-600"
+                                                        }`}>
+                                                            <ShieldAlert className="w-4 h-4" />
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-black text-xs block text-slate-800">
+                                                                Trava de Conformidade: Alteração de Remuneração e Benefícios
+                                                            </span>
+                                                            <p className="text-[11px] text-slate-600 mt-0.5 leading-tight">
+                                                                Divergências detectadas no posto. A validação dos itens abaixo é <strong>obrigatória</strong> para evitar pagamentos indevidos ou supressões incorretas.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Itens com impacto */}
+                                                    <div className="space-y-2">
+                                                        {impactResult.items.filter(i => i.status !== "EQUAL").map((item, idx) => (
+                                                            <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2 shadow-xs">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-bold text-slate-800 text-[11px] flex items-center gap-1.5">
+                                                                        {item.severity === 'CRITICAL' && <span className="w-2 h-2 rounded-full bg-rose-500" />}
+                                                                        {item.severity === 'WARNING' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                                                                        {item.label}
+                                                                    </span>
+                                                                    <div className="flex items-center gap-1.5 text-[11px]">
+                                                                        <span className="text-slate-500 line-through">{item.currentValue}</span>
+                                                                        <ArrowRightLeft className="w-3 h-3 text-slate-400" />
+                                                                        <span className="font-bold text-slate-900">{item.targetValue}</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <p className="text-[10px] text-slate-600 leading-normal">
+                                                                    {item.message}
+                                                                </p>
+
+                                                                {/* Checkbox de confirmação obrigatória */}
+                                                                <div className="flex items-start space-x-2 pt-1 border-t border-slate-100">
+                                                                    <Checkbox
+                                                                        id={`chk_impact_${idx}`}
+                                                                        checked={!!checklistChecked[idx]}
+                                                                        onCheckedChange={(val) => setChecklistChecked(prev => ({ ...prev, [idx]: val === true }))}
+                                                                    />
+                                                                    <Label htmlFor={`chk_impact_${idx}`} className="text-[10px] font-semibold text-slate-700 leading-tight cursor-pointer">
+                                                                        {item.checklistText}
+                                                                    </Label>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-medium">
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                    <span>Remuneração, insalubridade e benefícios compatíveis entre o posto de origem e destino.</span>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Envio do checklist serializado */}
+                            <input 
+                                type="hidden" 
+                                name="salaryAndBenefitsChecklist" 
+                                value={JSON.stringify(
+                                    (impactResult?.items.filter(i => i.status !== "EQUAL") || []).map((item, idx) => ({
+                                        field: item.field,
+                                        label: item.label,
+                                        currentValue: item.currentValue,
+                                        targetValue: item.targetValue,
+                                        text: item.checklistText,
+                                        confirmed: !!checklistChecked[idx]
+                                    }))
+                                )} 
+                            />
+
                             {activeEmployeeName && (
                                 <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                                     <Checkbox
@@ -248,10 +384,24 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
                                 </div>
                             )}
 
-                            <DialogFooter>
-                                <Button type="submit" disabled={loading} className="w-full">
-                                    {loading ? "Processando..." : "Confirmar Alocação"}
+                            <DialogFooter className="flex-col sm:flex-col gap-2">
+                                <Button 
+                                    type="submit" 
+                                    disabled={
+                                        loading || 
+                                        loadingImpact || 
+                                        ((impactResult?.items.filter(i => i.status !== "EQUAL") || []).length > 0 && 
+                                         !(impactResult?.items.filter(i => i.status !== "EQUAL") || []).every((_, idx) => checklistChecked[idx] === true))
+                                    } 
+                                    className="w-full"
+                                >
+                                    {loading ? "Processando..." : loadingImpact ? "Verificando benefícios..." : "Confirmar Alocação"}
                                 </Button>
+                                {impactResult?.hasDivergences && !(impactResult.items.filter(i => i.status !== "EQUAL").every((_, idx) => checklistChecked[idx] === true)) && (
+                                    <p className="text-[10px] text-amber-700 font-bold text-center">
+                                        ⚠️ Assinale todos os itens da checklist de remuneração e benefícios para habilitar a confirmação.
+                                    </p>
+                                )}
                             </DialogFooter>
                         </form>
                     ) : (

@@ -20,7 +20,12 @@ import {
     UserX,
     Calendar,
     ArrowRightLeft,
-    Trash2
+    Trash2,
+    Calculator,
+    DollarSign,
+    ChevronDown,
+    ChevronUp,
+    MapPin
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -78,6 +83,22 @@ export interface ApprovalRequestItem {
         phone: string | null;
         registrationNumber?: string | null;
     } | null;
+    client?: {
+        id: string;
+        name: string;
+    } | null;
+    posto?: {
+        id: string;
+        startTime?: string | null;
+        endTime?: string | null;
+        schedule?: string | null;
+        notes?: string | null;
+    } | null;
+    requester?: {
+        id: string;
+        name: string;
+        role?: string;
+    } | null;
 }
 
 interface ApprovalsHubProps {
@@ -125,10 +146,12 @@ export function ApprovalsHub({
         isOpen: boolean;
         request: ApprovalRequestItem | null;
         decisionFeedback: string;
+        showRubricas?: boolean;
     }>({
         isOpen: false,
         request: null,
-        decisionFeedback: ""
+        decisionFeedback: "",
+        showRubricas: false
     });
 
     // Modal de Confirmação de Exclusão
@@ -163,9 +186,9 @@ export function ApprovalsHub({
         if (searchTerm.trim()) {
             const term = searchTerm.toLowerCase();
             const matchTitle = req.title.toLowerCase().includes(term);
-            const matchEmp = req.employeeName?.toLowerCase().includes(term);
-            const matchCli = req.clientName?.toLowerCase().includes(term);
-            const matchReq = req.requesterName?.toLowerCase().includes(term);
+            const matchEmp = (req.employeeName || req.employee?.name)?.toLowerCase().includes(term);
+            const matchCli = (req.clientName || req.client?.name)?.toLowerCase().includes(term);
+            const matchReq = (req.requesterName || req.requester?.name)?.toLowerCase().includes(term);
             if (!matchTitle && !matchEmp && !matchCli && !matchReq) return false;
         }
 
@@ -730,10 +753,10 @@ export function ApprovalsHub({
                                             {/* 4. Colaborador */}
                                             <td className="px-4 py-3">
                                                 <div className="font-bold text-slate-900">
-                                                    {req.employeeName || req.title}
+                                                    {req.employeeName || req.employee?.name || req.title}
                                                 </div>
                                                 <div className="text-[11px] text-slate-500 font-normal">
-                                                    {req.clientName || "Geral"} {req.postoName ? `• ${req.postoName}` : ""}
+                                                    {req.clientName || req.client?.name || "Geral"} {req.postoName ? `• ${req.postoName}` : ""}
                                                 </div>
                                                 {req.description && (
                                                     <div className="text-[11px] text-slate-600 font-medium italic truncate max-w-sm mt-0.5" title={req.description}>
@@ -849,14 +872,14 @@ export function ApprovalsHub({
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Colaborador</span>
                                         <span className="font-bold text-slate-800 text-sm mt-0.5 block truncate">
-                                            {detailsModal.request.employeeName || "Não especificado"}
+                                            {detailsModal.request.employeeName || detailsModal.request.employee?.name || "Não especificado"}
                                         </span>
                                     </div>
 
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/60">
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Cliente / Contrato</span>
                                         <span className="font-bold text-slate-800 text-sm mt-0.5 block truncate">
-                                            {detailsModal.request.clientName || "Geral"}
+                                            {detailsModal.request.clientName || detailsModal.request.client?.name || "Geral"}
                                         </span>
                                     </div>
 
@@ -883,6 +906,299 @@ export function ApprovalsHub({
                                         "{detailsModal.request.description || "Nenhuma observação informada na abertura."}"
                                     </div>
                                 </div>
+
+                                {/* ── CARD DE DEMONSTRATIVO DE CÁLCULO RESCISÓRIO (CLT) ────────────────── */}
+                                {detailsModal.request.type === "DESLIGAMENTO" && (() => {
+                                    const sim = detailsModal.request.snapshotProposed?.terminationSimulation || detailsModal.request.executionPayload?.terminationSimulation;
+                                    const proposed = detailsModal.request.snapshotProposed || detailsModal.request.executionPayload || {};
+                                    return (
+                                        <div className="border-2 border-emerald-300/80 bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/30 p-4 rounded-2xl shadow-xs space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 rounded-lg bg-emerald-600 text-white shadow-xs">
+                                                        <Calculator className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-black text-slate-800 text-xs block flex items-center gap-1.5">
+                                                            Demonstrativo de Cálculo Rescisório (Simulador CLT)
+                                                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded-full uppercase">
+                                                                Obrigatório
+                                                            </span>
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500">
+                                                            {proposed.processType || "Desligamento"} • {proposed.dismissalSubType || "Dispensa"} • Iniciativa: <strong>{proposed.initiative || "Empresa"}</strong>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                {proposed.noticeDays && (
+                                                    <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                                                        Aviso: {proposed.noticeDays} dias ({proposed.noticeType || "TRABALHADO"})
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {sim ? (
+                                                <div className="space-y-3">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                        <div className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-xs">
+                                                            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                Líquido Estimado
+                                                            </span>
+                                                            <span className="text-base font-black text-emerald-700 leading-tight">
+                                                                R$ {Number(sim.netAmount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                                                            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                Total Proventos
+                                                            </span>
+                                                            <span className="text-sm font-black text-slate-800 leading-tight">
+                                                                R$ {Number(sim.totalProventos || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                                                            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                Total Descontos
+                                                            </span>
+                                                            <span className="text-sm font-black text-rose-600 leading-tight">
+                                                                -R$ {Number(sim.totalDescontos || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
+                                                            <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                Multa FGTS 40%
+                                                            </span>
+                                                            <span className="text-sm font-black text-indigo-700 leading-tight">
+                                                                R$ {Number(sim.fgtsFineAmount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Prazos da Rescisão */}
+                                                    <div className="bg-white/80 p-2.5 rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                                        <span><strong>Início:</strong> {proposed.startDate ? safeFmtDate(proposed.startDate, "dd/MM/yyyy") : "-"}</span>
+                                                        <span><strong>Previsão Término:</strong> {proposed.endDate ? safeFmtDate(proposed.endDate, "dd/MM/yyyy") : "-"}</span>
+                                                        <span><strong>Redução Jornada:</strong> {proposed.reductionType === "SETE_DIAS" ? "7 dias corridos" : proposed.reductionType === "DUAS_HORAS" ? "2h diárias" : "Nenhuma"}</span>
+                                                        <span><strong>Desvincular Imediato:</strong> {proposed.unassignImmediately ? "Sim" : "Não (Trabalha até o fim)"}</span>
+                                                    </div>
+
+                                                    {/* Rubricas do Simulador */}
+                                                    {Array.isArray(sim.items) && sim.items.length > 0 && (
+                                                        <div className="pt-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setDetailsModal(prev => ({ ...prev, showRubricas: !prev.showRubricas }))}
+                                                                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors"
+                                                            >
+                                                                {detailsModal.showRubricas ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                                {detailsModal.showRubricas ? "Ocultar demonstrativo das rubricas" : `Ver demonstrativo das rubricas (${sim.items.length} verbas)`}
+                                                            </button>
+
+                                                            {detailsModal.showRubricas && (
+                                                                <div className="mt-2 space-y-1 max-h-44 overflow-y-auto pr-1">
+                                                                    {sim.items.map((it: any, idx: number) => (
+                                                                        <div 
+                                                                            key={idx} 
+                                                                            className={`p-2 rounded-lg text-[10px] flex items-center justify-between border ${
+                                                                                it.type === 'PROVENTO' 
+                                                                                    ? 'bg-emerald-50/50 border-emerald-100 text-slate-800' 
+                                                                                    : 'bg-rose-50/50 border-rose-100 text-slate-800'
+                                                                            }`}
+                                                                        >
+                                                                            <div>
+                                                                                <span className="font-bold">{it.description}</span>
+                                                                                {it.reference && <span className="text-slate-500 ml-1.5 text-[9px]">({it.reference})</span>}
+                                                                            </div>
+                                                                            <span className={`font-black ${it.type === 'PROVENTO' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                                                                {it.type === 'PROVENTO' ? '+' : '-'} R$ {Number(it.amount || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
+                                                    Cálculo simulado detalhado não fornecido no payload inicial.
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* ── CARD DE COMPARATIVO DE MOVIMENTAÇÃO DE POSTO ────────────────── */}
+                                {(detailsModal.request.type === "MUDANCA_POSTO" || detailsModal.request.type === "MUDANCA_ESCALA" || detailsModal.request.type === "MUDANCA_HORARIO") && (() => {
+                                    const current = detailsModal.request.snapshotCurrent || {};
+                                    const proposed = detailsModal.request.snapshotProposed || detailsModal.request.executionPayload || {};
+                                    return (
+                                        <div className="border border-indigo-200 bg-indigo-50/30 p-4 rounded-2xl shadow-xs space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-xs">
+                                                    <ArrowRightLeft className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <span className="font-black text-slate-800 text-xs block">
+                                                        Comparativo da Movimentação Operacional
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500">
+                                                        Verifique os dados de origem e o novo posto pretendido antes de deliberar.
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                                {/* Origem */}
+                                                <div className="p-3 rounded-xl border border-slate-200 bg-white space-y-1.5">
+                                                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                        Origem (Atual)
+                                                    </span>
+                                                    <div className="font-bold text-slate-800">
+                                                        {current.currentClientName || current.clientName || detailsModal.request.clientName || "Rotativo / Sem Posto"}
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-600">
+                                                        Função: <strong>{current.currentRoleName || current.roleName || "Não definida"}</strong>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-600">
+                                                        Escala/Horário: {current.currentSchedule || current.schedule || "Rotativo"} ({current.currentWorkload || current.workload || 220}h)
+                                                    </div>
+                                                </div>
+
+                                                {/* Destino */}
+                                                <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50/60 space-y-1.5">
+                                                    <span className="text-[10px] uppercase font-bold text-indigo-700 block tracking-wider">
+                                                        Destino (Proposto)
+                                                    </span>
+                                                    <div className="font-bold text-indigo-950">
+                                                        {proposed.targetClientName || detailsModal.request.clientName || "Novo Posto"}
+                                                    </div>
+                                                    <div className="text-[11px] text-indigo-900">
+                                                        Função: <strong>{proposed.targetRoleName || "Mesma Função"}</strong>
+                                                    </div>
+                                                    <div className="text-[11px] text-indigo-900">
+                                                        Escala/Horário: {proposed.targetSchedule || proposed.schedule || "Padrão do Posto"} {proposed.targetHours ? `(${proposed.targetHours})` : ""}
+                                                    </div>
+                                                    <div className="text-[11px] text-indigo-900">
+                                                        Início Efetivo: <strong>{proposed.startDate ? safeFmtDate(proposed.startDate, "dd/MM/yyyy") : "Imediato"}</strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {(proposed.reason || proposed.observation) && (
+                                                <div className="text-[11px] bg-white p-2.5 rounded-xl border border-indigo-150 text-slate-700">
+                                                    <strong>Motivo / Observação:</strong> {proposed.reason || proposed.observation}
+                                                </div>
+                                            )}
+
+                                            {/* AUDITORIA DE REMUNERAÇÃO, INSALUBRIDADE E BENEFÍCIOS */}
+                                            {(proposed.salaryImpact || proposed.benefitsCompliance || current.insalubridade !== undefined || current.valeAlimentacao !== undefined) && (() => {
+                                                const currentIns = Number(current.insalubridade ?? 0);
+                                                const targetIns = Number(proposed.salaryImpact?.insalubridade ?? 0);
+                                                const currentVA = Number(current.valeAlimentacao ?? 0);
+                                                const targetVA = Number(proposed.salaryImpact?.valeAlimentacao ?? 0);
+                                                const currentSal = Number(current.baseSalary ?? current.salary ?? 0);
+                                                const targetSal = Number(proposed.salaryImpact?.baseSalary ?? 0);
+                                                const checklist = Array.isArray(proposed.benefitsChecklist) ? proposed.benefitsChecklist : [];
+
+                                                return (
+                                                    <div className="border border-amber-300/80 bg-amber-50/40 p-3.5 rounded-xl space-y-2.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="p-1 rounded-md bg-amber-600 text-white shadow-xs">
+                                                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                                                </div>
+                                                                <div>
+                                                                    <span className="font-black text-slate-800 text-xs block">
+                                                                        Auditoria de Remuneração e Benefícios do Posto
+                                                                    </span>
+                                                                    <span className="text-[10px] text-slate-500">
+                                                                        Validação de adicionais de insalubridade, vale alimentação e regras do contrato.
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-[9px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full uppercase">
+                                                                Trava Ativa
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Quadro comparativo financeiro */}
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                            {/* Insalubridade */}
+                                                            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                                                <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                    Insalubridade
+                                                                </span>
+                                                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                                                                    <span className="text-slate-500 line-through text-[11px]">R$ {currentIns.toFixed(2)}</span>
+                                                                    <ArrowRight className="w-3 h-3 text-slate-400" />
+                                                                    <span className={`font-bold ${targetIns === 0 && currentIns > 0 ? "text-rose-600" : targetIns > 0 ? "text-emerald-700" : "text-slate-800"}`}>
+                                                                        R$ {targetIns.toFixed(2)}
+                                                                    </span>
+                                                                </div>
+                                                                {currentIns > 0 && targetIns === 0 && (
+                                                                    <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                                                                        Cessada (Posto sem laudo)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Vale Alimentação */}
+                                                            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                                                <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                    Vale Alimentação (VA)
+                                                                </span>
+                                                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                                                                    <span className="text-slate-500 line-through text-[11px]">R$ {currentVA.toFixed(2)}</span>
+                                                                    <ArrowRight className="w-3 h-3 text-slate-400" />
+                                                                    <span className={`font-bold ${targetVA !== currentVA ? "text-amber-700" : "text-slate-800"}`}>
+                                                                        R$ {targetVA.toFixed(2)}
+                                                                    </span>
+                                                                </div>
+                                                                {targetVA !== currentVA && (
+                                                                    <span className="text-[9px] text-amber-700 font-bold block mt-0.5">
+                                                                        Ajustado por Contrato
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Salário Base */}
+                                                            <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                                                                <span className="text-[9px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                                    Salário Base
+                                                                </span>
+                                                                <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                                                                    <span className="text-slate-500 line-through text-[11px]">R$ {currentSal.toFixed(2)}</span>
+                                                                    <ArrowRight className="w-3 h-3 text-slate-400" />
+                                                                    <span className="font-bold text-slate-800">
+                                                                        R$ {(targetSal > 0 ? targetSal : currentSal).toFixed(2)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Checklist validada pelo solicitante */}
+                                                        {checklist.length > 0 && (
+                                                            <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5">
+                                                                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
+                                                                    Ciência e Conformidade Assinada pelo Solicitante:
+                                                                </span>
+                                                                <div className="space-y-1">
+                                                                    {checklist.map((item: any, idx: number) => (
+                                                                        <div key={idx} className="flex items-start gap-1.5 text-[10px] text-slate-700">
+                                                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                                                            <span>{typeof item === "string" ? item : item.text || item.label}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* REGRA DE DESTINO AO SER APROVADO */}
                                 <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/50 flex items-start gap-3">

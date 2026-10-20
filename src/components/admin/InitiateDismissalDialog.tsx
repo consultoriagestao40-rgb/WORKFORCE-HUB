@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -18,8 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2, Sparkles, Calendar } from "lucide-react";
-import { initiateEmployeeDismissalProcess } from "@/app/actions";
+import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2, Sparkles, Calendar, Calculator, DollarSign, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { initiateEmployeeDismissalProcess, getEmployeeDismissalContext } from "@/app/actions";
+import { calculateTermination, TerminationResult, DismissalReason, NoticeType as TermNoticeType } from "@/lib/termination";
 
 export function InitiateDismissalDialog({ 
     employeeId, 
@@ -36,6 +37,9 @@ export function InitiateDismissalDialog({
 }) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [loadingContext, setLoadingContext] = useState(false);
+    const [dismissalContext, setDismissalContext] = useState<any>(null);
+    const [showRubricas, setShowRubricas] = useState(false);
     
     // Process parameters
     const [initiative, setInitiative] = useState<'EMPRESA' | 'COLABORADOR' | 'ABANDONO'>('EMPRESA');
@@ -52,12 +56,36 @@ export function InitiateDismissalDialog({
     const [terminationDate, setTerminationDate] = useState(new Date().toISOString().split('T')[0]);
     const [abandonmentStartDate, setAbandonmentStartDate] = useState(new Date().toISOString().split('T')[0]);
 
+    // Buscar contexto financeiro do colaborador ao abrir o diálogo
+    useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+        setLoadingContext(true);
+        getEmployeeDismissalContext(employeeId)
+            .then((data) => {
+                if (isMounted) {
+                    setDismissalContext(data);
+                }
+            })
+            .catch((err) => {
+                console.error("Erro ao carregar dados rescisórios do colaborador:", err);
+            })
+            .finally(() => {
+                if (isMounted) setLoadingContext(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [open, employeeId]);
+
     // Helper para cálculo de anos completos e dias de aviso proporcional (Lei 12.506/2011)
     const getNoticeCalculation = (startDateStr: string) => {
         let fullYears = 0;
-        if (admissionDate && startDateStr) {
+        const effectiveAdmission = dismissalContext?.admissionDate || admissionDate;
+        if (effectiveAdmission && startDateStr) {
             try {
-                const adm = new Date(admissionDate);
+                const adm = new Date(effectiveAdmission);
                 const start = new Date(startDateStr + "T12:00:00Z");
                 if (!isNaN(adm.getTime()) && !isNaN(start.getTime())) {
                     let diffY = start.getFullYear() - adm.getFullYear();
@@ -74,7 +102,6 @@ export function InitiateDismissalDialog({
 
         let days = 30;
         if (initiative === 'EMPRESA' && dismissalCategory === 'AVISO') {
-            // Lei 12.506/2011: 30 base + 3 dias por ano completo trabalhado (máximo de 60 dias adicionais = 90 dias total)
             days = Math.min(30 + (fullYears * 3), 90);
         } else {
             days = 30;
@@ -100,7 +127,7 @@ export function InitiateDismissalDialog({
             const { days } = getNoticeCalculation(noticeStartDate);
             setNoticeEndDate(calculateEndDate(noticeStartDate, days));
         }
-    }, [noticeStartDate, initiative, dismissalCategory, noticeType, admissionDate]);
+    }, [noticeStartDate, initiative, dismissalCategory, noticeType, admissionDate, dismissalContext]);
 
     // Options
     const [reductionType, setReductionType] = useState<'NENHUMA' | 'DUAS_HORAS' | 'SETE_DIAS'>('NENHUMA');
@@ -123,6 +150,82 @@ export function InitiateDismissalDialog({
             setUnassignImmediately(false);
         }
     }, [initiative, noticeType, dismissalCategory]);
+
+    // SIMULAÇÃO RESCISÓRIA EM TEMPO REAL (CLT)
+    const simulationResult: TerminationResult | null = useMemo(() => {
+        const effectiveAdmission = dismissalContext?.admissionDate || admissionDate;
+        if (!effectiveAdmission) return null;
+
+        let effectiveDismissalDate = terminationDate;
+        if (initiative === 'ABANDONO') {
+            effectiveDismissalDate = abandonmentStartDate;
+        } else if (dismissalCategory === 'AVISO') {
+            effectiveDismissalDate = noticeType === 'TRABALHADO' ? noticeEndDate : noticeStartDate;
+        }
+
+        let dismissalReason: DismissalReason = 'SEM_JUSTA_CAUSA';
+        let termNoticeType: TermNoticeType = 'TRABALHADO';
+
+        if (initiative === 'EMPRESA') {
+            if (dismissalCategory === 'AVISO') {
+                dismissalReason = 'SEM_JUSTA_CAUSA';
+                termNoticeType = noticeType === 'TRABALHADO' ? 'TRABALHADO' : 'INDENIZADO';
+            } else if (dismissalCategory === 'EXP_ANTECIPADO') {
+                dismissalReason = 'EXP_ANTECIPADO_EMPRESA';
+                termNoticeType = 'ART_479_CLT';
+            } else {
+                dismissalReason = 'EXP_FIM';
+                termNoticeType = 'DISPENSADO';
+            }
+        } else if (initiative === 'COLABORADOR') {
+            if (dismissalCategory === 'AVISO') {
+                dismissalReason = 'PEDIDO_DEMISSAO';
+                termNoticeType = noticeType === 'TRABALHADO' ? 'TRABALHADO' : 'DESCONTADO';
+            } else if (dismissalCategory === 'EXP_ANTECIPADO') {
+                dismissalReason = 'EXP_ANTECIPADO_EMPREGADO';
+                termNoticeType = 'ART_480_CLT';
+            } else {
+                dismissalReason = 'EXP_FIM';
+                termNoticeType = 'DISPENSADO';
+            }
+        } else if (initiative === 'ABANDONO') {
+            dismissalReason = 'COM_JUSTA_CAUSA';
+            termNoticeType = 'DISPENSADO';
+        }
+
+        const { days: calcNoticeDays } = getNoticeCalculation(noticeStartDate);
+
+        try {
+            return calculateTermination({
+                admissionDate: effectiveAdmission,
+                dismissalDate: effectiveDismissalDate,
+                baseSalary: Number(dismissalContext?.salary || 0),
+                insalubridade: Number(dismissalContext?.insalubridade || 0),
+                periculosidade: Number(dismissalContext?.periculosidade || 0),
+                gratificacao: Number(dismissalContext?.gratificacao || 0),
+                otherAdditions: Number(dismissalContext?.outrosAdicionais || 0),
+                workload: Number(dismissalContext?.workload || 220),
+                isNightShift: Boolean(dismissalContext?.isNightShift),
+                vacationDaysRemaining: Number(dismissalContext?.vacationDaysRemaining || 0),
+                dismissalReason,
+                noticeType: termNoticeType,
+                customNoticeDays: calcNoticeDays
+            });
+        } catch (err) {
+            console.error("Erro no cálculo da rescisão:", err);
+            return null;
+        }
+    }, [
+        dismissalContext,
+        admissionDate,
+        initiative,
+        dismissalCategory,
+        noticeType,
+        noticeStartDate,
+        noticeEndDate,
+        terminationDate,
+        abandonmentStartDate
+    ]);
 
     const getLastWorkingDayLabel = () => {
         if (!noticeEndDate) return "-";
@@ -221,9 +324,15 @@ export function InitiateDismissalDialog({
             startDate = abandonmentStartDate;
         }
 
+        if (!simulationResult) {
+            toast.error("O cálculo rescisório via simulador é obrigatório. Aguarde o carregamento ou verifique as datas.");
+            setLoading(false);
+            return;
+        }
+
         try {
             const { days: calcNoticeDays } = getNoticeCalculation(noticeStartDate);
-            const res = await initiateEmployeeDismissalProcess({
+            const res: any = await initiateEmployeeDismissalProcess({
                 employeeId,
                 processType,
                 dismissalSubType,
@@ -236,11 +345,18 @@ export function InitiateDismissalDialog({
                 unassignImmediately,
                 openVacancy,
                 notes,
-                attachment
+                attachment,
+                terminationSimulation: simulationResult
             });
 
             if (res?.error) {
                 toast.error(res.error);
+            } else if (res?.pendingApproval) {
+                toast.success("Solicitação de desligamento encaminhada para aprovação!", {
+                    description: "O processo foi registrado no Hub de Aprovações e aguarda liberação N1/N2 com demonstrativo rescisório anexado."
+                });
+                setOpen(false);
+                router.refresh();
             } else {
                 toast.success("Processo de desligamento iniciado com sucesso!");
                 setOpen(false);
@@ -273,7 +389,7 @@ export function InitiateDismissalDialog({
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl">
+            <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white border border-slate-200 rounded-3xl shadow-2xl">
                 <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/50">
                     <DialogTitle className="text-lg font-black text-slate-800 flex items-center gap-2">
                         <UserMinus className="w-5 h-5 text-red-500" /> Iniciar Processo de Desligamento
@@ -514,6 +630,106 @@ export function InitiateDismissalDialog({
                             </div>
                         )}
 
+                        {/* ── SIMULADOR RESCISÓRIO OBRIGATÓRIO (CLT) ────────────────── */}
+                        <div className="space-y-2.5 border-2 border-emerald-200/80 bg-gradient-to-br from-emerald-50/50 via-white to-teal-50/30 p-4 rounded-2xl shadow-xs">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 rounded-lg bg-emerald-600 text-white shadow-xs">
+                                        <Calculator className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <span className="font-black text-slate-800 text-xs block flex items-center gap-1.5">
+                                            Simulador de Rescisão CLT
+                                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.5 rounded-full uppercase">
+                                                Obrigatório
+                                            </span>
+                                        </span>
+                                        <span className="text-[10px] text-slate-500">
+                                            Base salarial: R$ {Number(dismissalContext?.salary || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                            {dismissalContext?.insalubridade ? ` + Insal. R$ ${Number(dismissalContext.insalubridade).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : ""}
+                                        </span>
+                                    </div>
+                                </div>
+                                {loadingContext && (
+                                    <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-medium">
+                                        <Loader2 className="w-3 h-3 animate-spin" /> Carregando base...
+                                    </div>
+                                )}
+                            </div>
+
+                            {simulationResult ? (
+                                <div className="space-y-3 pt-1">
+                                    <div className="p-3 bg-white rounded-xl border border-emerald-200 shadow-xs flex items-center justify-between">
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                                                Valor Líquido Estimado a Pagar
+                                            </span>
+                                            <span className="text-lg font-black text-emerald-700 leading-tight">
+                                                R$ {simulationResult.netAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[10px] text-slate-500 block font-medium">
+                                                Proventos: <strong className="text-slate-800">R$ {simulationResult.totalProventos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 block font-medium">
+                                                Descontos: <strong className="text-rose-600">-R$ {simulationResult.totalDescontos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                                            </span>
+                                            {simulationResult.fgtsFineAmount > 0 && (
+                                                <span className="text-[10px] text-indigo-600 block font-bold">
+                                                    Multa FGTS 40%: R$ {simulationResult.fgtsFineAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Toggle detalhamento das rubricas */}
+                                    <div className="pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRubricas(!showRubricas)}
+                                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors"
+                                        >
+                                            {showRubricas ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                            {showRubricas ? "Ocultar rubricas do cálculo" : `Ver demonstrativo das verbas (${simulationResult.items.length} itens)`}
+                                        </button>
+
+                                        {showRubricas && (
+                                            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                                {simulationResult.items.map((it, idx) => (
+                                                    <div 
+                                                        key={idx} 
+                                                        className={`p-2 rounded-lg text-[10px] flex items-center justify-between border ${
+                                                            it.type === 'PROVENTO' 
+                                                                ? 'bg-emerald-50/50 border-emerald-100 text-slate-800' 
+                                                                : 'bg-rose-50/50 border-rose-100 text-slate-800'
+                                                        }`}
+                                                    >
+                                                        <div>
+                                                            <span className="font-bold">{it.description}</span>
+                                                            {it.reference && <span className="text-slate-500 ml-1.5 text-[9px]">({it.reference})</span>}
+                                                        </div>
+                                                        <span className={`font-black ${it.type === 'PROVENTO' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                                            {it.type === 'PROVENTO' ? '+' : '-'} R$ {it.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-800 bg-emerald-100/60 p-2 rounded-lg font-medium">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>Cálculo vinculado com sucesso. Os valores e demonstrativo ficarão visíveis aos aprovadores N1/N2 e DP.</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px]">
+                                    Aguardando definição das datas para processar o simulador rescisório.
+                                </div>
+                            )}
+                        </div>
+
                         {/* 5. Opções de Posto de Trabalho */}
                         <div className="space-y-2">
                             <Label className="font-bold text-slate-700">Ações no Posto de Trabalho</Label>
@@ -587,16 +803,21 @@ export function InitiateDismissalDialog({
                         </Button>
                          <Button 
                             type="submit" 
-                            disabled={loading}
-                            className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl flex items-center justify-center gap-1.5"
+                            disabled={loading || !simulationResult || loadingContext}
+                            className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {loading ? (
                                 <>
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                     <span>Processando...</span>
                                 </>
+                            ) : loadingContext ? (
+                                <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Calculando Rescisão...</span>
+                                </>
                             ) : (
-                                <span>Confirmar Início</span>
+                                <span>Confirmar e Enviar para Aprovação</span>
                             )}
                         </Button>
                     </DialogFooter>

@@ -9,6 +9,9 @@ import { getCurrentUserRole, getCurrentUser } from "@/lib/auth";
 import { createVacancyFromPosto } from "@/actions/recruitment";
 import { processVacationReturns } from "@/lib/cron/vacation-return";
 import { dispatchRhNotification } from "@/lib/rh-notifications";
+import { createApprovalRequest } from "@/actions/approvals";
+import { ApprovalType } from "@prisma/client";
+import { differenceInYears } from "date-fns";
 
 function parseDateString(str: string | null | undefined): Date | null {
     if (!str) return null;
@@ -764,22 +767,18 @@ export async function createEmployee(formData: FormData) {
     }
 }
 
-export async function assignEmployee(formData: FormData) {
-    const postoId = formData.get("postoId") as string;
-    const employeeId = formData.get("employeeId") as string;
-    const startDateStr = formData.get("startDate") as string;
-    const schedule = formData.get("schedule") as string;
-    const createVacancy = formData.get("createVacancy") === "on";
-    const reason = formData.get("reason") as string || "Não informado";
-
-    console.log("Assign Employee Debug:", { postoId, employeeId, startDateStr, schedule, reason });
-
-    if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
-
-    // Fix: Append T12:00:00 to ensure date falls on the correct day in local time (avoiding UTC roll-back)
-    const startDate = startDateStr ? new Date(`${startDateStr}T12:00:00`) : new Date();
-
-    console.log("Parsed Start Date:", startDate);
+export async function internalExecuteAssignment(params: {
+    employeeId: string;
+    postoId: string;
+    startDateStr?: string;
+    schedule?: string;
+    createVacancy?: boolean;
+    reason?: string;
+    requesterName?: string;
+    requesterId?: string;
+    approverName?: string;
+}) {
+    const { employeeId, postoId, startDateStr, schedule, createVacancy, reason, requesterName, requesterId, approverName } = params;
 
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     const posto = await prisma.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
@@ -806,6 +805,13 @@ export async function assignEmployee(formData: FormData) {
         });
     }
 
+    const now = new Date();
+    // Se a data de início informada for hoje ou ausente, usar o momento exato now (evita fake 09:00 de fuso horário)
+    const todayStr = now.toISOString().split('T')[0];
+    const startDate = (startDateStr && startDateStr !== todayStr)
+        ? new Date(`${startDateStr}T00:00:00Z`)
+        : now;
+
     // Constraint Check: Is Employee on Vacation?
     const vacationConflict = await prisma.vacation.findFirst({
         where: {
@@ -819,8 +825,6 @@ export async function assignEmployee(formData: FormData) {
         return { error: `Colaborador em férias até ${vacationConflict.endDate.toLocaleDateString('pt-BR')}. Não é possível alocar.` };
     }
 
-
-    // FIXED: Check for ANY active assignment for this employee (Rotativo or other Posto)
     const employeeActiveAssignment = await prisma.assignment.findFirst({
         where: {
             employeeId: employeeId,
@@ -841,25 +845,24 @@ export async function assignEmployee(formData: FormData) {
         if (employeeActiveAssignment) {
             await tx.assignment.updateMany({
                 where: { employeeId: employeeId, endDate: null },
-                data: { endDate: new Date() } // Ends immediately before new start
+                data: { endDate: now }
             });
 
-            const currentUser = await getCurrentUser();
             await tx.log.create({
                 data: {
                     action: "REALOCACAO",
-                    details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para novo posto. Motivo: ${reason}`,
+                    details: `Colaborador movido de ${employeeActiveAssignment.posto.client.name} para ${targetPostoName}. Motivo: ${reason || 'Ajuste operacional'}${approverName ? ` (Aprovado por: ${approverName})` : ''}`,
                     employeeId: employeeId,
-                    userId: currentUser?.id
+                    userId: requesterId || null,
+                    timestamp: now
                 }
             });
 
-            // Log movement in extraFields of employee
             const empObj = await tx.employee.findUnique({ where: { id: employeeId } });
             const extra = (empObj?.extraFields as any) || {};
             const movements = extra.movimentacoes || [];
             movements.push({
-                date: new Date(),
+                date: now,
                 fromPosto: `${employeeActiveAssignment.posto.client.name} - ${employeeActiveAssignment.posto.role.name}`,
                 toPosto: targetPostoName,
                 reason: reason
@@ -869,18 +872,16 @@ export async function assignEmployee(formData: FormData) {
                 data: { extraFields: { ...extra, movimentacoes: movements } }
             });
         } else {
-            // Garantir encerramento de qualquer resíduo anterior
             await tx.assignment.updateMany({
                 where: { employeeId: employeeId, endDate: null },
-                data: { endDate: new Date() }
+                data: { endDate: now }
             });
 
-            // Log movement from Rotativo
             const empObj = await tx.employee.findUnique({ where: { id: employeeId } });
             const extra = (empObj?.extraFields as any) || {};
             const movements = extra.movimentacoes || [];
             movements.push({
-                date: new Date(),
+                date: now,
                 fromPosto: "Rotativo / Sem Posto",
                 toPosto: targetPostoName,
                 reason: reason
@@ -895,21 +896,19 @@ export async function assignEmployee(formData: FormData) {
         if (targetPostoHasAssignment && targetPostoHasAssignment.employeeId !== employeeId) {
             await tx.assignment.update({
                 where: { id: targetPostoHasAssignment.id },
-                data: { endDate: new Date() }
+                data: { endDate: now }
             });
 
-            // Log unassignment
-            const currentUser = await getCurrentUser();
             await tx.log.create({
                 data: {
                     action: "DESVINCULACAO",
-                    details: `Colaborador ${targetPostoHasAssignment.employee.name} desvinculado (realocação do posto)`,
+                    details: `Colaborador ${targetPostoHasAssignment.employee.name} desvinculado (realocação do posto por ${requesterName || 'Operação'})`,
                     employeeId: targetPostoHasAssignment.employeeId,
-                    userId: currentUser?.id
+                    userId: requesterId || null,
+                    timestamp: now
                 }
             });
 
-            // Displace target employee to Rotativo virtual client
             const displacedEmpId = targetPostoHasAssignment.employeeId;
             const displacedEmp = await tx.employee.findUnique({ where: { id: displacedEmpId } });
             const displacedExtra = (displacedEmp?.extraFields as any) || {};
@@ -950,12 +949,12 @@ export async function assignEmployee(formData: FormData) {
                 data: {
                     employeeId: displacedEmpId,
                     postoId: rotativoPosto.id,
-                    startDate: new Date()
+                    startDate: now
                 }
             });
 
             displacedMovements.push({
-                date: new Date(),
+                date: now,
                 fromPosto: `${targetPostoHasAssignment.posto.client.name} - ${targetPostoHasAssignment.posto.role.name}`,
                 toPosto: "Rotativo / Sem Posto (Desvinculado por Realocação)",
                 reason: `Desvinculação automática devido a realocação de ${employee.name}. Motivo informado: ${reason}`
@@ -967,17 +966,17 @@ export async function assignEmployee(formData: FormData) {
             });
         }
 
-        // 2.1 Garantir que nenhuma outra alocação ativa residual permaneça aberta neste posto
+        // 2.1 Garantir encerramento de resíduos no posto
         await tx.assignment.updateMany({
             where: {
                 postoId,
                 endDate: null,
                 employeeId: { not: employeeId }
             },
-            data: { endDate: new Date() }
+            data: { endDate: now }
         });
 
-        // 3. Create new assignment
+        // 3. Create new assignment with exact timestamp
         await tx.assignment.create({
             data: {
                 postoId,
@@ -986,75 +985,57 @@ export async function assignEmployee(formData: FormData) {
             }
         });
 
-        // 3.1 Sincronizar empresa e pacote financeiro do colaborador com o posto de destino
-        const empUpdateData: any = {};
-        if (posto.client?.companyId) {
-            empUpdateData.companyId = posto.client.companyId;
-        }
-        if (posto.roleId) {
-            empUpdateData.roleId = posto.roleId;
-        }
+        // 3.1 Sincronizar pacote financeiro e benefícios conforme o novo posto
+        const empUpdateData: any = {
+            insalubridade: posto.insalubridade ?? 0,
+            periculosidade: posto.periculosidade ?? 0,
+            valeAlimentacao: posto.valeAlimentacao ?? 0,
+            gratificacao: posto.gratificacao ?? 0,
+            outrosAdicionais: posto.outrosAdicionais ?? 0,
+            workload: posto.requiredWorkload || 220
+        };
+        if (posto.client?.companyId) empUpdateData.companyId = posto.client.companyId;
+        if (posto.roleId) empUpdateData.roleId = posto.roleId;
         if (posto.baseSalary > 0) {
-            empUpdateData.salary = posto.baseSalary;
+            empUpdateData.salary = Math.max(employee.salary || 0, posto.baseSalary);
         }
-        if (posto.gratificacao !== undefined && posto.gratificacao !== null) {
-            empUpdateData.gratificacao = posto.gratificacao;
-        }
-        if (posto.insalubridade !== undefined && posto.insalubridade !== null) {
-            empUpdateData.insalubridade = posto.insalubridade;
-        }
-        if (posto.periculosidade !== undefined && posto.periculosidade !== null) {
-            empUpdateData.periculosidade = posto.periculosidade;
-        }
-        if (posto.outrosAdicionais !== undefined && posto.outrosAdicionais !== null) {
-            empUpdateData.outrosAdicionais = posto.outrosAdicionais;
-        }
-        if (Object.keys(empUpdateData).length > 0) {
-            await tx.employee.update({
-                where: { id: employeeId },
-                data: empUpdateData
-            });
-        }
+        await tx.employee.update({
+            where: { id: employeeId },
+            data: empUpdateData
+        });
 
-        // 4. Log new assignment
+        // 4. Log new assignment with real timestamp and complete authors
         const emp = await tx.employee.findUnique({ where: { id: employeeId } });
-        const currentUser = await getCurrentUser();
 
         await tx.log.create({
             data: {
                 action: "LOTACAO",
-                details: `Colaborador ${emp?.name} movido para ${posto.role.name} em ${posto.client.name}`,
+                details: `Colaborador ${emp?.name} movido para ${posto.role.name} em ${posto.client.name}. Movimentado por: ${requesterName || 'Operação'}${approverName ? ` | Aprovado por: ${approverName}` : ''}`,
                 employeeId: employeeId,
-                userId: currentUser?.id
+                userId: requesterId || null,
+                timestamp: now
             }
         });
 
-        // Cleanup vacant rotativo postos in same transaction
         await cleanupVacantRotativoPostos(tx);
     });
 
-    // 4. Create vacancy if requested (OUTSIDE transaction to avoid nested transactions)
+    // 4. Create vacancy if requested
     if (createVacancy && targetPostoHasAssignment) {
         try {
-            // Retrieve full posto details to check Client
             const sourcePosto = await prisma.posto.findUnique({
                 where: { id: postoId },
                 include: { client: true }
             });
-
-            // NUCLEAR BLOCK: If client is ROTATIVO, NEVER create vacancy
             if (sourcePosto && sourcePosto.client.name !== 'ROTATIVO') {
                 await createVacancyFromPosto(postoId);
-            } else {
-                console.log("Skipping vacancy creation for ROTATIVO posto.");
             }
         } catch (error) {
             console.error("Error creating vacancy:", error);
-            // Don't fail the whole operation if vacancy creation fails
         }
     }
 
-    // Dispatch notification for Assignment / Movement to Rotativo
+    // 5. WhatsApp notification with WHO moved it and WHO approved it!
     try {
         const isRotativo = posto.client.name.toUpperCase() === "ROTATIVO";
         const empName = employee.name;
@@ -1067,6 +1048,8 @@ export async function assignEmployee(formData: FormData) {
                 message: `🔄 *[OPERAÇÕES - MUDANÇA PARA CENTRO DE CUSTO ROTATIVO]*\n\n` +
                          `👤 *Colaborador:* ${empName}\n` +
                          `📍 *Destino:* Centro de Custo Rotativo / Reserva Técnica\n` +
+                         `👤 *Movimentado por:* ${requesterName || 'Operação'}\n` +
+                         (approverName ? `✅ *Aprovado por:* ${approverName}\n` : '') +
                          `📝 *Motivo:* ${reason || 'Remanejamento de posto'}\n` +
                          `📅 *Data da Alteração:* ${startDateFormatted}`
             });
@@ -1085,19 +1068,416 @@ export async function assignEmployee(formData: FormData) {
                          `📍 *Cliente/Contrato:* ${posto.client.name}\n` +
                          `💼 *Função:* ${posto.role.name}\n` +
                          `📅 *Início das Atividades:* ${startDateFormatted}\n` +
+                         `👤 *Movimentado por:* ${requesterName || 'Operação'}\n` +
+                         (approverName ? `✅ *Aprovado por:* ${approverName}\n` : '') +
                          `📝 *Motivo/Obs:* ${reason || 'Alocação padrão'}`,
                 contractSupervisorPhone: supervisor?.phone,
                 contractSupervisorName: supervisor?.name
             });
         }
     } catch (notifErr) {
-        console.error("[assignEmployee] Non-fatal notification error:", notifErr);
+        console.error("[internalExecuteAssignment] Non-fatal notification error:", notifErr);
     }
 
     revalidatePath(`/admin/clients`);
     revalidatePath("/admin");
     revalidatePath("/admin/recrutamento");
+    revalidatePath(`/admin/employees/${employeeId}`);
+    return { success: true };
 }
+
+export interface PostoMovementImpactItem {
+    field: "INSALUBRIDADE" | "VALE_ALIMENTACAO" | "SALARIO_BASE" | "PERICULOSIDADE" | "ADICIONAL_NOTURNO" | "CARGA_HORARIA" | "ALIMENTACAO_LOCAL";
+    label: string;
+    currentValue: string;
+    targetValue: string;
+    status: "EQUAL" | "CHANGED" | "SUPPRESSED" | "GRANTED";
+    severity: "INFO" | "WARNING" | "CRITICAL";
+    message: string;
+    checklistText: string;
+}
+
+export interface PostoMovementImpactResult {
+    hasDivergences: boolean;
+    hasCriticalDivergence: boolean;
+    currentPosto: {
+        id: string;
+        clientName: string;
+        roleName: string;
+        baseSalary: number;
+        insalubridade: number;
+        periculosidade: number;
+        valeAlimentacao: number;
+        vaMealsProvidedOnSite: boolean;
+        isNightShift: boolean;
+        workload: number;
+        schedule: string;
+    } | null;
+    targetPosto: {
+        id: string;
+        clientName: string;
+        roleName: string;
+        baseSalary: number;
+        insalubridade: number;
+        periculosidade: number;
+        valeAlimentacao: number;
+        vaMealsProvidedOnSite: boolean;
+        isNightShift: boolean;
+        workload: number;
+        schedule: string;
+    };
+    items: PostoMovementImpactItem[];
+}
+
+export async function getPostoMovementImpact(targetPostoId: string, employeeId: string): Promise<PostoMovementImpactResult | null> {
+    const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+            role: true,
+            assignments: {
+                where: { endDate: null },
+                include: { posto: { include: { client: true, role: true } } }
+            }
+        }
+    });
+
+    const targetPosto = await prisma.posto.findUnique({
+        where: { id: targetPostoId },
+        include: { client: true, role: true }
+    });
+
+    if (!employee || !targetPosto) return null;
+
+    const activeAss = employee.assignments[0];
+    const currentPosto = activeAss?.posto || null;
+
+    const currentInsalubridade = Number(currentPosto?.insalubridade ?? employee.insalubridade ?? 0);
+    const targetInsalubridade = Number(targetPosto.insalubridade ?? 0);
+
+    const currentVA = Number(currentPosto?.valeAlimentacao ?? employee.valeAlimentacao ?? 0);
+    const targetVA = Number(targetPosto.valeAlimentacao ?? 0);
+
+    const currentBaseSalary = Number(currentPosto?.baseSalary ?? employee.salary ?? 0);
+    const targetBaseSalary = Number(targetPosto.baseSalary ?? employee.salary ?? 0);
+
+    const currentPericulosidade = Number(currentPosto?.periculosidade ?? employee.periculosidade ?? 0);
+    const targetPericulosidade = Number(targetPosto.periculosidade ?? 0);
+
+    const currentIsNight = Boolean(currentPosto?.isNightShift);
+    const targetIsNight = Boolean(targetPosto.isNightShift);
+
+    const currentWorkload = Number(currentPosto?.requiredWorkload ?? employee.workload ?? 220);
+    const targetWorkload = Number(targetPosto.requiredWorkload ?? 220);
+
+    const items: PostoMovementImpactItem[] = [];
+
+    // 1. INSALUBRIDADE (VINCULADA AO POSTO DE TRABALHO)
+    if (currentInsalubridade > 0 && targetInsalubridade === 0) {
+        items.push({
+            field: "INSALUBRIDADE",
+            label: "Adicional de Insalubridade",
+            currentValue: `R$ ${currentInsalubridade.toFixed(2)}`,
+            targetValue: "R$ 0,00 (Não aplicável)",
+            status: "SUPPRESSED",
+            severity: "CRITICAL",
+            message: `ATENÇÃO CRÍTICA: A insalubridade está ligada ao posto de trabalho e NÃO ao colaborador. No posto atual ele recebe R$ ${currentInsalubridade.toFixed(2)}, mas o novo posto NÃO possui laudo de insalubridade. O adicional será descaracterizado e cessado para evitar pagamento indevido.`,
+            checklistText: `Confirmo ciência de que o novo posto NÃO possui insalubridade e o adicional de R$ ${currentInsalubridade.toFixed(2)} será cessado na folha.`
+        });
+    } else if (currentInsalubridade === 0 && targetInsalubridade > 0) {
+        items.push({
+            field: "INSALUBRIDADE",
+            label: "Adicional de Insalubridade",
+            currentValue: "R$ 0,00",
+            targetValue: `R$ ${targetInsalubridade.toFixed(2)}`,
+            status: "GRANTED",
+            severity: "WARNING",
+            message: `O novo posto possui previsão de insalubridade no valor de R$ ${targetInsalubridade.toFixed(2)}. O colaborador passará a receber o adicional a partir da data de alocação.`,
+            checklistText: `Confirmo a inclusão do adicional de insalubridade de R$ ${targetInsalubridade.toFixed(2)} decorrente da nova lotação.`
+        });
+    } else if (currentInsalubridade !== targetInsalubridade) {
+        items.push({
+            field: "INSALUBRIDADE",
+            label: "Adicional de Insalubridade",
+            currentValue: `R$ ${currentInsalubridade.toFixed(2)}`,
+            targetValue: `R$ ${targetInsalubridade.toFixed(2)}`,
+            status: "CHANGED",
+            severity: "WARNING",
+            message: `Alteração no valor de insalubridade: de R$ ${currentInsalubridade.toFixed(2)} para R$ ${targetInsalubridade.toFixed(2)}.`,
+            checklistText: `Confirmo o ajuste no valor da insalubridade de R$ ${currentInsalubridade.toFixed(2)} para R$ ${targetInsalubridade.toFixed(2)}.`
+        });
+    } else {
+        items.push({
+            field: "INSALUBRIDADE",
+            label: "Adicional de Insalubridade",
+            currentValue: `R$ ${currentInsalubridade.toFixed(2)}`,
+            targetValue: `R$ ${targetInsalubridade.toFixed(2)}`,
+            status: "EQUAL",
+            severity: "INFO",
+            message: "Insalubridade compatível entre os postos.",
+            checklistText: "Insalubridade compatível."
+        });
+    }
+
+    // 2. VALE ALIMENTAÇÃO (VA) - Ex: Penha R$ 949 vs R$ 900
+    if (currentVA !== targetVA && (currentVA > 0 || targetVA > 0)) {
+        items.push({
+            field: "VALE_ALIMENTACAO",
+            label: "Vale Alimentação / Refeição (VA)",
+            currentValue: `R$ ${currentVA.toFixed(2)}`,
+            targetValue: `R$ ${targetVA.toFixed(2)}`,
+            status: "CHANGED",
+            severity: "WARNING",
+            message: `Divergência de Vale Alimentação: Posto atual prevê R$ ${currentVA.toFixed(2)} e o novo posto prevê R$ ${targetVA.toFixed(2)}. Verifique a convenção/contrato para assegurar o crédito correto.`,
+            checklistText: `Confirmo que o Vale Alimentação será ajustado para R$ ${targetVA.toFixed(2)} conforme a tabela contratual deste posto.`
+        });
+    } else {
+        items.push({
+            field: "VALE_ALIMENTACAO",
+            label: "Vale Alimentação / Refeição (VA)",
+            currentValue: `R$ ${currentVA.toFixed(2)}`,
+            targetValue: `R$ ${targetVA.toFixed(2)}`,
+            status: "EQUAL",
+            severity: "INFO",
+            message: "Vale Alimentação compatível.",
+            checklistText: "Benefício de alimentação compatível."
+        });
+    }
+
+    // Refeição no local
+    if (targetPosto.vaMealsProvidedOnSite && !currentPosto?.vaMealsProvidedOnSite) {
+        items.push({
+            field: "ALIMENTACAO_LOCAL",
+            label: "Refeição Fornecida no Local",
+            currentValue: "Não",
+            targetValue: "Sim (No Contrato)",
+            status: "CHANGED",
+            severity: "WARNING",
+            message: "O novo posto fornece refeições na própria instalação do cliente. A concessão de VA em cartão pode ser revista conforme CCT.",
+            checklistText: "Confirmo ciência de que o posto destino fornece refeição no local."
+        });
+    }
+
+    // 3. SALÁRIO BASE
+    if (targetBaseSalary > 0 && currentBaseSalary > 0 && targetBaseSalary !== currentBaseSalary) {
+        const isReduction = targetBaseSalary < currentBaseSalary;
+        items.push({
+            field: "SALARIO_BASE",
+            label: "Salário Base",
+            currentValue: `R$ ${currentBaseSalary.toFixed(2)}`,
+            targetValue: `R$ ${targetBaseSalary.toFixed(2)}`,
+            status: "CHANGED",
+            severity: isReduction ? "CRITICAL" : "WARNING",
+            message: isReduction
+                ? `ALERTA JURÍDICO (Art. 468 CLT): O novo posto possui salário base de R$ ${targetBaseSalary.toFixed(2)}, inferior ao atual de R$ ${currentBaseSalary.toFixed(2)}. A redução salarial é vedada por lei.`
+                : `Adequação salarial da função do posto: de R$ ${currentBaseSalary.toFixed(2)} para R$ ${targetBaseSalary.toFixed(2)}.`,
+            checklistText: isReduction
+                ? `Estou ciente da diferença de salário base entre os postos e confirmo a preservação legal dos direitos do colaborador.`
+                : `Confirmo a adequação do salário base para R$ ${targetBaseSalary.toFixed(2)} no novo posto.`
+        });
+    }
+
+    // 4. ADICIONAL NOTURNO / REGIME
+    if (currentIsNight !== targetIsNight) {
+        items.push({
+            field: "ADICIONAL_NOTURNO",
+            label: "Regime de Turno / Noturno",
+            currentValue: currentIsNight ? "Noturno (Com Adicional)" : "Diurno",
+            targetValue: targetIsNight ? "Noturno (Com Adicional)" : "Diurno",
+            status: "CHANGED",
+            severity: "WARNING",
+            message: currentIsNight
+                ? "Mudança do regime noturno para diurno: o colaborador deixará de receber o adicional noturno proporcional."
+                : "Mudança para regime noturno: o colaborador passará a receber o adicional noturno legal (Art. 73 CLT).",
+            checklistText: `Confirmo a transição de horário (${currentIsNight ? "Noturno ➔ Diurno" : "Diurno ➔ Noturno"}) e a respectiva adequação da folha.`
+        });
+    }
+
+    // 5. CARGA HORÁRIA
+    if (currentWorkload !== targetWorkload) {
+        items.push({
+            field: "CARGA_HORARIA",
+            label: "Carga Horária Mensal",
+            currentValue: `${currentWorkload}h/mês`,
+            targetValue: `${targetWorkload}h/mês`,
+            status: "CHANGED",
+            severity: "INFO",
+            message: `Ajuste de carga horária contratual: ${currentWorkload}h ➔ ${targetWorkload}h.`,
+            checklistText: `Confirmo a alteração da carga horária para ${targetWorkload}h/mês.`
+        });
+    }
+
+    const hasDivergences = items.some(i => i.status !== "EQUAL");
+    const hasCriticalDivergence = items.some(i => i.severity === "CRITICAL");
+
+    return {
+        hasDivergences,
+        hasCriticalDivergence,
+        currentPosto: currentPosto ? {
+            id: currentPosto.id,
+            clientName: currentPosto.client.name,
+            roleName: currentPosto.role.name,
+            baseSalary: currentBaseSalary,
+            insalubridade: currentInsalubridade,
+            periculosidade: currentPericulosidade,
+            valeAlimentacao: currentVA,
+            vaMealsProvidedOnSite: Boolean(currentPosto.vaMealsProvidedOnSite),
+            isNightShift: currentIsNight,
+            workload: currentWorkload,
+            schedule: currentPosto.schedule
+        } : null,
+        targetPosto: {
+            id: targetPosto.id,
+            clientName: targetPosto.client.name,
+            roleName: targetPosto.role.name,
+            baseSalary: targetBaseSalary,
+            insalubridade: targetInsalubridade,
+            periculosidade: targetPericulosidade,
+            valeAlimentacao: targetVA,
+            vaMealsProvidedOnSite: Boolean(targetPosto.vaMealsProvidedOnSite),
+            isNightShift: targetIsNight,
+            workload: targetWorkload,
+            schedule: targetPosto.schedule
+        },
+        items
+    };
+}
+
+export async function assignEmployee(formData: FormData) {
+    const postoId = formData.get("postoId") as string;
+    const employeeId = formData.get("employeeId") as string;
+    const startDateStr = formData.get("startDate") as string;
+    const schedule = formData.get("schedule") as string;
+    const createVacancy = formData.get("createVacancy") === "on";
+    const reason = formData.get("reason") as string || "Não informado";
+    const directExecution = formData.get("directExecution") === "true";
+    const checklistRaw = formData.get("salaryAndBenefitsChecklist") as string;
+
+    let benefitsChecklist: string[] = [];
+    if (checklistRaw) {
+        try {
+            benefitsChecklist = JSON.parse(checklistRaw);
+        } catch {}
+    }
+
+    if (!postoId || !employeeId) return { error: "Campos obrigatórios faltando." };
+
+    const currentUser = await getCurrentUser();
+    if (!currentUser) return { error: "Não autorizado." };
+
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    const posto = await prisma.posto.findUnique({ where: { id: postoId }, include: { client: true, role: true } });
+
+    if (!employee || !posto) return { error: "Dados não encontrados." };
+
+    if ((posto as any).status === 'ENCERRADO') {
+        return { error: "Este posto está encerrado por redução de contrato e não pode receber novas alocações." };
+    }
+
+    // Constraint Check: Is Employee on Vacation?
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const checkDate = (startDateStr && startDateStr !== todayStr) ? new Date(startDateStr + "T00:00:00Z") : now;
+
+    const vacationConflict = await prisma.vacation.findFirst({
+        where: {
+            employeeId: employeeId,
+            startDate: { lte: checkDate },
+            endDate: { gte: checkDate }
+        }
+    });
+
+    if (vacationConflict) {
+        return { error: `Colaborador em férias até ${vacationConflict.endDate.toLocaleDateString('pt-BR')}. Não é possível alocar.` };
+    }
+
+    // Análise de impactos de remuneração e benefícios
+    const impact = await getPostoMovementImpact(postoId, employeeId);
+
+    // ── VERIFICAR ALÇADA DE APROVAÇÃO ────────────────────────────────
+    const rule = await prisma.approvalWorkflowRule.findUnique({
+        where: { type: ApprovalType.MUDANCA_POSTO }
+    });
+
+    const isApprovalRequired = (rule?.n1Enabled || rule?.n2Enabled) && !directExecution;
+
+    if (isApprovalRequired) {
+        const employeeActiveAssignment = await prisma.assignment.findFirst({
+            where: { employeeId: employeeId, endDate: null },
+            include: { posto: { include: { client: true, role: true } } }
+        });
+
+        const currentClientName = employeeActiveAssignment?.posto?.client?.name || "Rotativo / Sem Posto";
+        let currentRoleName = employeeActiveAssignment?.posto?.role?.name;
+        if (!currentRoleName && employee.roleId) {
+            const r = await prisma.role.findUnique({ where: { id: employee.roleId } });
+            currentRoleName = r?.name;
+        }
+
+        const appRes = await createApprovalRequest({
+            type: ApprovalType.MUDANCA_POSTO,
+            title: `Alocação de ${employee.name} em ${posto.client.name} - ${posto.role.name}`,
+            description: `Motivo: ${reason}`,
+            employeeId: employee.id,
+            clientId: posto.clientId,
+            postoId: posto.id,
+            snapshotCurrent: {
+                clientName: currentClientName,
+                roleName: currentRoleName || "Sem Função",
+                schedule: employeeActiveAssignment?.posto?.schedule || "N/A",
+                insalubridade: impact?.currentPosto?.insalubridade ?? employee.insalubridade ?? 0,
+                valeAlimentacao: impact?.currentPosto?.valeAlimentacao ?? employee.valeAlimentacao ?? 0,
+                baseSalary: impact?.currentPosto?.baseSalary ?? employee.salary ?? 0,
+                isNightShift: impact?.currentPosto?.isNightShift ?? false
+            },
+            snapshotProposed: {
+                clientName: posto.client.name,
+                roleName: posto.role.name,
+                schedule: schedule || posto.schedule,
+                startDate: startDateStr || todayStr,
+                reason: reason,
+                createVacancy: createVacancy,
+                salaryImpact: {
+                    insalubridade: posto.insalubridade || 0,
+                    valeAlimentacao: posto.valeAlimentacao || 0,
+                    baseSalary: posto.baseSalary || 0,
+                    isNightShift: posto.isNightShift || false
+                },
+                benefitsCompliance: impact?.items || [],
+                benefitsChecklist: benefitsChecklist
+            },
+            executionPayload: {
+                employeeId: employee.id,
+                postoId: posto.id,
+                startDateStr: startDateStr || todayStr,
+                schedule: schedule || posto.schedule,
+                createVacancy: createVacancy,
+                reason: reason,
+                requesterName: currentUser.name,
+                requesterId: currentUser.id
+            }
+        });
+
+        return {
+            success: true,
+            pendingApproval: true,
+            requestId: appRes.request.id,
+            message: "Solicitação de movimentação encaminhada com sucesso para o fluxo de aprovação!"
+        };
+    }
+
+    // Se regra estiver desligada ou execução direta explícita:
+    return await internalExecuteAssignment({
+        employeeId,
+        postoId,
+        startDateStr,
+        schedule,
+        createVacancy,
+        reason,
+        requesterName: currentUser.name,
+        requesterId: currentUser.id
+    });
+}
+
 
 export async function unassignEmployee(formData: FormData) {
     try {
@@ -3079,7 +3459,7 @@ export async function getEmployeeTimeline(employeeId: string) {
         events.push({
             id: a.id,
             type: 'ASSIGNMENT',
-            date: a.startDate,
+            date: lotacaoLog ? lotacaoLog.timestamp : (a.createdAt || a.startDate),
             title: `Alocado em ${a.posto.client.name}`,
             subtitle: a.posto.role.name,
             details: a.posto.schedule,
@@ -3113,7 +3493,7 @@ export async function getEmployeeTimeline(employeeId: string) {
             events.push({
                 id: a.id + '_end',
                 type: 'UNASSIGNMENT',
-                date: a.endDate,
+                date: desvLog ? desvLog.timestamp : a.endDate,
                 title: `Desvinculado de ${a.posto.client.name}`,
                 subtitle: `${a.posto.role.name}${reason ? ` (${reason})` : ''}`,
                 details: notes || (desvLog?.details || "Fim da alocação no posto"),
@@ -3753,322 +4133,468 @@ export async function finalizeDismissal(employeeId: string, notes?: string) {
     }
 }
 
-export async function initiateEmployeeDismissalProcess(data: {
+export async function getEmployeeDismissalContext(employeeId: string) {
+    const emp = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        include: {
+            role: { select: { name: true } },
+            company: { select: { name: true } },
+            vacations: true,
+            assignments: {
+                where: { endDate: null },
+                include: { posto: { include: { client: true, role: true } } }
+            }
+        }
+    });
+
+    if (!emp) return null;
+
+    const admissionDate = new Date(emp.admissionDate);
+    const referenceDate = new Date();
+    let fullYearsWorked = differenceInYears(referenceDate, admissionDate);
+    if (isNaN(fullYearsWorked) || fullYearsWorked < 0) fullYearsWorked = 0;
+    const totalDaysEarned = fullYearsWorked * 30;
+    const actualDaysTaken = emp.vacations.reduce((acc, v) => acc + v.daysTaken + (v.daysSold || 0), 0);
+    const vacationDaysRemaining = Math.max(0, totalDaysEarned - actualDaysTaken);
+
+    const activeAssignment = emp.assignments[0];
+
+    return {
+        id: emp.id,
+        name: emp.name,
+        cpf: emp.cpf,
+        admissionDate: emp.admissionDate,
+        salary: emp.salary || activeAssignment?.posto?.baseSalary || 0,
+        insalubridade: emp.insalubridade || activeAssignment?.posto?.insalubridade || 0,
+        periculosidade: emp.periculosidade || activeAssignment?.posto?.periculosidade || 0,
+        gratificacao: emp.gratificacao || activeAssignment?.posto?.gratificacao || 0,
+        outrosAdicionais: emp.outrosAdicionais || activeAssignment?.posto?.outrosAdicionais || 0,
+        workload: emp.workload || activeAssignment?.posto?.requiredWorkload || 220,
+        isNightShift: activeAssignment?.posto?.isNightShift || false,
+        roleName: emp.role?.name || activeAssignment?.posto?.role?.name || "Não definida",
+        clientName: activeAssignment?.posto?.client?.name || "Rotativo",
+        vacationDaysRemaining,
+        extraFields: emp.extraFields || {}
+    };
+}
+
+export async function internalExecuteDismissal(data: {
     employeeId: string;
-    processType: 'Aviso Prévio' | 'Processo de Rescisão' | 'Processo de abandono';
-    dismissalSubType: 'PEDIDO_SEM_AVISO' | 'PEDIDO_COM_AVISO' | 'DISPENSA_SEM_AVISO' | 'DISPENSA_COM_AVISO' | 'ABANDONO' | 'TERMINO_EXP_ANTECIPADO_EMPRESA' | 'TERMINO_EXP_PRAZO_EMPRESA' | 'TERMINO_EXP_ANTECIPADO_COLABORADOR' | 'TERMINO_EXP_PRAZO_COLABORADOR';
-    initiative: 'EMPRESA' | 'COLABORADOR' | 'ABANDONO';
-    noticeType: 'TRABALHADO' | 'INDENIZADO';
+    processType: "Aviso Prévio" | "Processo de Rescisão" | "Processo de abandono";
+    dismissalSubType: "PEDIDO_SEM_AVISO" | "PEDIDO_COM_AVISO" | "DISPENSA_SEM_AVISO" | "DISPENSA_COM_AVISO" | "ABANDONO" | "TERMINO_EXP_ANTECIPADO_EMPRESA" | "TERMINO_EXP_PRAZO_EMPRESA" | "TERMINO_EXP_ANTECIPADO_COLABORADOR" | "TERMINO_EXP_PRAZO_COLABORADOR";
+    initiative: "EMPRESA" | "COLABORADOR" | "ABANDONO";
+    noticeType: "TRABALHADO" | "INDENIZADO";
     noticeDays?: number;
     startDate?: string;
     endDate?: string;
-    reductionType?: 'NENHUMA' | 'DUAS_HORAS' | 'SETE_DIAS';
+    reductionType?: "NENHUMA" | "DUAS_HORAS" | "SETE_DIAS";
     unassignImmediately: boolean;
     openVacancy: boolean;
     notes?: string;
     attachment?: { fileName: string; fileData: string } | null;
+    terminationSimulation?: any;
+    requesterName?: string;
+    requesterId?: string;
+    approverName?: string;
+}) {
+    await prisma.$transaction(async (tx) => {
+        const emp = await tx.employee.findUnique({
+            where: { id: data.employeeId },
+            include: { 
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: { include: { accountManager: true } } } } }
+                }
+            }
+        });
+        if (!emp) throw new Error("Colaborador não encontrado");
+
+        const activeAssignment = emp.assignments[0];
+
+        // 1. Find or create the Situation
+        let situation = await tx.situation.findFirst({ where: { name: data.processType } });
+        if (!situation) {
+            let color = "#f59e0b";
+            if (data.processType === "Processo de abandono") color = "#ef4444";
+            if (data.processType === "Processo de Rescisão") color = "#ec4899";
+            situation = await tx.situation.create({
+                data: { name: data.processType, color }
+            });
+        }
+
+        // 2. Prepare extraFields dismissalProcess payload
+        let dismissalProcess: any = {
+            type: data.processType,
+            dismissalSubType: data.dismissalSubType,
+            initiative: data.initiative,
+            noticeType: data.noticeType,
+            noticeDays: data.noticeDays || 30,
+            startDate: data.startDate ? new Date(data.startDate + "T12:00:00Z") : new Date(),
+            endDate: data.endDate ? new Date(data.endDate + "T12:00:00Z") : null,
+            reductionType: data.reductionType || "NENHUMA",
+            telegram1SentDate: null,
+            telegram2SentDate: null,
+            lastWorkingDay: null,
+            paymentDeadline: null,
+            attachment: data.attachment || null,
+            terminationSimulation: data.terminationSimulation || null,
+            createdById: data.requesterId || null,
+            createdByName: data.requesterName || "Sistema",
+            approvedBy: data.approverName || null,
+            approvedAt: data.approverName ? new Date().toISOString() : null,
+            status: data.approverName ? "APROVADO_LIBERADO_DP" : "PENDENTE_APROVACAO",
+            createdAt: new Date().toISOString()
+        };
+
+        if (data.dismissalSubType === "DISPENSA_COM_AVISO" || data.dismissalSubType === "PEDIDO_COM_AVISO") {
+            if (dismissalProcess.endDate) {
+                const end = new Date(dismissalProcess.endDate);
+                const payLimit = new Date(end);
+                payLimit.setDate(payLimit.getDate() + 10);
+                dismissalProcess.paymentDeadline = payLimit;
+
+                const lastWork = new Date(end);
+                if (data.dismissalSubType === "DISPENSA_COM_AVISO" && data.reductionType === "SETE_DIAS") {
+                    lastWork.setDate(lastWork.getDate() - 7);
+                }
+                dismissalProcess.lastWorkingDay = lastWork;
+            }
+        } else if (
+            data.dismissalSubType === "DISPENSA_SEM_AVISO" || 
+            data.dismissalSubType === "PEDIDO_SEM_AVISO" ||
+            data.dismissalSubType.startsWith("TERMINO_EXP_")
+        ) {
+            const termDate = dismissalProcess.startDate || dismissalProcess.endDate || new Date();
+            const start = new Date(termDate);
+            const payLimit = new Date(start);
+            payLimit.setDate(payLimit.getDate() + 10);
+            dismissalProcess.paymentDeadline = payLimit;
+            dismissalProcess.lastWorkingDay = start;
+            dismissalProcess.startDate = start;
+            dismissalProcess.endDate = data.endDate ? new Date(data.endDate) : start;
+        } else if (data.dismissalSubType === "ABANDONO") {
+            const start = new Date(dismissalProcess.startDate);
+            const endLimit = new Date(start);
+            endLimit.setDate(endLimit.getDate() + 30);
+            dismissalProcess.endDate = endLimit;
+            dismissalProcess.lastWorkingDay = start;
+            dismissalProcess.paymentDeadline = null;
+        }
+
+        const existingExtraFields = (emp.extraFields as any) || {};
+        const updatedExtraFields = {
+            ...existingExtraFields,
+            dismissalProcess
+        };
+
+        await tx.employee.update({
+            where: { id: data.employeeId },
+            data: {
+                situationId: situation.id,
+                extraFields: updatedExtraFields
+            }
+        });
+
+        // 3. Log the process start
+        await tx.log.create({
+            data: {
+                action: "INICIO_PROCESSO_DESLIGAMENTO",
+                details: `Processo de "${data.processType}" iniciado. Solicitado por: ${data.requesterName || "Operação"}${data.approverName ? ` | Aprovado por: ${data.approverName}` : ""}. Observações: ${data.notes || "Sem notas."}`,
+                employeeId: data.employeeId,
+                userId: data.requesterId || null,
+                timestamp: new Date()
+            }
+        });
+
+        // 4. Handle immediate unassignment if requested and employee has an active post
+        if (data.unassignImmediately && activeAssignment && activeAssignment.posto.client.name.toUpperCase() !== "ROTATIVO") {
+            const now = new Date();
+            await tx.assignment.update({
+                where: { id: activeAssignment.id },
+                data: { endDate: now }
+            });
+
+            let rotativoClient = await tx.client.findFirst({ where: { name: { equals: "ROTATIVO", mode: "insensitive" } } });
+            if (!rotativoClient) {
+                rotativoClient = await tx.client.create({
+                    data: {
+                        name: "ROTATIVO",
+                        address: "Centro de Custo Virtual",
+                        companyId: null
+                    }
+                });
+            }
+
+            const rotativoPosto = await tx.posto.create({
+                data: {
+                    clientId: rotativoClient.id,
+                    roleId: emp.roleId,
+                    schedule: "Variável",
+                    startTime: "00:00",
+                    endTime: "23:59",
+                    billingValue: 0,
+                    requiredWorkload: emp.workload || 220,
+                    isNightShift: false,
+                    baseSalary: emp.salary || 0
+                }
+            });
+
+            await tx.assignment.create({
+                data: {
+                    employeeId: data.employeeId,
+                    postoId: rotativoPosto.id,
+                    startDate: now
+                }
+            });
+
+            await tx.log.create({
+                data: {
+                    action: "DESVINCULACAO_AUTO",
+                    details: `Colaborador desvinculado de ${activeAssignment.posto.client.name} e movido para o Rotativo devido a início de ${data.processType}`,
+                    employeeId: data.employeeId,
+                    userId: data.requesterId || null,
+                    timestamp: now
+                }
+            });
+        }
+
+        await cleanupVacantRotativoPostos(tx);
+    });
+
+    // 5. Open replacement vacancy outside transaction if requested
+    if (data.openVacancy) {
+        const emp = await prisma.employee.findUnique({
+            where: { id: data.employeeId },
+            include: { 
+                assignments: {
+                    include: { posto: { include: { client: true } } }
+                }
+            }
+        });
+
+        const targetAssignment = emp?.assignments.find(a => a.posto?.client?.name?.toUpperCase() !== "ROTATIVO");
+        if (emp && targetAssignment) {
+            try {
+                await createVacancyFromPosto(
+                    targetAssignment.postoId,
+                    emp.name,
+                    data.processType,
+                    data.notes || undefined,
+                    data.requesterId
+                );
+            } catch (err) {
+                console.error("Error creating vacancy during dismissal initiate:", err);
+            }
+        }
+    }
+
+    // 6. WhatsApp Notification with requester and approver
+    try {
+        const empData = await prisma.employee.findUnique({
+            where: { id: data.employeeId },
+            include: {
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: { include: { accountManager: true } } } } }
+                }
+            }
+        });
+
+        if (empData) {
+            const isAbandono = data.initiative === "ABANDONO" || data.dismissalSubType === "ABANDONO" || data.processType === "Processo de abandono";
+            const isTerminoExp = data.dismissalSubType?.startsWith("TERMINO_EXP");
+            const activeAss = empData.assignments[0];
+            const clientName = activeAss?.posto?.client?.name || "Sem Posto Fixo";
+            const supervisor = activeAss?.posto?.client?.accountManager;
+            const simNet = data.terminationSimulation?.netAmount 
+                ? `\n💰 *Valor Rescisório Líquido Estimado:* R$ ${Number(data.terminationSimulation.netAmount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` 
+                : "";
+
+            if (isAbandono) {
+                await dispatchRhNotification({
+                    event: "ABANDONO",
+                    title: `Início de Abandono: ${empData.name}`,
+                    message: `⚠️ *[RH - PROCESSO DE ABANDONO INICIADO]*\n\n` +
+                             `👤 *Colaborador:* ${empData.name}\n` +
+                             `📍 *Cliente/Contrato:* ${clientName}\n` +
+                             `📅 *Início das Faltas:* ${data.startDate || "Não informada"}\n` +
+                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
+                             `📬 *Próxima Ação:* Envio do 1º Telegrama com AR convocando para justificativa de faltas.\n` +
+                             `👉 *DP:* Liberado para acompanhamento operacional.`,
+                    contractSupervisorPhone: supervisor?.phone,
+                    contractSupervisorName: supervisor?.name
+                });
+            } else if (isTerminoExp) {
+                await dispatchRhNotification({
+                    event: "DESLIGAMENTO",
+                    title: `Término de Experiência: ${empData.name}`,
+                    message: `📄 *[RH - TÉRMINO DE CONTRATO DE EXPERIÊNCIA]*\n\n` +
+                             `👤 *Colaborador:* ${empData.name}\n` +
+                             `📍 *Cliente/Contrato:* ${clientName}\n` +
+                             `📅 *Último dia:* ${data.endDate || data.startDate || "A definir"}\n` +
+                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
+                             simNet + `\n` +
+                             `👉 *DP:* Liberado para conferência de verbas e homologação.`,
+                    contractSupervisorPhone: supervisor?.phone,
+                    contractSupervisorName: supervisor?.name
+                });
+            } else {
+                await dispatchRhNotification({
+                    event: "DESLIGAMENTO",
+                    title: `Desligamento: ${empData.name}`,
+                    message: `📄 *[RH - PROCESSO DE DESLIGAMENTO]*\n\n` +
+                             `👤 *Colaborador:* ${empData.name}\n` +
+                             `🏷️ *Tipo:* ${data.processType} (${data.dismissalSubType})\n` +
+                             `📍 *Cliente/Contrato:* ${clientName}\n` +
+                             `📅 *Previsão de Saída:* ${data.endDate || data.startDate || "Imediato"}\n` +
+                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
+                             simNet + `\n` +
+                             `👉 *DP:* Liberado para o Departamento Pessoal dar sequência aos cálculos e trâmites.`,
+                    contractSupervisorPhone: supervisor?.phone,
+                    contractSupervisorName: supervisor?.name
+                });
+            }
+        }
+    } catch (notifErr) {
+        console.error("[internalExecuteDismissal] Non-fatal notification error:", notifErr);
+    }
+
+    // Integração Secullum se demissão imediata ou aprovada
+    if (data.processType === "Processo de Rescisão" || data.unassignImmediately) {
+        try {
+            const { getBenefitsConfig } = await import("@/actions/benefits");
+            const { SecullumApiClient } = await import("@/lib/secullum");
+            const config = await getBenefitsConfig();
+            if (config?.secullumApiToken && config?.secullumCompanyId) {
+                const secClient = new SecullumApiClient(
+                    config.secullumApiToken,
+                    config.secullumCompanyId,
+                    config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br"
+                );
+                const empForSecullum = await prisma.employee.findUnique({ where: { id: data.employeeId } });
+                if (empForSecullum?.cpf) {
+                    const dStr = data.startDate || new Date().toISOString().split("T")[0];
+                    await secClient.lancarDemissao({
+                        cpf: empForSecullum.cpf,
+                        employeeName: empForSecullum.name,
+                        numeroFolha: undefined,
+                        dataDemissao: dStr,
+                        motivo: data.dismissalSubType || "Processo de Rescisão"
+                    });
+                }
+            }
+        } catch (secErr) {
+            console.error("[internalExecuteDismissal] Erro ao sincronizar rescisão no Secullum:", secErr);
+        }
+    }
+
+    revalidatePath("/admin/employees");
+    revalidatePath("/admin/dismissal-monitor");
+    revalidatePath("/admin/recrutamento");
+    return { success: true };
+}
+
+export async function initiateEmployeeDismissalProcess(data: {
+    employeeId: string;
+    processType: "Aviso Prévio" | "Processo de Rescisão" | "Processo de abandono";
+    dismissalSubType: "PEDIDO_SEM_AVISO" | "PEDIDO_COM_AVISO" | "DISPENSA_SEM_AVISO" | "DISPENSA_COM_AVISO" | "ABANDONO" | "TERMINO_EXP_ANTECIPADO_EMPRESA" | "TERMINO_EXP_PRAZO_EMPRESA" | "TERMINO_EXP_ANTECIPADO_COLABORADOR" | "TERMINO_EXP_PRAZO_COLABORADOR";
+    initiative: "EMPRESA" | "COLABORADOR" | "ABANDONO";
+    noticeType: "TRABALHADO" | "INDENIZADO";
+    noticeDays?: number;
+    startDate?: string;
+    endDate?: string;
+    reductionType?: "NENHUMA" | "DUAS_HORAS" | "SETE_DIAS";
+    unassignImmediately: boolean;
+    openVacancy: boolean;
+    notes?: string;
+    attachment?: { fileName: string; fileData: string } | null;
+    terminationSimulation?: any;
+    directExecution?: boolean;
 }) {
     try {
         const user = await getCurrentUser();
-        if (!user) throw new Error("Unauthorized");
+        if (!user) throw new Error("Não autorizado");
 
-        await prisma.$transaction(async (tx) => {
-            const emp = await tx.employee.findUnique({
-                where: { id: data.employeeId },
-                include: { 
-                    assignments: {
-                        where: { endDate: null },
-                        include: { posto: { include: { client: { include: { accountManager: true } } } } }
-                    }
+        const emp = await prisma.employee.findUnique({
+            where: { id: data.employeeId },
+            include: { 
+                role: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { role: true, client: { include: { accountManager: true } } } } }
                 }
-            });
-            if (!emp) throw new Error("Employee not found");
-
-            const activeAssignment = emp.assignments[0];
-
-            // 1. Find or create the Situation
-            let situation = await tx.situation.findFirst({ where: { name: data.processType } });
-            if (!situation) {
-                let color = '#f59e0b';
-                if (data.processType === 'Processo de abandono') color = '#ef4444';
-                if (data.processType === 'Processo de Rescisão') color = '#ec4899';
-                situation = await tx.situation.create({
-                    data: { name: data.processType, color }
-                });
             }
+        });
+        if (!emp) throw new Error("Colaborador não encontrado");
 
-            // 2. Prepare extraFields dismissalProcess payload
-            let dismissalProcess: any = {
-                type: data.processType,
-                dismissalSubType: data.dismissalSubType,
-                initiative: data.initiative,
-                noticeType: data.noticeType,
-                noticeDays: data.noticeDays || 30,
-                startDate: data.startDate ? new Date(data.startDate + "T12:00:00Z") : new Date(),
-                endDate: data.endDate ? new Date(data.endDate + "T12:00:00Z") : null,
-                reductionType: data.reductionType || 'NENHUMA',
-                telegram1SentDate: null,
-                telegram2SentDate: null,
-                lastWorkingDay: null,
-                paymentDeadline: null,
-                attachment: data.attachment || null,
-                createdById: user?.id || null,
-                createdByName: user?.name || user?.email || "Sistema",
-                createdAt: new Date().toISOString()
-            };
+        const activeAssignment = emp.assignments[0];
 
-            // Compute dates based on CLT rules (Art. 477 § 6: 10 dias contados a partir do término do contrato)
-            if (data.dismissalSubType === 'DISPENSA_COM_AVISO' || data.dismissalSubType === 'PEDIDO_COM_AVISO') {
-                if (dismissalProcess.endDate) {
-                    const end = new Date(dismissalProcess.endDate);
-                    const payLimit = new Date(end);
-                    // CLT Art. 477 § 6: 10 dias corridos a partir do término do contrato (+10 dias)
-                    payLimit.setDate(payLimit.getDate() + 10);
-                    dismissalProcess.paymentDeadline = payLimit;
-
-                    const lastWork = new Date(end);
-                    if (data.dismissalSubType === 'DISPENSA_COM_AVISO' && data.reductionType === 'SETE_DIAS') {
-                        lastWork.setDate(lastWork.getDate() - 7);
-                    }
-                    dismissalProcess.lastWorkingDay = lastWork;
-                }
-            } else if (
-                data.dismissalSubType === 'DISPENSA_SEM_AVISO' || 
-                data.dismissalSubType === 'PEDIDO_SEM_AVISO' ||
-                data.dismissalSubType.startsWith('TERMINO_EXP_')
-            ) {
-                const termDate = dismissalProcess.startDate || dismissalProcess.endDate || new Date();
-                const start = new Date(termDate);
-                const payLimit = new Date(start);
-                // CLT Art. 477 § 6: 10 dias corridos a partir do término do contrato (+10 dias)
-                payLimit.setDate(payLimit.getDate() + 10);
-                dismissalProcess.paymentDeadline = payLimit;
-                dismissalProcess.lastWorkingDay = start;
-                dismissalProcess.startDate = start;
-                dismissalProcess.endDate = data.endDate ? new Date(data.endDate) : start;
-            } else if (data.dismissalSubType === 'ABANDONO') {
-                const start = new Date(dismissalProcess.startDate);
-                const endLimit = new Date(start);
-                endLimit.setDate(endLimit.getDate() + 30);
-                dismissalProcess.endDate = endLimit;
-                dismissalProcess.lastWorkingDay = start;
-                dismissalProcess.paymentDeadline = null;
-            }
-
-            const existingExtraFields = (emp.extraFields as any) || {};
-            const updatedExtraFields = {
-                ...existingExtraFields,
-                dismissalProcess
-            };
-
-            // Update employee situation and extraFields
-            await tx.employee.update({
-                where: { id: data.employeeId },
-                data: {
-                    situationId: situation.id,
-                    extraFields: updatedExtraFields
-                }
-            });
-
-            // 3. Log the process start
-            await tx.log.create({
-                data: {
-                    action: "INICIO_PROCESSO_DESLIGAMENTO",
-                    details: `Processo de "${data.processType}" iniciado. Observações: ${data.notes || "Sem notas."}`,
-                    employeeId: data.employeeId,
-                    userId: user.id
-                }
-            });
-
-            // 4. Handle immediate unassignment if requested and employee has an active post
-            if (data.unassignImmediately && activeAssignment && activeAssignment.posto.client.name.toUpperCase() !== "ROTATIVO") {
-                // End active assignment
-                await tx.assignment.update({
-                    where: { id: activeAssignment.id },
-                    data: { endDate: new Date() }
-                });
-
-                // Find or create ROTATIVO client
-                let rotativoClient = await tx.client.findFirst({ where: { name: { equals: 'ROTATIVO', mode: 'insensitive' } } });
-                if (!rotativoClient) {
-                    rotativoClient = await tx.client.create({
-                        data: {
-                            name: 'ROTATIVO',
-                            address: 'Centro de Custo Virtual',
-                            companyId: null
-                        }
-                    });
-                }
-
-                // Find or create a Posto under ROTATIVO
-                const rotativoPosto = await tx.posto.create({
-                    data: {
-                        clientId: rotativoClient.id,
-                        roleId: emp.roleId,
-                        schedule: 'Variável',
-                        startTime: '00:00',
-                        endTime: '23:59',
-                        billingValue: 0,
-                        requiredWorkload: emp.workload || 220,
-                        isNightShift: false,
-                        baseSalary: emp.salary || 0
-                    }
-                });
-
-                // Create rotativo assignment
-                await tx.assignment.create({
-                    data: {
-                        employeeId: data.employeeId,
-                        postoId: rotativoPosto.id,
-                        startDate: new Date()
-                    }
-                });
-
-                await tx.log.create({
-                    data: {
-                        action: "DESVINCULACAO_AUTO",
-                        details: `Colaborador desvinculado de ${activeAssignment.posto.client.name} e movido para o Rotativo devido a início de ${data.processType}`,
-                        employeeId: data.employeeId,
-                        userId: user.id
-                    }
-                });
-            }
-
-            // Cleanup vacant rotativos
-            await cleanupVacantRotativoPostos(tx);
+        // ── VERIFICAR ALÇADA DE APROVAÇÃO ────────────────────────────────
+        const rule = await prisma.approvalWorkflowRule.findUnique({
+            where: { type: ApprovalType.DESLIGAMENTO }
         });
 
-        // 5. Open replacement vacancy outside transaction if requested
-        if (data.openVacancy) {
-            // Find employee active assignment (non-rotativo) to get the original postoId
-            const emp = await prisma.employee.findUnique({
-                where: { id: data.employeeId },
-                include: { 
-                    assignments: {
-                        include: { posto: { include: { client: true } } }
-                    }
+        const isApprovalRequired = (rule?.n1Enabled || rule?.n2Enabled) && !data.directExecution;
+
+        if (isApprovalRequired) {
+            const clientName = activeAssignment?.posto?.client?.name || "Rotativo / Sem Posto";
+            const roleName = emp.role?.name || activeAssignment?.posto?.role?.name || "Sem Função";
+
+            const appRes = await createApprovalRequest({
+                type: ApprovalType.DESLIGAMENTO,
+                title: `Desligamento: ${emp.name} (${data.processType})`,
+                description: data.notes || `Desligamento solicitado (${data.dismissalSubType})`,
+                employeeId: data.employeeId,
+                clientId: activeAssignment?.posto?.clientId || undefined,
+                postoId: activeAssignment?.postoId || undefined,
+                snapshotCurrent: {
+                    status: emp.status,
+                    admissionDate: emp.admissionDate,
+                    salary: emp.salary,
+                    roleName,
+                    clientName
+                },
+                snapshotProposed: {
+                    processType: data.processType,
+                    dismissalSubType: data.dismissalSubType,
+                    initiative: data.initiative,
+                    noticeType: data.noticeType,
+                    noticeDays: data.noticeDays || 30,
+                    startDate: data.startDate,
+                    endDate: data.endDate,
+                    reductionType: data.reductionType,
+                    unassignImmediately: data.unassignImmediately,
+                    openVacancy: data.openVacancy,
+                    notes: data.notes,
+                    attachment: data.attachment,
+                    terminationSimulation: data.terminationSimulation || null
+                },
+                executionPayload: {
+                    ...data,
+                    requesterName: user.name,
+                    requesterId: user.id
                 }
             });
 
-            // Find the most recent active assignment or any recent non-rotativo assignment
-            const targetAssignment = emp?.assignments.find(a => a.posto?.client?.name?.toUpperCase() !== "ROTATIVO");
-            if (emp && targetAssignment) {
-                try {
-                    await createVacancyFromPosto(
-                        targetAssignment.postoId,
-                        emp.name,
-                        data.processType,
-                        data.notes || undefined,
-                        user.id
-                    );
-                } catch (err) {
-                    console.error("Error creating vacancy during dismissal initiate:", err);
-                }
-            }
+            return {
+                success: true,
+                pendingApproval: true,
+                requestId: appRes.request.id,
+                message: "Processo de desligamento encaminhado com sucesso para o fluxo de aprovação com cálculo rescisório vinculado!"
+            };
         }
 
-        // Dispatch WhatsApp Notification to Groups and Supervisor
-        try {
-            const empData = await prisma.employee.findUnique({
-                where: { id: data.employeeId },
-                include: {
-                    assignments: {
-                        where: { endDate: null },
-                        include: { posto: { include: { client: { include: { accountManager: true } } } } }
-                    }
-                }
-            });
-
-            if (empData) {
-                const isAbandono = data.initiative === 'ABANDONO' || data.dismissalSubType === 'ABANDONO' || data.processType === 'Processo de abandono';
-                const isTerminoExp = data.dismissalSubType?.startsWith('TERMINO_EXP');
-                const activeAss = empData.assignments[0];
-                const clientName = activeAss?.posto?.client?.name || "Sem Posto Fixo";
-                const supervisor = activeAss?.posto?.client?.accountManager;
-
-                if (isAbandono) {
-                    await dispatchRhNotification({
-                        event: 'ABANDONO',
-                        title: `Início de Abandono: ${empData.name}`,
-                        message: `⚠️ *[RH - PROCESSO DE ABANDONO INICIADO]*\n\n` +
-                                 `👤 *Colaborador:* ${empData.name}\n` +
-                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
-                                 `📅 *Início das Faltas:* ${data.startDate || 'Não informada'}\n` +
-                                 `📬 *Próxima Ação:* Envio do 1º Telegrama com AR convocando para justificativa de faltas.\n` +
-                                 `✍️ *Registrado por:* ${user.name}`,
-                        contractSupervisorPhone: supervisor?.phone,
-                        contractSupervisorName: supervisor?.name
-                    });
-                } else if (isTerminoExp) {
-                    await dispatchRhNotification({
-                        event: 'DESLIGAMENTO',
-                        title: `Término de Experiência: ${empData.name}`,
-                        message: `📄 *[RH - TÉRMINO DE CONTRATO DE EXPERIÊNCIA]*\n\n` +
-                                 `👤 *Colaborador:* ${empData.name}\n` +
-                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
-                                 `📅 *Último dia:* ${data.endDate || data.startDate || 'A definir'}\n` +
-                                 `⚠️ *Operações:* Solicitação de rescisão por término de experiência registrada. Programar substituição.\n` +
-                                 `✍️ *Registrado por:* ${user.name}`,
-                        contractSupervisorPhone: supervisor?.phone,
-                        contractSupervisorName: supervisor?.name
-                    });
-                } else {
-                    await dispatchRhNotification({
-                        event: 'DESLIGAMENTO',
-                        title: `Desligamento: ${empData.name}`,
-                        message: `📄 *[RH - SOLICITAÇÃO DE DESLIGAMENTO]*\n\n` +
-                                 `👤 *Colaborador:* ${empData.name}\n` +
-                                 `🏷️ *Tipo:* ${data.processType} (${data.dismissalSubType})\n` +
-                                 `📍 *Cliente/Contrato:* ${clientName}\n` +
-                                 `📅 *Previsão de Saída:* ${data.endDate || data.startDate || 'Imediato'}\n` +
-                                 `✍️ *Registrado por:* ${user.name}`,
-                        contractSupervisorPhone: supervisor?.phone,
-                        contractSupervisorName: supervisor?.name
-                    });
-                }
-            }
-        } catch (notifErr) {
-            console.error("[initiateDismissalProcess] Non-fatal notification error:", notifErr);
-        }
-
-        // Integração Secullum: Se for Processo de Rescisão, sincroniza data de demissão no Ponto
-        if (data.processType === "Processo de Rescisão" || data.unassignImmediately) {
-            try {
-                const { getBenefitsConfig } = await import("@/actions/benefits");
-                const { SecullumApiClient } = await import("@/lib/secullum");
-                const config = await getBenefitsConfig();
-                if (config?.secullumApiToken && config?.secullumCompanyId) {
-                    const secClient = new SecullumApiClient(
-                        config.secullumApiToken,
-                        config.secullumCompanyId,
-                        config.secullumApiUrl || "https://pontowebintegracaoexterna.secullum.com.br"
-                    );
-                    const empForSecullum = await prisma.employee.findUnique({
-                        where: { id: data.employeeId },
-                        select: { cpf: true, name: true }
-                    });
-                    if (empForSecullum?.cpf) {
-                        const dStr = data.startDate || new Date().toISOString().split("T")[0];
-                        await secClient.lancarDemissao({
-                            cpf: empForSecullum.cpf,
-                            employeeName: empForSecullum.name,
-                            numeroFolha: undefined,
-                            dataDemissao: dStr,
-                            motivo: data.dismissalSubType || "Processo de Rescisão"
-                        });
-                    }
-                }
-            } catch (secErr) {
-                console.error("[initiateDismissalProcess] Erro ao sincronizar rescisão no Secullum:", secErr);
-            }
-        }
-
-        revalidatePath("/admin/employees");
-        revalidatePath("/admin/dismissal-monitor");
-        revalidatePath("/admin/recrutamento");
-        return { success: true };
+        // Execução direta se alçada estiver desligada:
+        return await internalExecuteDismissal({
+            ...data,
+            requesterName: user.name,
+            requesterId: user.id
+        });
     } catch (e: any) {
-        console.error(e);
+        console.error("Error in initiateEmployeeDismissalProcess:", e);
         return { error: e.message || "Erro ao iniciar processo de desligamento." };
     }
 }
