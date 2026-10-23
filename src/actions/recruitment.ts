@@ -2508,17 +2508,24 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
     const gender = (overrides?.gender || mergedExtra.gender || mergedExtra.genero || null)?.trim() || null;
     const address = (overrides?.address || mergedExtra.address || mergedExtra.endereco || null)?.trim() || null;
 
-    // 8. Find existing employee by formatted CPF, digits-only CPF, raw CPF, or Exact Name
-    const existingEmployee = await prisma.employee.findFirst({
-        where: {
-            OR: [
-                ...(formattedCpf ? [{ cpf: formattedCpf }] : []),
-                ...(digitsOnlyCpf ? [{ cpf: digitsOnlyCpf }] : []),
-                ...(rawCpf ? [{ cpf: rawCpf }] : []),
-                { name: { equals: name, mode: "insensitive" } }
-            ]
-        }
-    });
+    // 8. Find existing employee by linked id, formatted CPF, digits-only CPF, raw CPF, or Name (case-insensitive)
+    const linkedEmployeeId = candExtra.allocatedEmployeeId || overrideExtra.allocatedEmployeeId;
+    let existingEmployee = linkedEmployeeId
+        ? await prisma.employee.findUnique({ where: { id: linkedEmployeeId } })
+        : null;
+
+    if (!existingEmployee) {
+        existingEmployee = await prisma.employee.findFirst({
+            where: {
+                OR: [
+                    ...(formattedCpf ? [{ cpf: formattedCpf }] : []),
+                    ...(digitsOnlyCpf ? [{ cpf: digitsOnlyCpf }] : []),
+                    ...(rawCpf && !rawCpf.startsWith('TEMP-') ? [{ cpf: rawCpf }] : []),
+                    { name: { equals: name, mode: "insensitive" } }
+                ]
+            }
+        });
+    }
 
     let employeeId: string;
 
@@ -2575,11 +2582,16 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
             return { success: false, employeeId: existingEmployee.id, name, cpf: existingEmployee.cpf || rawCpf, postoId: null, blocked: true, reason: 'EMPLOYEE_DISMISSED' };
         }
 
+        // Se o existente tem TEMP- e agora temos o CPF real, substitui o TEMP- pelo CPF real!
+        const resolvedCpf = (formattedCpf || digitsOnlyCpf || rawCpf)
+            ? (formattedCpf || digitsOnlyCpf || rawCpf)
+            : existingEmployee.cpf;
+
         const updated = await prisma.employee.update({
             where: { id: existingEmployee.id },
             data: {
                 ...employeePayload,
-                cpf: existingEmployee.cpf || formattedCpf || digitsOnlyCpf || rawCpf,
+                cpf: resolvedCpf,
                 // NUNCA sobrescrever situação de desligamento com status Ativo
                 situationId: existingEmployee.situationId,
                 dismissalReason: existingEmployee.dismissalReason,
@@ -2588,7 +2600,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         });
         employeeId = updated.id;
     } else {
-        const effectiveCpf = formattedCpf || digitsOnlyCpf || rawCpf || `TEMP-${Date.now()}`;
+        const effectiveCpf = formattedCpf || digitsOnlyCpf || rawCpf || `PENDENTE-${Date.now()}`;
         const created = await prisma.employee.create({
             data: {
                 ...employeePayload,
@@ -2596,6 +2608,23 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
             }
         });
         employeeId = created.id;
+    }
+
+    // Salvar o vínculo explícito no candidato para nunca mais duplicar
+    try {
+        await prisma.recruitmentCandidate.update({
+            where: { id: candidateId },
+            data: {
+                extraFields: {
+                    ...candExtra,
+                    allocatedEmployeeId: employeeId,
+                    isAllocated: true,
+                    allocatedAt: new Date().toISOString()
+                }
+            }
+        });
+    } catch (e) {
+        console.warn("[syncCandidateToEmployeeAndPosto] Warning updating candidate link:", e);
     }
 
     // 9. Posto Assignment
