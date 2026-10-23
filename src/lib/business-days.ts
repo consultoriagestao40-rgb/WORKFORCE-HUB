@@ -1,4 +1,3 @@
-
 import { addDays, isWeekend, isSameDay } from "date-fns";
 
 // Lista de feriados fixos nacionais (Brasil)
@@ -14,19 +13,25 @@ const FIXED_HOLIDAYS = [
     "12-25", // Natal
 ];
 
-export function isHoliday(date: Date): boolean {
-    const dateString = date.toISOString().slice(5, 10); // MM-DD
-    return FIXED_HOLIDAYS.includes(dateString);
+export function isHoliday(date: Date | string | null | undefined): boolean {
+    if (!date) return false;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return false;
+    try {
+        const dateString = d.toISOString().slice(5, 10); // MM-DD
+        return FIXED_HOLIDAYS.includes(dateString);
+    } catch {
+        return false;
+    }
 }
 
-export function addBusinessDays(startDate: Date, days: number): Date {
+export function addBusinessDays(startDate: Date | string | null | undefined, days: number): Date {
+    if (!startDate) return new Date();
     let currentDate = new Date(startDate);
+    if (isNaN(currentDate.getTime())) return new Date();
     let addedDays = 0;
 
     // Se a data inicial já for fds/feriado, avançamos para o próximo dia útil antes de começar a contar?
-    // Geralmente em SLA, se abre no sábado, o "D1" começa segunda.
-    // Mas a lógica simples de soma:
-
     while (addedDays < days) {
         currentDate = addDays(currentDate, 1);
 
@@ -37,10 +42,6 @@ export function addBusinessDays(startDate: Date, days: number): Date {
     }
 
     // Se caiu num fds/feriado após somar (ex: sla 0 mas data inicial era sabado), avança
-    // Mas slaDays representam dias DE TRABALHO a somar. Se sla for 0, é "hoje" ou proximo dia util?
-    // Vamos assumir que addBusinessDays(sabado, 0) = sabado? Ou segunda?
-    // Para vencimento, se vence no sábado, joga pra segunda.
-
     while (isWeekend(currentDate) || isHoliday(currentDate)) {
         currentDate = addDays(currentDate, 1);
     }

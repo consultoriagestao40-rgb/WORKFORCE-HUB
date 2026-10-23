@@ -1,5 +1,61 @@
-"use client";
-import { useState } from "react";
+import { useState, Component, ErrorInfo, ReactNode, Suspense } from "react";
+
+interface ErrorBoundaryProps {
+    children: ReactNode;
+    fallbackTitle?: string;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error: Error | null;
+}
+
+class RecruitmentErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    constructor(props: ErrorBoundaryProps) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error("[RecruitmentErrorBoundary] Erro capturado:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="bg-white rounded-xl border border-red-200 p-8 shadow-sm flex flex-col items-center justify-center text-center space-y-4 my-6">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                        <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 text-base">
+                            {this.props.fallbackTitle || "Ocorreu um erro ao carregar este quadro"}
+                        </h3>
+                        <p className="text-xs text-slate-500 max-w-md mt-1">
+                            {this.state.error?.message || "Houve uma instabilidade na renderização dos dados de recrutamento."}
+                        </p>
+                    </div>
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            this.setState({ hasError: false, error: null });
+                            window.location.reload();
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                    >
+                        Recarregar Página
+                    </Button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
 
 import { KanbanBoard } from "@/components/admin/recruitment/KanbanBoard";
 import { NotificationCenter } from "@/components/admin/notifications/NotificationCenter";
@@ -157,8 +213,8 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
     };
 
     // Gather all vacancy cards from stages to build clients and list views
-    const allFilteredCards = filteredStages.flatMap(s => 
-        s.candidates.map((c: any) => ({
+    const allFilteredCards = (filteredStages || []).flatMap(s => 
+        (s.candidates || []).map((c: any) => ({
             ...c,
             currentStageName: s.name,
             currentStageId: s.id
@@ -311,9 +367,12 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                     </div>
 
                     <div className="min-h-[calc(100vh-250px)]">
-                        {viewMode === "stages" && (
-                            <KanbanBoard initialStages={filteredStages} currentUser={currentUser} recruiters={recruiters} />
-                        )}
+                        <RecruitmentErrorBoundary fallbackTitle="Erro ao carregar o painel de vagas">
+                            {viewMode === "stages" && (
+                                <Suspense fallback={<div className="p-8 text-center text-slate-400">Carregando quadro de vagas...</div>}>
+                                    <KanbanBoard initialStages={filteredStages} currentUser={currentUser} recruiters={recruiters} />
+                                </Suspense>
+                            )}
 
                         {viewMode === "clients" && (
                             <div className="flex gap-4 overflow-x-auto pb-4 items-start select-none">
@@ -344,29 +403,36 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                                     >
                                                         <div className="flex justify-between items-start gap-2">
                                                             <span className="font-bold text-slate-800 line-clamp-2 leading-tight text-xs flex-1">
-                                                                {card.vacancy.title}
+                                                                {card.vacancy?.title || card.name || "Vaga"}
                                                             </span>
-                                                            <Badge variant={card.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[9px] px-1 py-0 h-4 shrink-0 font-bold">
-                                                                {card.vacancy.priority === 'URGENT' ? 'Urg' : card.vacancy.priority === 'HIGH' ? 'Alta' : 'Nor'}
+                                                            <Badge variant={card.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[9px] px-1 py-0 h-4 shrink-0 font-bold">
+                                                                {card.vacancy?.priority === 'URGENT' ? 'Urg' : card.vacancy?.priority === 'HIGH' ? 'Alta' : 'Nor'}
                                                             </Badge>
                                                         </div>
 
-                                                        {card.vacancy.plannedStartDate && (
+                                                        {card.vacancy?.plannedStartDate && (
                                                             <div className="text-[9px] text-indigo-500 font-semibold">
-                                                                Início: {new Date(card.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}
+                                                                Início: {(() => {
+                                                                    try {
+                                                                        const d = new Date(card.vacancy.plannedStartDate);
+                                                                        return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+                                                                    } catch {
+                                                                        return '';
+                                                                    }
+                                                                })()}
                                                             </div>
                                                         )}
 
                                                         <div className="text-[10px] text-slate-500 flex items-center gap-1">
                                                             <Briefcase className="w-3 h-3 text-slate-400" />
-                                                            <span className="truncate">{card.vacancy.role?.name || "Sem Cargo"}</span>
+                                                            <span className="truncate">{card.vacancy?.role?.name || "Sem Cargo"}</span>
                                                         </div>
 
                                                         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                                                             <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[8px] font-black uppercase tracking-wider">
                                                                 {card.currentStageName}
                                                             </span>
-                                                            {card.vacancy.recruiter?.name && (
+                                                            {card.vacancy?.recruiter?.name && (
                                                                 <span className="text-[9px] text-slate-400 truncate max-w-[100px]" title={`Recrutador: ${card.vacancy.recruiter.name}`}>
                                                                     👤 {card.vacancy.recruiter.name}
                                                                 </span>
@@ -407,25 +473,34 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                             <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
                                                 {allFilteredCards.map((card) => {
                                                     const clientName = card.vacancy?.posto?.client?.name || card.vacancy?.company?.name || "Geral / Interno";
-                                                    const match = card.name.match(/\((\d+)\)/) || card.name.match(/\((\d+)\s+candidato/);
+                                                    const match = card.name?.match(/\((\d+)\)/) || card.name?.match(/\((\d+)\s+candidato/);
                                                     const totalCands = match ? parseInt(match[1]) : 0;
                                                     
                                                     return (
                                                         <tr key={card.id} className="hover:bg-slate-50/70 transition-colors">
                                                             <td className="py-4 px-4">
-                                                                <span className="font-bold text-slate-900 text-sm block">{card.vacancy.title}</span>
-                                                                {card.vacancy.plannedStartDate && (
-                                                                    <span className="text-[10px] text-indigo-500 font-semibold block mt-0.5">Início Planejado: {new Date(card.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}</span>
+                                                                <span className="font-bold text-slate-900 text-sm block">{card.vacancy?.title || card.name || "Vaga"}</span>
+                                                                {card.vacancy?.plannedStartDate && (
+                                                                    <span className="text-[10px] text-indigo-500 font-semibold block mt-0.5">
+                                                                        Início Planejado: {(() => {
+                                                                            try {
+                                                                                const d = new Date(card.vacancy.plannedStartDate);
+                                                                                return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+                                                                            } catch {
+                                                                                return '';
+                                                                            }
+                                                                        })()}
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                             <td className="py-4 px-4">
-                                                                <span>{card.vacancy.role?.name || "Sem Cargo"}</span>
+                                                                <span>{card.vacancy?.role?.name || "Sem Cargo"}</span>
                                                             </td>
                                                             <td className="py-4 px-4">
                                                                 <span className="font-bold text-slate-800">{clientName}</span>
                                                             </td>
                                                             <td className="py-4 px-4">
-                                                                <span>{card.vacancy.recruiter?.name || "Não atribuído"}</span>
+                                                                <span>{card.vacancy?.recruiter?.name || "Não atribuído"}</span>
                                                             </td>
                                                             <td className="py-4 px-4">
                                                                 <span className="px-2.5 py-1 rounded bg-slate-100 border border-slate-200/50 text-[10px] uppercase font-black tracking-wide text-slate-600">
@@ -438,8 +513,8 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                                                 </span>
                                                             </td>
                                                             <td className="py-4 px-4">
-                                                                <Badge variant={card.vacancy.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0.5">
-                                                                    {card.vacancy.priority === 'URGENT' ? 'Urgente' : card.vacancy.priority === 'HIGH' ? 'Alta' : 'Normal'}
+                                                                <Badge variant={card.vacancy?.priority === 'URGENT' ? 'destructive' : 'secondary'} className="text-[10px] px-1.5 py-0.5">
+                                                                    {card.vacancy?.priority === 'URGENT' ? 'Urgente' : card.vacancy?.priority === 'HIGH' ? 'Alta' : 'Normal'}
                                                                 </Badge>
                                                             </td>
                                                             <td className="py-4 px-4 text-right">
@@ -461,6 +536,7 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
                                 )}
                             </div>
                         )}
+                        </RecruitmentErrorBoundary>
                     </div>
                 </div>
             ) : (
@@ -628,13 +704,18 @@ export function RecruitmentClientPage({ stages, vacancies, roles, postos, compan
 
                                                     {/* Data Inscrição */}
                                                     <td className="py-4 px-4 text-slate-400 text-[10px]">
-                                                        {new Date(cand.createdAt).toLocaleDateString('pt-BR', {
-                                                            day: '2-digit',
-                                                            month: '2-digit',
-                                                            year: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
+                                                        {(() => {
+                                                            try {
+                                                                const d = new Date(cand.createdAt);
+                                                                return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR', {
+                                                                    day: '2-digit',
+                                                                    month: '2-digit',
+                                                                    year: 'numeric'
+                                                                });
+                                                            } catch {
+                                                                return '-';
+                                                            }
+                                                        })()}
                                                     </td>
                                                 </tr>
                                             );

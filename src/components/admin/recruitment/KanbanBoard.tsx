@@ -8,7 +8,7 @@ import { isWeekend } from 'date-fns';
 import { isHoliday } from '@/lib/business-days';
 import { toast } from "sonner";
 import { Plus, Briefcase, User as UserIcon, Settings, Clock, AlertCircle, ShieldCheck, Lock, Check } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -115,36 +115,40 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         getEmployeeFormData().then(setEmployeeFormData).catch(console.error);
     }, []);
 
-    // Deep Linking Logic
-    const searchParams = useSearchParams();
-    const openId = searchParams.get('openId');
-
+    // Deep Linking Logic via window.location (client-side only, avoids Next.js useSearchParams Suspense deopt)
     useEffect(() => {
-        if (openId && stages.length > 0) {
-            // Try to find the candidate/vacancy in any stage
-            let found = null;
-            for (const stage of stages) {
-                found = stage.candidates.find(c =>
-                    c.id === openId ||
-                    c.realId === openId ||
-                    (c.type === 'VACANCY' && `VAC-${c.vacancy.id}` === openId) ||
-                    (c.type === 'VACANCY' && c.id === openId)
-                );
-                if (found) break;
-            }
+        if (typeof window === "undefined" || stages.length === 0) return;
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const openId = params.get('openId');
 
-            if (found) {
-                // Determine if we should open via handleCardClick logic
-                setSelectedCandidate(found);
-                setIsDetailsOpen(true);
+            if (openId) {
+                // Try to find the candidate/vacancy in any stage
+                let found = null;
+                for (const stage of stages) {
+                    found = stage.candidates.find(c =>
+                        c.id === openId ||
+                        c.realId === openId ||
+                        (c.type === 'VACANCY' && (`VAC-${c.vacancy?.id}` === openId || c.vacancy?.id === openId)) ||
+                        (c.type === 'VACANCY' && c.id === openId)
+                    );
+                    if (found) break;
+                }
 
-                // Clear the openId from URL to prevent reopening on refresh
-                const url = new URL(window.location.href);
-                url.searchParams.delete('openId');
-                window.history.replaceState({}, '', url.toString());
+                if (found) {
+                    setSelectedCandidate(found);
+                    setIsDetailsOpen(true);
+
+                    // Clear the openId from URL to prevent reopening on refresh
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('openId');
+                    window.history.replaceState({}, '', url.toString());
+                }
             }
+        } catch (e) {
+            console.warn("Error parsing URL search params:", e);
         }
-    }, [openId, stages]);
+    }, [stages]);
 
     const onDragEnd = async (result: DropResult) => {
         setIsDragging(false);
@@ -354,14 +358,20 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         );
     };
 
-    const getDueDateStatus = (dueDate?: Date) => {
+    const getDueDateStatus = (dueDate?: Date | string | null) => {
         if (!dueDate) return null;
-        const now = new Date();
         const due = new Date(dueDate);
+        if (isNaN(due.getTime())) return null;
+        const now = new Date();
         const diffMs = due.getTime() - now.getTime();
         const diffHours = diffMs / (1000 * 60 * 60);
 
-        const formattedDate = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        let formattedDate = "";
+        try {
+            formattedDate = due.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        } catch {
+            return null;
+        }
 
         if (diffHours < 0) return { color: 'bg-red-100 text-red-700 border-red-200', text: `Venceu ${formattedDate}`, icon: AlertCircle };
 
@@ -381,10 +391,11 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
         return { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', text: `Vence ${formattedDate}`, icon: Clock };
     };
 
-    const getVacancyDueDateStatus = (createdAt: Date, slaDays: number) => {
-        if (slaDays <= 0) return { color: 'bg-slate-100 text-slate-500 border-slate-200', text: 'Sem prazo', icon: Clock };
+    const getVacancyDueDateStatus = (createdAt: Date | string | null | undefined, slaDays: number) => {
+        if (slaDays <= 0 || !createdAt) return { color: 'bg-slate-100 text-slate-500 border-slate-200', text: 'Sem prazo', icon: Clock };
 
         const created = new Date(createdAt);
+        if (isNaN(created.getTime())) return { color: 'bg-slate-100 text-slate-500 border-slate-200', text: 'Sem prazo', icon: Clock };
         const due = addBusinessDays(created, slaDays);
 
         return getDueDateStatus(due);
@@ -400,7 +411,7 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
 
     const vacanciesList = vacancyStage?.candidates.filter(c => c.type === 'VACANCY').map(c => ({
         id: c.realId || c.id.replace('VAC-', ''),
-        title: c.vacancy.title
+        title: c.vacancy?.title || c.name || "Vaga"
     })) || [];
 
 
@@ -525,11 +536,18 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                 <div className="flex justify-between items-start gap-1 mb-1">
                                                                     <div className="font-bold text-slate-800 line-clamp-2 leading-snug flex-1 text-xs flex flex-col gap-0.5">
                                                                         <span className="text-slate-900 font-bold group-hover:text-indigo-600 transition-colors">
-                                                                            {candidate.type === 'VACANCY' ? candidate.vacancy.title : candidate.name}
+                                                                            {candidate.type === 'VACANCY' ? (candidate.vacancy?.title || candidate.name) : candidate.name}
                                                                         </span>
-                                                                        {candidate.type === 'VACANCY' && candidate.vacancy.plannedStartDate && (
+                                                                        {candidate.type === 'VACANCY' && candidate.vacancy?.plannedStartDate && (
                                                                             <span className="text-[10px] text-indigo-600 font-semibold">
-                                                                                Início: {new Date(candidate.vacancy.plannedStartDate).toLocaleDateString('pt-BR')}
+                                                                                Início: {(() => {
+                                                                                    try {
+                                                                                        const d = new Date(candidate.vacancy.plannedStartDate);
+                                                                                        return isNaN(d.getTime()) ? '' : d.toLocaleDateString('pt-BR');
+                                                                                    } catch {
+                                                                                        return '';
+                                                                                    }
+                                                                                })()}
                                                                             </span>
                                                                         )}
                                                                         {candidate.type === 'CANDIDATE' && (
@@ -705,13 +723,19 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                     {/* SLA / Due Date Badge */}
                                                                     <div className="flex justify-between items-center text-[10px] text-slate-400">
                                                                         <span className="text-[10px] text-slate-400">
-                                                                            Abertura: {candidate.vacancy?.createdAt ? new Date(candidate.vacancy.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A'}
+                                                                            Abertura: {candidate.vacancy?.createdAt ? (() => {
+                                                                                try {
+                                                                                    const d = new Date(candidate.vacancy.createdAt);
+                                                                                    return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                                                                                } catch {
+                                                                                    return 'N/A';
+                                                                                }
+                                                                            })() : 'N/A'}
                                                                         </span>
 
                                                                         {candidate.type === 'VACANCY' ? (
                                                                             (() => {
-                                                                                // @ts-ignore
-                                                                                const start = new Date(candidate.createdAt);
+                                                                                const start = candidate.createdAt ? new Date(candidate.createdAt) : new Date();
                                                                                 const sla = stage.slaDays || 0;
                                                                                 const status = getVacancyDueDateStatus(start, sla);
                                                                                 if (!status) return null;
@@ -726,7 +750,15 @@ export function KanbanBoard({ initialStages, currentUser, recruiters = [] }: Kan
                                                                             stage.name === 'Posto' ? (
                                                                                 <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 gap-1 bg-purple-100 text-purple-700 border-purple-200 font-medium" title="Tempo de Ciclo (Dias desde a criação)">
                                                                                     <Clock className="w-2.5 h-2.5" />
-                                                                                    {Math.max(1, Math.floor((new Date(candidate.updatedAt || new Date()).getTime() - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24)))}d
+                                                                                    {(() => {
+                                                                                        try {
+                                                                                            const updated = new Date(candidate.updatedAt || new Date()).getTime();
+                                                                                            const created = new Date(candidate.createdAt).getTime();
+                                                                                            return isNaN(created) ? 1 : Math.max(1, Math.floor((updated - created) / (1000 * 60 * 60 * 24)));
+                                                                                        } catch {
+                                                                                            return 1;
+                                                                                        }
+                                                                                    })()}d
                                                                                 </Badge>
                                                                             ) : (
                                                                                 dueStatus && (
