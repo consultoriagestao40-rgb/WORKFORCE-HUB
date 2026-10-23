@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { VacancyStatus } from "@prisma/client";
 import { addBusinessDays } from "@/lib/business-days";
+import { HEAVY_OMIT, attachLightFields } from "@/lib/recruitment-light";
 import { createNotification } from "./notifications";
 import { dispatchRhNotification } from "@/lib/rh-notifications";
 
@@ -397,11 +398,13 @@ export async function getRecruitmentBoardData() {
             recruiter: true,
             participants: { select: { id: true, name: true } },
             candidates: {
+                omit: HEAVY_OMIT,
                 include: { stage: true }
             }
         },
         orderBy: { createdAt: 'desc' }
     });
+    await attachLightFields(openVacancies.flatMap((v: any) => v.candidates || []));
 
     // 2. Fetch standard recruitment stages
     const dbStages = await prisma.recruitmentStage.findMany({
@@ -1910,12 +1913,34 @@ export async function createPublicCandidate(data: {
     return { success: true, candidateId: newCandidateId };
 }
 
+export async function getCandidateResumeFile(candidateId: string): Promise<{ base64: string | null; mime: string | null }> {
+    const user = await getCurrentUser();
+    if (!user) return { base64: null, mime: null };
+    const rows = await prisma.$queryRaw<{ b: string | null; m: string | null }[]>`
+        SELECT "requirementsEvaluation"::jsonb ->> 'resumeFileBase64' AS b,
+               "requirementsEvaluation"::jsonb ->> 'resumeFileMimeType' AS m
+        FROM "RecruitmentCandidate" WHERE id = ${candidateId}
+    `;
+    return { base64: rows[0]?.b ?? null, mime: rows[0]?.m ?? null };
+}
+
+export async function getCandidateDocumentFile(candidateId: string, docKey: string): Promise<string | null> {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    const rows = await prisma.$queryRaw<{ d: string | null }[]>`
+        SELECT "documentationFiles"::jsonb ->> ${docKey} AS d
+        FROM "RecruitmentCandidate" WHERE id = ${candidateId}
+    `;
+    return rows[0]?.d ?? null;
+}
+
 export async function getVacancyCandidates(vacancyId: string) {
     const user = await getCurrentUser();
     if (!user) return [];
 
     const candidates = await prisma.recruitmentCandidate.findMany({
         where: { vacancyId },
+        omit: HEAVY_OMIT,
         include: {
             stage: true,
             vacancy: {
@@ -1928,7 +1953,10 @@ export async function getVacancyCandidates(vacancyId: string) {
         }
     });
 
-    return candidates.sort((a, b) => {
+    const lightCandidates = candidates as any[];
+    await attachLightFields(lightCandidates);
+
+    return lightCandidates.sort((a, b) => {
         const evalA = (a.requirementsEvaluation as any) || {};
         const evalB = (b.requirementsEvaluation as any) || {};
         const isDisqA = !!evalA.isDisqualified;

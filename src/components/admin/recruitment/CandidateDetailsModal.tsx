@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X, MessageSquare, Send, Paperclip, CheckCircle2, XCircle, Clock, Save, User, Mail, Phone, Calendar, Briefcase, MapPin, Building2, Building, DollarSign, AlertCircle, Trash2, Copy, FileText, Upload, AlertTriangle, ChevronDown, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation, selectCandidateForVacancy, advanceCandidateToStage } from "@/actions/recruitment";
+import { withdrawCandidate, getRecruitmentTimeline, moveCandidate, deleteCandidate, updateVacancy, addVacancyParticipant, removeVacancyParticipant, addRecruitmentComment, getRecruitmentComments, getVacancyCandidates, evaluateCandidateWithAI, updateCandidateEvaluation, selectCandidateForVacancy, advanceCandidateToStage, getCandidateResumeFile } from "@/actions/recruitment";
 import { DocumentacaoPanel } from "./stages/DocumentacaoPanel";
 import { ExamePanel } from "./stages/ExamePanel";
 import { OnvioPanel } from "./stages/OnvioPanel";
@@ -526,10 +526,16 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                             {/* Currículo Original */}
                                             {(() => {
                                                 const evalObj = (candidate.requirementsEvaluation as any) || {};
-                                                const fileBase64 = evalObj.resumeFileBase64;
+                                                const fileBase64Inline = evalObj.resumeFileBase64;
                                                 const fileMimeType = evalObj.resumeFileMimeType || 'application/pdf';
+                                                const candId = candidate.id;
+                                                const getFile = async (): Promise<{ b64: string | null; mime: string }> => {
+                                                    if (fileBase64Inline) return { b64: fileBase64Inline, mime: fileMimeType };
+                                                    const r = await getCandidateResumeFile(candId);
+                                                    return { b64: r.base64, mime: r.mime || fileMimeType };
+                                                };
                                                 
-                                                if (!fileBase64) return null;
+                                                if (!fileBase64Inline && !evalObj.hasResumeFile) return null;
                                                 
                                                 return (
                                                     <div className="pt-3 border-t border-slate-200 space-y-2">
@@ -538,8 +544,10 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                             variant="outline"
                                                             size="sm"
                                                             className="w-full flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 font-semibold"
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 try {
+                                                                    const { b64: fileBase64, mime: fileMimeType } = await getFile();
+                                                                    if (!fileBase64) { toast.error("Currículo não encontrado"); return; }
                                                                     const byteCharacters = atob(fileBase64);
                                                                     const byteNumbers = new Array(byteCharacters.length);
                                                                     for (let i = 0; i < byteCharacters.length; i++) {
@@ -577,6 +585,8 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
                                                                 setIsReevaluatingAi(true);
                                                                 toast.info("Processando triagem com IA do Gemini...");
                                                                 try {
+                                                                    const { b64: fileBase64, mime: fileMimeType } = await getFile();
+                                                                    if (!fileBase64) throw new Error("Currículo não encontrado");
                                                                     const { evaluateCandidateWithAI } = await import("@/actions/recruitment");
                                                                     await evaluateCandidateWithAI(candidate.id, fileBase64, fileMimeType);
                                                                     toast.success("Triagem por IA concluída!");
@@ -1248,17 +1258,25 @@ export function CandidateDetailsModal({ open, onOpenChange, candidate, onWithdra
 
                                                                         {/* Visualizador de Currículo no Ranking da Vaga */}
                                                                         {(() => {
-                                                                            const fileBase64 = evaluation.resumeFileBase64;
-                                                                            const fileMimeType = evaluation.resumeFileMimeType || 'application/pdf';
-                                                                            if (!fileBase64) return null;
+                                                                            const fileBase64Inline = evaluation.resumeFileBase64;
+                                                                            const fileMimeTypeInline = evaluation.resumeFileMimeType || 'application/pdf';
+                                                                            if (!fileBase64Inline && !evaluation.hasResumeFile) return null;
                                                                             return (
                                                                                 <div className="pt-3">
                                                                                     <Button
                                                                                         variant="outline"
                                                                                         size="sm"
                                                                                         className="w-full flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 text-[11px] h-8 font-semibold"
-                                                                                        onClick={() => {
+                                                                                        onClick={async () => {
                                                                                             try {
+                                                                                                let fileBase64 = fileBase64Inline;
+                                                                                                let fileMimeType = fileMimeTypeInline;
+                                                                                                if (!fileBase64) {
+                                                                                                    const r = await getCandidateResumeFile(cand.id);
+                                                                                                    fileBase64 = r.base64;
+                                                                                                    fileMimeType = r.mime || fileMimeType;
+                                                                                                }
+                                                                                                if (!fileBase64) { toast.error("Currículo não encontrado"); return; }
                                                                                                 const byteCharacters = atob(fileBase64);
                                                                                                 const byteNumbers = new Array(byteCharacters.length);
                                                                                                 for (let i = 0; i < byteCharacters.length; i++) {

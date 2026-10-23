@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation, extractDataFromDocumentImages } from "@/actions/recruitment";
+import { generateDocumentationLink, uploadCandidateDocuments, approveDocumentation, extractDataFromDocumentImages, getCandidateDocumentFile } from "@/actions/recruitment";
 
 export const COMPLETE_DOC_TYPES = [
     { key: "rg", label: "RG (frente e verso)" },
@@ -354,17 +354,30 @@ export function DocumentacaoPanel({
                                             variant="outline"
                                             type="button"
                                             className="h-10 px-3 text-xs font-bold rounded-2xl border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 shadow-none cursor-pointer"
-                                            onClick={() => {
-                                                const fileUrl = localDocs[doc.key];
-                                                if (fileUrl) {
-                                                    const win = window.open();
-                                                    if (win) {
-                                                        if (fileUrl.startsWith("data:image/")) {
-                                                            win.document.write(`<img src="${fileUrl}" style="max-width:100%; height:auto; margin:20px auto; display:block; shadow:0 4px 6px -1px rgba(0,0,0,0.1);" />`);
-                                                        } else {
-                                                            win.document.write(`<iframe src="${fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100vh;" allowfullscreen></iframe>`);
-                                                        }
+                                            onClick={async () => {
+                                                let fileUrl: string | null = localDocs[doc.key];
+                                                const win = window.open();
+                                                if (!win) return;
+                                                if (fileUrl === "__LAZY__") {
+                                                    win.document.write("<p style='font-family:sans-serif;padding:20px'>Carregando documento...</p>");
+                                                    try {
+                                                        fileUrl = await getCandidateDocumentFile(candidateId, doc.key);
+                                                    } catch {
+                                                        fileUrl = null;
                                                     }
+                                                    if (!fileUrl) {
+                                                        win.close();
+                                                        toast.error("Não foi possível carregar o documento");
+                                                        return;
+                                                    }
+                                                    const loaded = fileUrl;
+                                                    setLocalDocs((prev) => ({ ...prev, [doc.key]: loaded }));
+                                                    win.document.open();
+                                                }
+                                                if (fileUrl.startsWith("data:image/")) {
+                                                    win.document.write(`<img src="${fileUrl}" style="max-width:100%; height:auto; margin:20px auto; display:block; shadow:0 4px 6px -1px rgba(0,0,0,0.1);" />`);
+                                                } else {
+                                                    win.document.write(`<iframe src="${fileUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100vh;" allowfullscreen></iframe>`);
                                                 }
                                             }}
                                             title={`Visualizar / Baixar ${doc.label}`}

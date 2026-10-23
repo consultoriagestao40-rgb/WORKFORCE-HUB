@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 import { RecruitmentClientPage } from "@/components/admin/recruitment/RecruitmentClientPage";
 import { getRecruitmentBoardData, getVacancies, getBacklogItems } from "@/actions/recruitment";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { HEAVY_OMIT, attachLightFields } from "@/lib/recruitment-light";
 
 export default async function RecruitmentPage() {
     const user = await getCurrentUser();
@@ -27,6 +29,7 @@ export default async function RecruitmentPage() {
             getBacklogItems().catch(() => []),
             prisma.user.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
             prisma.recruitmentCandidate.findMany({
+                omit: HEAVY_OMIT,
                 include: {
                     stage: true,
                     vacancy: {
@@ -38,6 +41,9 @@ export default async function RecruitmentPage() {
                     }
                 },
                 orderBy: { createdAt: 'desc' }
+            }).then(async (list) => {
+                await attachLightFields(list as any[]);
+                return list;
             })
         ]);
 
