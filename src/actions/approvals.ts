@@ -1194,3 +1194,67 @@ export async function rejectDeleteRequest(requestId: string, reason?: string) {
 }
 
 
+
+/**
+ * Conclusão da etapa "Execução / RH" para solicitações aprovadas que dependem de ação manual
+ * (ex.: inclusão de adicional, ajuste salarial). O RH marca como CONCLUIDO ou NAO_EXECUTADO
+ * para tirar o item da fila de pendências. Guardado em executionPayload.rhConclusion
+ * (sem alteração de schema).
+ */
+export async function concludeRhExecution(
+    requestId: string,
+    outcome: "CONCLUIDO" | "NAO_EXECUTADO",
+    note?: string
+) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) throw new Error("Não autorizado");
+        if (!["ADMIN", "COORD_RH", "ASSIST_RH"].includes(String(user.role))) {
+            throw new Error("Apenas o RH/DP pode concluir a execução desta solicitação.");
+        }
+
+        const cleanNote = (note || "").trim();
+        if (outcome === "NAO_EXECUTADO" && !cleanNote) {
+            throw new Error("Informe o motivo de a solicitação não ter sido executada.");
+        }
+
+        const request = await prisma.approvalRequest.findUnique({ where: { id: requestId } });
+        if (!request) throw new Error("Solicitação não encontrada.");
+        if (request.status !== ApprovalStatus.APROVADO) {
+            throw new Error("Só é possível concluir solicitações já aprovadas.");
+        }
+
+        const payload = ((request.executionPayload as any) || {}) as Record<string, any>;
+        if (payload.rhConclusion) {
+            throw new Error("Esta solicitação já foi concluída pelo RH.");
+        }
+
+        const rhConclusion = {
+            outcome,
+            by: user.name,
+            byId: user.id,
+            at: new Date().toISOString(),
+            note: cleanNote || null,
+        };
+
+        await prisma.approvalRequest.update({
+            where: { id: requestId },
+            data: { executionPayload: { ...payload, rhConclusion } },
+        });
+
+        await prisma.log.create({
+            data: {
+                action: outcome === "CONCLUIDO" ? "RH_CONCLUIU_SOLICITACAO" : "RH_NAO_EXECUTOU_SOLICITACAO",
+                details: `Solicitação "${request.title}" ${outcome === "CONCLUIDO" ? "concluída" : "marcada como não executada"} pelo RH (${user.name}).${cleanNote ? " Obs: " + cleanNote : ""}`,
+                employeeId: request.employeeId || null,
+                userId: user.id,
+            },
+        });
+
+        revalidatePath("/admin/aprovacoes");
+        return { success: true, rhConclusion };
+    } catch (error: any) {
+        console.error("[concludeRhExecution] Erro:", error);
+        return { success: false, error: error.message || "Erro ao concluir solicitação." };
+    }
+}

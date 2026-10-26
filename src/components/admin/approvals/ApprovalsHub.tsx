@@ -29,7 +29,16 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { processApprovalDecision, deleteApprovalRequests, rejectDeleteRequest } from "@/actions/approvals";
+import { processApprovalDecision, deleteApprovalRequests, rejectDeleteRequest, concludeRhExecution } from "@/actions/approvals";
+
+// Tipos aprovados que dependem de execução manual do RH/DP (os demais são auto-efetivados ou têm monitor próprio)
+const RH_MANUAL_TYPES = ["OUTROS", "AJUSTE_SALARIAL"];
+const getRhState = (req: { status: string; type: string; executionPayload?: any }): "NONE" | "WAITING" | "DONE" | "NOT_DONE" => {
+    if (req.status !== "APROVADO" || !RH_MANUAL_TYPES.includes(req.type)) return "NONE";
+    const c = req.executionPayload?.rhConclusion;
+    if (!c) return "WAITING";
+    return c.outcome === "NAO_EXECUTADO" ? "NOT_DONE" : "DONE";
+};
 import { toast } from "sonner";
 import {
     Dialog,
@@ -136,6 +145,8 @@ export function ApprovalsHub({
     const [requests, setRequests] = useState<ApprovalRequestItem[]>(initialRequests);
     const [metrics, setMetrics] = useState(initialMetrics);
     const [selectedTab, setSelectedTab] = useState<string>("PENDING_ALL");
+    const [rhNote, setRhNote] = useState("");
+    const rhWaitingCount = requests.filter(r => getRhState(r) === "WAITING").length;
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedType, setSelectedType] = useState<string>("ALL");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -173,6 +184,8 @@ export function ApprovalsHub({
             if (req.status !== "PENDENTE_N1") return false;
         } else if (selectedTab === "PENDENTE_N2") {
             if (req.status !== "PENDENTE_N2") return false;
+        } else if (selectedTab === "RH_WAITING") {
+            if (getRhState(req) !== "WAITING") return false;
         } else if (selectedTab === "APROVADO") {
             if (req.status !== "APROVADO") return false;
         } else if (selectedTab === "REPROVADO") {
@@ -268,6 +281,54 @@ export function ApprovalsHub({
                 toast.error(res.message || "Erro ao processar aprovação.");
             }
         });
+    };
+
+    const handleRhConclusion = (targetRequest: ApprovalRequestItem, outcome: "CONCLUIDO" | "NAO_EXECUTADO") => {
+        if (outcome === "NAO_EXECUTADO" && !rhNote.trim()) {
+            toast.error("Informe o motivo de não ter sido executada.");
+            return;
+        }
+        startTransition(async () => {
+            const res = await concludeRhExecution(targetRequest.id, outcome, rhNote);
+            if (res.success) {
+                toast.success(outcome === "CONCLUIDO" ? "Processo concluído! Saiu da fila do RH." : "Solicitação marcada como não executada.");
+                setRequests(prev => prev.map(item => item.id === targetRequest.id
+                    ? { ...item, executionPayload: { ...(item.executionPayload || {}), rhConclusion: (res as any).rhConclusion } }
+                    : item));
+                setRhNote("");
+                setDetailsModal({ isOpen: false, request: null, decisionFeedback: "" });
+            } else {
+                toast.error((res as any).error || "Erro ao concluir solicitação.");
+            }
+        });
+    };
+
+    const getRequestStatusBadge = (req: ApprovalRequestItem) => {
+        const rh = getRhState(req);
+        if (rh === "WAITING") {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Aguardando RH
+                </span>
+            );
+        }
+        if (rh === "DONE") {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-600 text-white border border-emerald-600">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Concluído
+                </span>
+            );
+        }
+        if (rh === "NOT_DONE") {
+            return (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                    Não executado
+                </span>
+            );
+        }
+        return getStatusBadge(req.status, req.n1Decision);
     };
 
     const handleToggleSelect = (id: string) => {
@@ -620,6 +681,14 @@ export function ApprovalsHub({
                         N2 ({metrics.pendingN2})
                     </button>
                     <button
+                        onClick={() => setSelectedTab("RH_WAITING")}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                            selectedTab === "RH_WAITING" ? "bg-amber-500 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                    >
+                        Execução RH ({rhWaitingCount})
+                    </button>
+                    <button
                         onClick={() => setSelectedTab("APROVADO")}
                         className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                             selectedTab === "APROVADO" ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
@@ -767,7 +836,7 @@ export function ApprovalsHub({
 
                                             {/* 5. Status da Alçada */}
                                             <td className="px-4 py-3 text-center">
-                                                {getStatusBadge(req.status, req.n1Decision)}
+                                                {getRequestStatusBadge(req)}
                                             </td>
 
                                             {/* 6. Ações */}
@@ -821,7 +890,7 @@ export function ApprovalsHub({
                                     </div>
                                 </div>
                                 <div>
-                                    {getStatusBadge(detailsModal.request.status, detailsModal.request.n1Decision)}
+                                    {getRequestStatusBadge(detailsModal.request)}
                                 </div>
                             </div>
 
@@ -1334,9 +1403,13 @@ export function ApprovalsHub({
                                                     <span className="text-[11px] text-slate-500">
                                                         {detailsModal.request.status === "APROVADO" ? (
                                                             <span className="text-emerald-700 font-bold">
-                                                                {detailsModal.request.type === "MUDANCA_POSTO" 
+                                                                {getRhState(detailsModal.request) === "DONE"
+                                                                    ? `Concluído por ${detailsModal.request.executionPayload?.rhConclusion?.by || "RH"}${detailsModal.request.executionPayload?.rhConclusion?.note ? ` ("${detailsModal.request.executionPayload.rhConclusion.note}")` : ""}`
+                                                                    : getRhState(detailsModal.request) === "NOT_DONE"
+                                                                    ? `Não executado por ${detailsModal.request.executionPayload?.rhConclusion?.by || "RH"}: "${detailsModal.request.executionPayload?.rhConclusion?.note || ""}"`
+                                                                    : detailsModal.request.type === "MUDANCA_POSTO" 
                                                                     ? "Fluxo auto-completado e posto atualizado no sistema."
-                                                                    : "Liberado para o RH (Kesia) programar e efetivar."}
+                                                                    : "Liberado para o RH programar e efetivar. Use os botões abaixo para concluir."}
                                                             </span>
                                                         ) : detailsModal.request.status === "REPROVADO" ? (
                                                             <span className="text-rose-600 font-medium">Processo reprovado e cancelado.</span>
@@ -1352,6 +1425,21 @@ export function ApprovalsHub({
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Parecer do RH para concluir a execução */}
+                                {getRhState(detailsModal.request) === "WAITING" && (
+                                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                                        <label className="text-xs font-bold text-slate-700">
+                                            Observação do RH (obrigatória se não for executada):
+                                        </label>
+                                        <Textarea
+                                            value={rhNote}
+                                            onChange={(e) => setRhNote(e.target.value)}
+                                            placeholder="Ex: Adicional incluído na folha de outubro."
+                                            className="text-xs resize-none h-18 border-slate-200"
+                                        />
+                                    </div>
+                                )}
 
                                 {/* Campo de Parecer para Deliberar */}
                                 {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && detailsModal.request.n1Decision !== "SOLICITADA_EXCLUSAO" && (
@@ -1389,6 +1477,28 @@ export function ApprovalsHub({
                                         {isApproverN2 ? "Excluir Definitivamente" : "Solicitar Exclusão ao N2"}
                                     </Button>
                                 </div>
+
+                                {getRhState(detailsModal.request) === "WAITING" && (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => handleRhConclusion(detailsModal.request!, "NAO_EXECUTADO")}
+                                            disabled={isPending}
+                                            className="text-xs font-bold text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer"
+                                        >
+                                            <X className="w-3.5 h-3.5 mr-1" />
+                                            Não executado
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleRhConclusion(detailsModal.request!, "CONCLUIDO")}
+                                            disabled={isPending}
+                                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                                        >
+                                            <Check className="w-3.5 h-3.5 mr-1 stroke-[3]" />
+                                            Concluir Processo
+                                        </Button>
+                                    </div>
+                                )}
 
                                 {(detailsModal.request.status === "PENDENTE_N1" || detailsModal.request.status === "PENDENTE_N2") && detailsModal.request.n1Decision !== "SOLICITADA_EXCLUSAO" && (
                                     <div className="flex items-center gap-2">
