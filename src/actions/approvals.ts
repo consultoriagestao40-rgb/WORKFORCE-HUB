@@ -667,7 +667,7 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
                 dismissalSubType: payload.dismissalSubType || "DISPENSA_SEM_AVISO",
                 initiative: payload.initiative || "EMPRESA",
                 noticeType: payload.noticeType || "INDENIZADO",
-                noticeDays: payload.noticeDays || 30,
+                noticeDays: (payload.dismissalSubType || request.snapshotProposed && (request.snapshotProposed as any).dismissalSubType) === "ABANDONO" ? 0 : (payload.noticeDays || 30),
                 startDate: payload.startDate,
                 endDate: payload.endDate,
                 reductionType: payload.reductionType || "NENHUMA",

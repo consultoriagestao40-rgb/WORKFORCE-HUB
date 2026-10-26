@@ -999,7 +999,7 @@ export function ApprovalsHub({
                                                         </span>
                                                     </div>
                                                 </div>
-                                                {proposed.noticeDays && (
+                                                {proposed.noticeDays && proposed.dismissalSubType !== "ABANDONO" && proposed.initiative !== "ABANDONO" && (
                                                     <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
                                                         Aviso: {proposed.noticeDays} dias ({proposed.noticeType || "TRABALHADO"})
                                                     </span>
