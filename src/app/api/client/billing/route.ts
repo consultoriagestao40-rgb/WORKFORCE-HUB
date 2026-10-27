@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getContractStart, applyContractStart } from "@/lib/contract-start";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,8 @@ export async function GET(request: Request) {
             })).map(d => d.attendanceId)
         );
 
+        const contractStart = await getContractStart(clientIds);
+
         const monthNames = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -97,7 +100,8 @@ export async function GET(request: Request) {
         return NextResponse.json({
             success: true,
             year: targetYear,
-            months: monthsData
+            contractStart: { year: contractStart.year, month: contractStart.month },
+            months: applyContractStart(monthsData, targetYear, contractStart.key)
         });
     } catch (error: any) {
         console.error("Error fetching client billing:", error);

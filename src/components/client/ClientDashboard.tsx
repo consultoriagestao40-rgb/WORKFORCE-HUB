@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
     Calendar, ChevronLeft, ChevronRight, Clock, UserCheck, UserX, 
     RefreshCw, LogOut, ShieldAlert, Award, FileText, Download,
@@ -1671,7 +1671,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-300">Bruto Previsto (Mensal)</span>
                                     <div className="flex items-baseline justify-between mt-1">
                                         <span className="text-xl font-black">
-                                            {billingData[0]?.expectedBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "R$ 0,00"}
+                                            {(billingData.find(m => !m.beforeStart)?.expectedBilling ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                         </span>
                                     </div>
                                 </Card>
@@ -1698,8 +1698,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700 font-semibold">Efetividade Operacional</span>
                                     <div className="flex items-center justify-between mt-1">
                                         <span className="text-xl font-black text-blue-600">
-                                            {(billingData.length > 0 
-                                                ? (billingData.reduce((sum, m) => sum + m.effectiveness, 0) / billingData.length).toFixed(1) 
+                                            {(billingData.filter(m => !m.beforeStart).length > 0 
+                                                ? (billingData.filter(m => !m.beforeStart).reduce((sum, m) => sum + m.effectiveness, 0) / billingData.filter(m => !m.beforeStart).length).toFixed(1) 
                                                 : "100.0")}%
                                         </span>
                                     </div>
@@ -1730,10 +1730,16 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <TableBody>
                                                 {billingData.map((m) => (
                                                     <React.Fragment key={m.monthIndex}>
+                                                    {m.beforeStart ? (
+                                                        <TableRow className="bg-slate-50/40 hover:bg-slate-50/40">
+                                                            <TableCell className="font-bold text-xs text-slate-400">{m.name}</TableCell>
+                                                            <TableCell colSpan={6} className="text-xs text-slate-400 italic font-medium">Contrato ainda não iniciado neste mês</TableCell>
+                                                        </TableRow>
+                                                    ) : (
                                                     <TableRow
-                                                        onClick={() => setExpandedBillingMonth(expandedBillingMonth === m.monthIndex ? null : m.monthIndex)}
-                                                        className={`hover:bg-slate-50/50 transition-colors cursor-pointer ${expandedBillingMonth === m.monthIndex ? "bg-slate-50" : ""}`}
-                                                        title="Clique para abrir o relatório da medição do mês"
+                                                        onClick={() => setExpandedBillingMonth(m.monthIndex)}
+                                                        className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                        title="Clique para abrir a medição do mês"
                                                     >
                                                         <TableCell className="font-bold text-xs text-slate-900">
                                                             {m.name}
@@ -1762,21 +1768,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         <TableCell className="text-center">
                                                             <div className="flex items-center justify-center gap-2">
                                                                 {measurementStatusBadge(measurementStatuses[m.monthIndex])}
-                                                                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedBillingMonth === m.monthIndex ? "rotate-90" : ""}`} />
+                                                                <ChevronRight className="w-4 h-4 text-slate-400" />
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
-                                                    {expandedBillingMonth === m.monthIndex && billingClientId && (
-                                                        <TableRow className="hover:bg-transparent">
-                                                            <TableCell colSpan={7} className="p-0">
-                                                                <BillingMeasurementPanel
-                                                                    clientId={billingClientId}
-                                                                    year={billingYear}
-                                                                    month={m.monthIndex}
-                                                                    onChanged={loadMeasurementStatuses}
-                                                                />
-                                                            </TableCell>
-                                                        </TableRow>
                                                     )}
                                                     </React.Fragment>
                                                 ))}
@@ -2688,6 +2683,23 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                     )}
                 </main>
             </div>
+        {/* Modal da Medição Mensal (relatório, glosas, análise e aprovação) */}
+        <Dialog open={expandedBillingMonth !== null} onOpenChange={(open) => { if (!open) setExpandedBillingMonth(null); }}>
+            <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] overflow-y-auto p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                <DialogHeader className="px-6 pt-6 pb-0">
+                    <DialogTitle className="text-md font-bold text-slate-800">Aprovação de Medição</DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500">Analise o relatório do mês e aprove ou solicite revisão.</DialogDescription>
+                </DialogHeader>
+                {expandedBillingMonth !== null && billingClientId && (
+                    <BillingMeasurementPanel
+                        clientId={billingClientId}
+                        year={billingYear}
+                        month={expandedBillingMonth}
+                        onChanged={loadMeasurementStatuses}
+                    />
+                )}
+            </DialogContent>
+        </Dialog>
         {/* Modal de Detalhamento de KPIs Operacionais (Auditoria Mensal) */}
         <Dialog open={kpiModalConfig !== null} onOpenChange={(open) => { if (!open) setKpiModalConfig(null); }}>
             <DialogContent className="w-[95vw] sm:max-w-4xl h-[85vh] max-h-[85vh] flex flex-col rounded-3xl p-6 bg-white border border-slate-100 shadow-premium overflow-hidden">

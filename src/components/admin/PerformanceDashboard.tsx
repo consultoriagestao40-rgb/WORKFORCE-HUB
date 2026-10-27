@@ -65,6 +65,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
     const [selectedClientId, setSelectedClientId] = useState<string>("all");
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [measurementMonth, setMeasurementMonth] = useState<number>(new Date().getMonth());
+    const [measurementOpen, setMeasurementOpen] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
 
@@ -3499,7 +3500,7 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <Card className="border-none shadow-premium bg-slate-900 text-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-350">Bruto Previsto (Mensal)</span>
                                         <span className="text-xl font-black mt-1">
-                                            {billingData[0]?.expectedBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) || "R$ 0,00"}
+                                            {(billingData.find((m: any) => !m.beforeStart)?.expectedBilling ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                         </span>
                                     </Card>
                                     <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
@@ -3517,8 +3518,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                     <Card className="border-none shadow-premium bg-white p-4 py-3 flex flex-col justify-between h-auto min-h-[96px]">
                                         <span className="text-[10px] font-black uppercase text-slate-550">Efetividade Operacional</span>
                                         <span className="text-xl font-black mt-1 text-blue-650">
-                                            {(billingData.length > 0 
-                                                ? (billingData.reduce((sum, m) => sum + m.effectiveness, 0) / billingData.length).toFixed(1) 
+                                            {(billingData.filter((m: any) => !m.beforeStart).length > 0 
+                                                ? (billingData.filter((m: any) => !m.beforeStart).reduce((sum, m) => sum + m.effectiveness, 0) / billingData.filter((m: any) => !m.beforeStart).length).toFixed(1) 
                                                 : "100.0")}%
                                         </span>
                                     </Card>
@@ -3573,7 +3574,12 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {billingData.map((m) => (
+                                            {billingData.map((m) => m.beforeStart ? (
+                                                <TableRow key={m.monthIndex} className="bg-slate-50/40 hover:bg-slate-50/40">
+                                                    <TableCell className="font-bold text-xs text-slate-400 pl-6 py-3">{m.name}</TableCell>
+                                                    <TableCell colSpan={4} className="text-xs text-slate-400 italic font-medium py-3">Contrato ainda não iniciado neste mês</TableCell>
+                                                </TableRow>
+                                            ) : (
                                                 <TableRow key={m.monthIndex} className="hover:bg-slate-50/50">
                                                     <TableCell className="font-bold text-xs text-slate-900 pl-6 py-3">{m.name}</TableCell>
                                                     <TableCell className="text-right pr-6 text-xs text-slate-700 font-semibold py-3">{formatCurrency(m.expectedBilling)}</TableCell>
@@ -3657,12 +3663,28 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             ))}
                                         </select>
                                     </div>
-                                    <BillingMeasurementPanel
-                                        key={`${selectedClientId}-${selectedYear}-${measurementMonth}`}
-                                        clientId={selectedClientId}
-                                        year={selectedYear}
-                                        month={measurementMonth}
-                                    />
+                                    <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                                        <span className="text-xs text-slate-500 font-medium">Abra a medição do mês para ver presenças, decidir glosas/abonos e responder ao cliente.</span>
+                                        <Button size="sm" onClick={() => setMeasurementOpen(true)} className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs">
+                                            Abrir medição do mês
+                                        </Button>
+                                    </div>
+                                    <Dialog open={measurementOpen} onOpenChange={setMeasurementOpen}>
+                                        <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] overflow-y-auto p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                                            <DialogHeader className="px-6 pt-6 pb-0">
+                                                <DialogTitle className="text-md font-bold text-slate-800">Medição Mensal</DialogTitle>
+                                                <DialogDescription className="text-xs text-slate-500">Relatório do mês, glosas/abonos, análise do cliente e respostas.</DialogDescription>
+                                            </DialogHeader>
+                                            {measurementOpen && (
+                                                <BillingMeasurementPanel
+                                                    key={`${selectedClientId}-${selectedYear}-${measurementMonth}`}
+                                                    clientId={selectedClientId}
+                                                    year={selectedYear}
+                                                    month={measurementMonth}
+                                                />
+                                            )}
+                                        </DialogContent>
+                                    </Dialog>
                                 </Card>
                             )}
                         </div>

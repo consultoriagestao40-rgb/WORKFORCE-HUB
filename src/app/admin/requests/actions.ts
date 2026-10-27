@@ -3239,6 +3239,9 @@ export async function getAdminClientBilling(clientId: string, year: number) {
             })).map(d => d.attendanceId)
         );
 
+        const contractStart = await (await import("@/lib/contract-start")).getContractStart(clientIds);
+        const { applyContractStart } = await import("@/lib/contract-start");
+
         const monthNames = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -3283,7 +3286,8 @@ export async function getAdminClientBilling(clientId: string, year: number) {
         return {
             success: true,
             year,
-            months: monthsData
+            contractStart: { year: contractStart.year, month: contractStart.month },
+            months: applyContractStart(monthsData, year, contractStart.key)
         };
 
     } catch (e) {
