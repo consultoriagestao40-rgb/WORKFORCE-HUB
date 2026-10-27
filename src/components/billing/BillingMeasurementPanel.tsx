@@ -328,7 +328,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                         <TableCell className="text-xs font-semibold text-slate-700">
                                             {r.status !== "FALTA" ? "-" : r.coveredByName ? r.coveredByName : r.coverageType === "DIARISTA" ? "Diarista" : <span className="text-red-600 font-bold">Sem cobertura</span>}
                                         </TableCell>
-                                        <TableCell className="text-xs text-slate-500">{r.notes || (r.virtual && r.status === "FALTA" ? <span className="italic text-red-500">Posto descoberto, sem aviso de cobertura</span> : "-")}</TableCell>
+                                        <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

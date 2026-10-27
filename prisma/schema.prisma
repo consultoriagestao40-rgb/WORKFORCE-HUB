@@ -1656,6 +1656,13 @@ model BillingGlosaDecision {
   decidedByName String?
   decidedAt     DateTime @default(now())
 
+  // Posição do cliente sobre a glosa: AGREED (concorda) | CONTESTED (pede abono, com motivo)
+  clientStance       String?
+  clientNote         String?
+  clientStanceAt     DateTime?
+  clientStanceByName String?
+  contestResolved    Boolean  @default(false)
+
   @@unique([postoId, dateKey])
   @@index([clientId])
 }

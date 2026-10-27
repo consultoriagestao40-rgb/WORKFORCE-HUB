@@ -98,6 +98,10 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                     decidedByName: dec?.decidedByName || null,
                     decidedAt: dec?.decidedAt?.toISOString() || null,
                     glosa: unc && decision !== "ABONO" ? r.billingValue / 30 : 0,
+                    clientStance: unc ? (dec?.clientStance || null) : null,
+                    clientNote: dec?.clientNote || null,
+                    clientStanceByName: dec?.clientStanceByName || null,
+                    contestResolved: dec?.contestResolved || false,
                 };
             });
 
@@ -125,6 +129,9 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
                 coveredAbsences: rows.filter(r => r.status === "FALTA" && !r.uncovered).length,
                 uncoveredAbsences: glosaRows.length,
+                glosaUnanswered: glosaRows.filter(r => !r.clientStance && r.decision !== "ABONO").length,
+                glosaContestedPending: glosaRows.filter(r => r.clientStance === "CONTESTED" && !r.contestResolved).length,
+                glosaAgreed: glosaRows.filter(r => r.clientStance === "AGREED").length,
                 effectiveness: active.length > 0 ? ((active.length - glosaRows.length) / active.length) * 100 : 100,
             },
             rows,
@@ -209,6 +216,9 @@ export async function postMeasurementEvent(input: {
         }
 
         if (input.type === "APPROVAL") {
+            const gl = await countGlosaPending(input.clientId, input.year, input.month);
+            if (gl.unanswered > 0) return { success: false as const, error: `Há ${gl.unanswered} falta(s) sem cobertura sem a sua posição. Use "Concordar com todas" ou "Contestar" na aba Glosas / Abonos.` };
+            if (gl.contestedPending > 0) return { success: false as const, error: `Há ${gl.contestedPending} contestação(ões) aguardando resposta da equipe interna.` };
             const pending = await prisma.billingExtraItem.count({ where: { clientId: input.clientId, year: input.year, month: input.month, status: "PENDING" } });
             if (pending > 0) return { success: false as const, error: `Há ${pending} item(ns) extra(s) pendente(s) de decisão. Aprove ou recuse cada um antes de aprovar a medição.` };
         }
@@ -321,6 +331,7 @@ export async function setGlosaDecision(input: { postoId: string; dateKey: string
                 update: {
                     decision: input.decision, reason: reason || null,
                     decidedById: user.id, decidedByName: user.name || null, decidedAt: new Date(),
+                    contestResolved: true,
                 },
             });
 
@@ -466,5 +477,113 @@ export async function decideExtraItem(input: { id: string; decision: "APPROVE" |
     } catch (error) {
         console.error("Erro ao decidir item extra:", error);
         return { success: false as const, error: "Erro ao registrar a decisão." };
+    }
+}
+
+async function uncoveredDays(clientId: string, year: number, month: number) {
+    const contractStart = await getContractStart([clientId]);
+    const rows = await getPostoDays([clientId], new Date(Date.UTC(year, month, 1)), new Date(Date.UTC(year, month + 1, 0)), { notBefore: contractStart.date });
+    return rows.filter(r => isUncoveredAbsence(r));
+}
+
+async function countGlosaPending(clientId: string, year: number, month: number) {
+    const unc = await uncoveredDays(clientId, year, month);
+    const decisions = await prisma.billingGlosaDecision.findMany({
+        where: { clientId, dateKey: { gte: `${year}-${String(month + 1).padStart(2, "0")}-01`, lte: `${year}-${String(month + 1).padStart(2, "0")}-31` } },
+    });
+    const map = new Map(decisions.map(d => [`${d.postoId}:${d.dateKey}`, d]));
+    let unanswered = 0, contestedPending = 0;
+    for (const r of unc) {
+        const d = map.get(`${r.postoId}:${r.dateKey}`);
+        if (d?.decision === "ABONO") continue;
+        if (!d?.clientStance) unanswered++;
+        else if (d.clientStance === "CONTESTED" && !d.contestResolved) contestedPending++;
+    }
+    return { unanswered, contestedPending };
+}
+
+/** Cliente concorda com a glosa ou contesta (pede abono, com motivo) uma falta sem cobertura. */
+export async function setClientGlosaStance(input: { postoId: string; dateKey: string; stance: "AGREED" | "CONTESTED"; note?: string }) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false as const, error: "Não autorizado." };
+        const posto = await prisma.posto.findUnique({ where: { id: input.postoId }, select: { clientId: true } });
+        if (!posto) return { success: false as const, error: "Posto não encontrado." };
+        const access = await checkAccess(posto.clientId);
+        if (!access.ok) return { success: false as const, error: access.error };
+        if (access.side !== "CLIENT") return { success: false as const, error: "Somente o cliente registra a posição sobre a glosa." };
+
+        const note = (input.note || "").trim();
+        if (input.stance === "CONTESTED" && !note) return { success: false as const, error: "Informe o motivo da contestação." };
+
+        const d = new Date(input.dateKey + "T00:00:00Z");
+        const year = d.getUTCFullYear(), month = d.getUTCMonth();
+        const m = await prisma.billingMeasurement.findUnique({
+            where: { clientId_year_month: { clientId: posto.clientId, year, month } }, select: { status: true },
+        });
+        if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada." };
+
+        await prisma.billingGlosaDecision.upsert({
+            where: { postoId_dateKey: { postoId: input.postoId, dateKey: input.dateKey } },
+            create: {
+                postoId: input.postoId, dateKey: input.dateKey, clientId: posto.clientId, decision: "GLOSA",
+                clientStance: input.stance, clientNote: note || null, clientStanceAt: new Date(), clientStanceByName: access.user.name || null,
+            },
+            update: {
+                clientStance: input.stance, clientNote: note || null, clientStanceAt: new Date(), clientStanceByName: access.user.name || null,
+                contestResolved: false,
+            },
+        });
+
+        if (input.stance === "CONTESTED") {
+            await logExtraEvent(posto.clientId, year, month, "CLIENT", access.user,
+                `Contestou a glosa de ${d.toLocaleDateString("pt-BR", { timeZone: "UTC" })} e pediu abono: ${note}`);
+        }
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const };
+    } catch (error) {
+        console.error("Erro ao registrar posição sobre glosa:", error);
+        return { success: false as const, error: "Erro ao registrar a posição." };
+    }
+}
+
+/** Cliente concorda de uma vez com todas as glosas do mês que ainda não tiveram posição. */
+export async function agreeAllGlosas(input: { clientId: string; year: number; month: number }) {
+    try {
+        const access = await checkAccess(input.clientId);
+        if (!access.ok) return { success: false as const, error: access.error };
+        if (access.side !== "CLIENT") return { success: false as const, error: "Somente o cliente registra a posição sobre a glosa." };
+
+        const m = await prisma.billingMeasurement.findUnique({
+            where: { clientId_year_month: { clientId: input.clientId, year: input.year, month: input.month } }, select: { status: true },
+        });
+        if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada." };
+
+        const unc = await uncoveredDays(input.clientId, input.year, input.month);
+        const existing = await prisma.billingGlosaDecision.findMany({
+            where: { clientId: input.clientId, dateKey: { in: unc.map(r => r.dateKey) } },
+        });
+        const map = new Map(existing.map(d => [`${d.postoId}:${d.dateKey}`, d]));
+        let count = 0;
+        for (const r of unc) {
+            const d = map.get(`${r.postoId}:${r.dateKey}`);
+            if (d?.clientStance || d?.decision === "ABONO") continue;
+            await prisma.billingGlosaDecision.upsert({
+                where: { postoId_dateKey: { postoId: r.postoId, dateKey: r.dateKey } },
+                create: { postoId: r.postoId, dateKey: r.dateKey, clientId: input.clientId, decision: "GLOSA", clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null },
+                update: { clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null },
+            });
+            count++;
+        }
+        if (count > 0) {
+            await logExtraEvent(input.clientId, input.year, input.month, "CLIENT", access.user, `Concordou com ${count} glosa(s) de falta sem cobertura.`);
+        }
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const, count };
+    } catch (error) {
+        console.error("Erro ao concordar com glosas:", error);
+        return { success: false as const, error: "Erro ao registrar a posição." };
     }
 }
