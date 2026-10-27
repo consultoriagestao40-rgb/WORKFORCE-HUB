@@ -21,6 +21,7 @@ import {
 import { PopsManagementSection } from "@/components/client/PopsManagementSection";
 import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { getPopDocuments } from "@/actions/pops";
+import { getClientServicePlan } from "@/actions/client-service-plan";
 import { logout } from "@/app/actions";
 import { 
     createClientRequest, 
@@ -29,7 +30,6 @@ import {
     getClientMonthlyReport,
     submitClientNps,
     getClientKpis,
-    getPostoRoutines,
     getNpsQuestions,
     submitClientNpsAnswers,
     addRequestComment,
@@ -158,7 +158,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             setLoadingKpiModal(false);
         }
     };
-    const [servicePlanRoutines, setServicePlanRoutines] = useState<any[]>([]);
+    const [servicePlanData, setServicePlanData] = useState<any>(null);
     const [loadingServicePlan, setLoadingServicePlan] = useState(false);
 
     const fetchRequests = useCallback(async () => {
@@ -229,14 +229,14 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         if (!postoId) return;
         setLoadingServicePlan(true);
         try {
-            const res = await getPostoRoutines(postoId);
-            if (res.success && res.routines) {
-                setServicePlanRoutines(res.routines);
+            const res = await getClientServicePlan(postoId);
+            if (res.success) {
+                setServicePlanData(res);
             } else {
-                toast.error("Erro ao buscar rotinas de trabalho.");
+                toast.error(res.error || "Erro ao buscar o plano de serviços.");
             }
         } catch (e) {
-            toast.error("Erro de conexão ao carregar rotinas.");
+            toast.error("Erro de conexão ao carregar o plano de serviços.");
         } finally {
             setLoadingServicePlan(false);
         }
@@ -2564,81 +2564,91 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                 </div>
                             </div>
 
-                            {/* Routines Table & Context */}
-                            <Card className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-6">
-                                {/* Sub-header info boxes */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-200/50 text-xs font-bold text-slate-700">
-                                    <div className="space-y-1">
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cliente / Unidade</span>
-                                        <span className="text-slate-800 font-black truncate block">
-                                            {contracts.find(c => c.id === selectedServicePlanPostoId)?.name || "Instituto da Criança"}
-                                        </span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cidade</span>
-                                        <span className="text-slate-800 font-black">CURITIBA/PR</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Função</span>
-                                        <span className="text-slate-800 font-black truncate block">AUXILIAR DE SERVIÇOS GERAIS 20%</span>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Carga Horária</span>
-                                        <span className="text-slate-800 font-black">11h00 - 16h00 - 17h00 - 23h00 12X36</span>
-                                    </div>
+                            {loadingServicePlan && !servicePlanData ? (
+                                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
+                                    <span className="text-xs text-slate-500 font-semibold">Carregando plano de serviços...</span>
                                 </div>
+                            ) : (servicePlanData?.postos || []).length === 0 ? (
+                                <Card className="border-none shadow-premium bg-white p-10 text-center text-slate-500 text-sm font-semibold">
+                                    Nenhum posto ativo encontrado para este contrato.
+                                </Card>
+                            ) : (
+                                (servicePlanData.postos as any[]).map((posto) => (
+                                    <Card key={posto.id} className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-200/50 text-xs font-bold text-slate-700">
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cliente / Unidade</span>
+                                                <span className="text-slate-800 font-black truncate block">{servicePlanData.client?.name}</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Endereço</span>
+                                                <span className="text-slate-800 font-black block">{servicePlanData.client?.address || "-"}</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Função</span>
+                                                <span className="text-slate-800 font-black truncate block">{posto.roleName}{posto.isReservaTecnica ? " (Reserva Técnica)" : ""}</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Carga Horária</span>
+                                                <span className="text-slate-800 font-black">{posto.startTime} - {posto.endTime}{posto.schedule ? ` · ${posto.schedule}` : ""}</span>
+                                            </div>
+                                        </div>
 
-                                <div className="bg-slate-900 rounded-xl px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center select-none shadow-premium">
-                                    Rotina de Trabalho - DIÁRIO
-                                </div>
+                                        <div className="space-y-2">
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Colaboradores alocados ({posto.employees.length})</span>
+                                            {posto.employees.length === 0 ? (
+                                                <span className="text-xs text-slate-400 italic">Posto sem colaborador alocado no momento.</span>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {posto.employees.map((emp: any) => (
+                                                        <Badge key={emp.id} className="bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100">{emp.name}</Badge>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
 
-                                {loadingServicePlan ? (
-                                    <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                        <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                                        <span className="text-xs text-slate-500 font-semibold">Carregando rotina de trabalho...</span>
-                                    </div>
-                                ) : (
-                                    <div className="w-full overflow-x-auto border border-slate-200/60 rounded-xl">
-                                        <Table>
-                                            <TableHeader className="bg-slate-800 text-white">
-                                                <TableRow className="hover:bg-slate-800 border-none">
-                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Início</TableHead>
-                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Tempo</TableHead>
-                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Final</TableHead>
-                                                    <TableHead className="font-bold text-white text-xs py-3 h-10 w-40">Local</TableHead>
-                                                    <TableHead className="font-bold text-white text-xs py-3 h-10">Atividade / Descrição do Serviço</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {servicePlanRoutines.map((routine) => (
-                                                    <TableRow key={routine.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors">
-                                                        <TableCell className="font-bold text-xs text-slate-800">{routine.startTime}</TableCell>
-                                                        <TableCell className="text-slate-500 text-xs font-semibold">{routine.duration || "-"}</TableCell>
-                                                        <TableCell className="text-slate-800 text-xs font-bold">{routine.endTime}</TableCell>
-                                                        <TableCell className="text-slate-700 text-xs font-semibold">
-                                                            {routine.location === "Intervalo" ? (
-                                                                <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-bold hover:opacity-100">{routine.location}</Badge>
-                                                            ) : (
-                                                                <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100">{routine.location}</Badge>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-xs text-slate-800 leading-normal font-semibold">
-                                                            {routine.activity || <span className="text-slate-400 italic">Horário livre / Pausa de transição</span>}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {servicePlanRoutines.length === 0 && (
-                                                    <TableRow>
-                                                        <TableCell colSpan={5} className="text-center text-slate-500 py-10 font-semibold">
-                                                            Nenhuma atividade cadastrada neste plano de trabalho.
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                )}
-                            </Card>
+                                        <div className="bg-slate-900 rounded-xl px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center select-none shadow-premium">
+                                            Rotina de Trabalho - DIÁRIO
+                                        </div>
+
+                                        {posto.routines.length === 0 ? (
+                                            <div className="text-center text-slate-500 py-8 text-xs font-semibold border border-dashed border-slate-200 rounded-xl">
+                                                Plano de trabalho ainda não cadastrado para este posto.
+                                            </div>
+                                        ) : (
+                                            <div className="w-full overflow-x-auto border border-slate-200/60 rounded-xl">
+                                                <Table>
+                                                    <TableHeader className="bg-slate-800 text-white">
+                                                        <TableRow className="hover:bg-slate-800 border-none">
+                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Início</TableHead>
+                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Tempo</TableHead>
+                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Final</TableHead>
+                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-40">Local</TableHead>
+                                                            <TableHead className="font-bold text-white text-xs py-3 h-10">Atividade / Descrição do Serviço</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {posto.routines.map((routine: any) => (
+                                                            <TableRow key={routine.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors">
+                                                                <TableCell className="font-bold text-xs text-slate-800">{routine.startTime}</TableCell>
+                                                                <TableCell className="text-slate-500 text-xs font-semibold">{routine.duration || "-"}</TableCell>
+                                                                <TableCell className="text-slate-800 text-xs font-bold">{routine.endTime}</TableCell>
+                                                                <TableCell className="text-slate-700 text-xs font-semibold">
+                                                                    <Badge className={routine.location === "Intervalo" ? "bg-amber-50 text-amber-700 border-amber-200 font-bold hover:opacity-100" : "bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100"}>{routine.location}</Badge>
+                                                                </TableCell>
+                                                                <TableCell className="text-xs text-slate-800 leading-normal font-semibold">
+                                                                    {routine.activity || <span className="text-slate-400 italic">Horário livre / Pausa de transição</span>}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        )}
+                                    </Card>
+                                ))
+                            )}
                         </div>
                     )}
 

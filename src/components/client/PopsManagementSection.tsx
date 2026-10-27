@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +41,8 @@ import {
     deletePopDocument
 } from "@/actions/pops";
 
+const EMPTY_POPS: any[] = [];
+
 interface PopsManagementSectionProps {
     clientId: string;
     clientName?: string;
@@ -54,11 +56,13 @@ export function PopsManagementSection({
     clientId,
     clientName,
     postos = [],
-    initialPops = [],
+    initialPops = EMPTY_POPS,
     isClientUser = false,
     isAdminUser = true
 }: PopsManagementSectionProps) {
     const [pops, setPops] = useState<any[]>(initialPops);
+    // Sincroniza quando o pai carrega os POPs de forma assíncrona (antes ficava preso na lista vazia inicial)
+    useEffect(() => { setPops(initialPops); }, [initialPops]);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedPostoFilter, setSelectedPostoFilter] = useState("all");
     const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");

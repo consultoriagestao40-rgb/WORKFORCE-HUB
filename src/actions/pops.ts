@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 
 export async function getPopDocuments(clientId?: string, postoId?: string) {
     try {
+        const me = await getCurrentUser();
+        if (!me) return [];
+        if (me.role === "CLIENTE" && (!clientId || !(me.clientIds || []).includes(clientId))) return [];
         const where: any = {};
         if (clientId) where.clientId = clientId;
         if (postoId) where.postoId = postoId;
@@ -193,6 +196,7 @@ export async function approvePopDocument(id: string) {
 
         const pop = await prisma.popDocument.findUnique({ where: { id } });
         if (!pop) return { error: "Documento POP não encontrado." };
+        if (user.role === "CLIENTE" && !(user.clientIds || []).includes(pop.clientId)) return { error: "Sem permissão para este contrato." };
 
         const now = new Date();
 
@@ -245,6 +249,7 @@ export async function rejectPopDocument(id: string, reason: string) {
 
         const pop = await prisma.popDocument.findUnique({ where: { id } });
         if (!pop) return { error: "Documento POP não encontrado." };
+        if (user.role === "CLIENTE" && !(user.clientIds || []).includes(pop.clientId)) return { error: "Sem permissão para este contrato." };
 
         await prisma.$transaction(async (tx) => {
             await tx.popDocument.update({
