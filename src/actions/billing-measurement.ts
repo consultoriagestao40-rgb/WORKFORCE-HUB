@@ -519,6 +519,9 @@ export async function setClientGlosaStance(input: { postoId: string; dateKey: st
         });
         if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada." };
 
+        const unc = await uncoveredDays(posto.clientId, year, month);
+        if (!unc.some(r => r.postoId === input.postoId && r.dateKey === input.dateKey)) return { success: false as const, error: "Só é possível glosar ou abonar dias de posto sem cobertura." };
+
         const common = {
             decision: input.decision, reason: note || null,
             decidedById: access.user.id, decidedByName: access.user.name || null, decidedAt: new Date(),
