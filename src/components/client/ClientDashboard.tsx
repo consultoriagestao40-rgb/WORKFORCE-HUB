@@ -22,6 +22,7 @@ import { PopsManagementSection } from "@/components/client/PopsManagementSection
 import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { getPopDocuments } from "@/actions/pops";
 import { getClientServicePlan } from "@/actions/client-service-plan";
+import { getPostoRoutines } from "@/app/admin/requests/actions";
 import { logout } from "@/app/actions";
 import { 
     createClientRequest, 
@@ -159,6 +160,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
         }
     };
     const [servicePlanData, setServicePlanData] = useState<any>(null);
+    const [selectedPlanPostoId, setSelectedPlanPostoId] = useState<string>("");
+    const [planRoutines, setPlanRoutines] = useState<any[]>([]);
+    const [loadingPlanRoutines, setLoadingPlanRoutines] = useState(false);
     const [loadingServicePlan, setLoadingServicePlan] = useState(false);
 
     const fetchRequests = useCallback(async () => {
@@ -232,6 +236,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             const res = await getClientServicePlan(postoId);
             if (res.success) {
                 setServicePlanData(res);
+                setSelectedPlanPostoId(prev => (res.postos.some((p: any) => p.id === prev) ? prev : (res.postos[0]?.id || "")));
             } else {
                 toast.error(res.error || "Erro ao buscar o plano de serviços.");
             }
@@ -266,6 +271,17 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             fetchServicePlanRoutines(selectedServicePlanPostoId);
         }
     }, [activeTab, selectedServicePlanPostoId, fetchServicePlanRoutines]);
+
+    useEffect(() => {
+        if (!selectedPlanPostoId) { setPlanRoutines([]); return; }
+        let cancelled = false;
+        setLoadingPlanRoutines(true);
+        getPostoRoutines(selectedPlanPostoId)
+            .then(r => { if (!cancelled) setPlanRoutines(r.success && r.routines ? r.routines : []); })
+            .catch(() => { if (!cancelled) toast.error("Erro ao carregar as rotinas do posto."); })
+            .finally(() => { if (!cancelled) setLoadingPlanRoutines(false); });
+        return () => { cancelled = true; };
+    }, [selectedPlanPostoId]);
 
     useEffect(() => {
         if (activeTab === "pops") {
@@ -2558,6 +2574,15 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             <option key={c.id} value={c.id}>{c.name}</option>
                                         ))}
                                     </select>
+                                    <select
+                                        value={selectedPlanPostoId}
+                                        onChange={(e) => setSelectedPlanPostoId(e.target.value)}
+                                        className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
+                                    >
+                                        {((servicePlanData?.postos || []) as any[]).map((p, i) => (
+                                            <option key={p.id} value={p.id}>{`Posto ${i + 1} - ${p.roleName}${p.schedule ? ` (${p.schedule})` : ""}`}</option>
+                                        ))}
+                                    </select>
                                     <Button variant="ghost" size="icon" onClick={() => fetchServicePlanRoutines(selectedServicePlanPostoId)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
                                         <RefreshCw className={`w-4 h-4 text-slate-500 ${loadingServicePlan ? 'animate-spin' : ''}`} />
                                     </Button>
@@ -2573,9 +2598,11 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                 <Card className="border-none shadow-premium bg-white p-10 text-center text-slate-500 text-sm font-semibold">
                                     Nenhum posto ativo encontrado para este contrato.
                                 </Card>
-                            ) : (
-                                (servicePlanData.postos as any[]).map((posto) => (
-                                    <Card key={posto.id} className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-5">
+                            ) : (() => {
+                                const postos = servicePlanData.postos as any[];
+                                const posto = postos.find(p => p.id === selectedPlanPostoId) || postos[0];
+                                return (
+                                    <Card className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-5">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-200/50 text-xs font-bold text-slate-700">
                                             <div className="space-y-1">
                                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cliente / Unidade</span>
@@ -2612,7 +2639,9 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             Rotina de Trabalho - DIÁRIO
                                         </div>
 
-                                        {posto.routines.length === 0 ? (
+                                        {loadingPlanRoutines ? (
+                                            <div className="flex justify-center py-10"><RefreshCw className="w-6 h-6 text-primary animate-spin" /></div>
+                                        ) : planRoutines.length === 0 ? (
                                             <div className="text-center text-slate-500 py-8 text-xs font-semibold border border-dashed border-slate-200 rounded-xl">
                                                 Plano de trabalho ainda não cadastrado para este posto.
                                             </div>
@@ -2629,7 +2658,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
-                                                        {posto.routines.map((routine: any) => (
+                                                        {planRoutines.map((routine: any) => (
                                                             <TableRow key={routine.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors">
                                                                 <TableCell className="font-bold text-xs text-slate-800">{routine.startTime}</TableCell>
                                                                 <TableCell className="text-slate-500 text-xs font-semibold">{routine.duration || "-"}</TableCell>
@@ -2647,8 +2676,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                             </div>
                                         )}
                                     </Card>
-                                ))
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
 
