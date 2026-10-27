@@ -17,6 +17,7 @@ function calculateAtingimentoVal(realVal: number | null, ranges: any[]): number 
 }
 
 
+import { getBillingDayRows, getPostoDays, isUncoveredAbsence } from "@/lib/posto-days";
 import { prisma } from "@/lib/db";
 import { generateRoster } from "@/lib/scheduling";
 import { revalidatePath } from "next/cache";
@@ -319,37 +320,31 @@ export async function getClientMonthlyReport(month: number, year: number) {
     const clientIds = user.clientIds || [];
     if (clientIds.length === 0) return [];
     
-    const startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
+    // Mesma regra da Presença Diária: inclui postos descobertos (faltas derivadas da escala, sem lançamento)
+    const contractStart = await (await import("@/lib/contract-start")).getContractStart(clientIds);
+    const dayRows = await getPostoDays(
+        clientIds,
+        new Date(Date.UTC(year, month, 1)),
+        new Date(Date.UTC(year, month + 1, 0)),
+        { notBefore: contractStart.date }
+    );
 
-    const attendances = await prisma.attendance.findMany({
-        where: {
-            posto: { clientId: { in: clientIds } },
-            date: { gte: startDate, lte: endDate }
-        },
-        include: {
-            posto: {
-                include: { role: true, client: true }
-            },
-            employee: true,
-            coveredBy: true
-        },
-        orderBy: { date: 'desc' }
-    });
-
-    return attendances.map(a => ({
-        id: a.id,
-        date: a.date.toISOString(),
-        postoId: a.postoId,
-        clientName: a.posto.client.name,
-        roleName: a.posto.role.name,
-        employeeName: a.employee?.name || "Vaga em Aberto",
-        status: a.status,
-        clockInTime: a.clockInTime ? a.clockInTime.toISOString() : null,
-        coveredByName: a.coveredBy?.name || null,
-        coverageType: a.coverageType,
-        notes: a.notes,
-        billingValue: a.posto.billingValue
+    return dayRows
+        .filter(r => !(r.virtual && (r.status === "FOLGA" || r.status === "AGUARDANDO")))
+        .sort((x, y) => y.dateKey.localeCompare(x.dateKey) || x.roleName.localeCompare(y.roleName) || x.employeeName.localeCompare(y.employeeName))
+        .map(r => ({
+            id: r.id,
+            date: r.date.toISOString(),
+            postoId: r.postoId,
+            clientName: r.clientName,
+            roleName: r.roleName,
+            employeeName: r.employeeName,
+            status: r.status,
+            clockInTime: r.clockInTime ? r.clockInTime.toISOString() : null,
+            coveredByName: r.coveredByName,
+            coverageType: r.coverageType,
+            notes: r.notes,
+            billingValue: r.billingValue
     }));
 }
 
@@ -3222,24 +3217,9 @@ export async function getAdminClientBilling(clientId: string, year: number) {
 
         const expectedMonthlyBilling = postos.reduce((sum: number, p: any) => sum + p.billingValue, 0);
 
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                posto: { clientId: { in: clientIds } },
-                date: { gte: startDate, lte: endDate }
-            },
-            include: {
-                posto: true
-            }
-        });
+        // Mesma regra da Presença Diária: faltas sem lançamento (derivadas da escala) também contam
+        const { rows: attendances, abono: abonoIds, contractStart } = await getBillingDayRows(clientIds, year);
 
-        const abonoIds = new Set(
-            (await prisma.billingGlosaDecision.findMany({
-                where: { attendanceId: { in: attendances.map((a: any) => a.id) }, decision: "ABONO" },
-                select: { attendanceId: true },
-            })).map(d => d.attendanceId)
-        );
-
-        const contractStart = await (await import("@/lib/contract-start")).getContractStart(clientIds);
         const { applyContractStart } = await import("@/lib/contract-start");
 
         const monthNames = [
@@ -3255,8 +3235,8 @@ export async function getAdminClientBilling(clientId: string, year: number) {
 
             let glosas = 0;
             monthAtts.forEach((a: any) => {
-                if (a.status === "FALTA" && !a.coveredById && !a.coverageType && !abonoIds.has(a.id)) {
-                    const dailyValue = a.posto.billingValue / 30;
+                if (isUncoveredAbsence(a) && !abonoIds.has(`${a.postoId}:${a.dateKey}`)) {
+                    const dailyValue = a.billingValue / 30;
                     glosas += dailyValue;
                 }
             });
@@ -3265,7 +3245,7 @@ export async function getAdminClientBilling(clientId: string, year: number) {
 
             const activeShifts = monthAtts.filter((a: any) => a.status !== "FOLGA");
             const totalShifts = activeShifts.length;
-            const vacantShifts = activeShifts.filter((a: any) => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            const vacantShifts = activeShifts.filter((a: any) => isUncoveredAbsence(a)).length;
             
             const effectiveness = totalShifts > 0 
                 ? ((totalShifts - vacantShifts) / totalShifts) * 100 

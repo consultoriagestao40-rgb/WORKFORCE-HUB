@@ -1646,7 +1646,9 @@ model BillingMeasurementAttachment {
 // Decisão sobre falta não coberta: GLOSA (padrão, desconta do faturamento) ou ABONO (não desconta, exige justificativa)
 model BillingGlosaDecision {
   id            String   @id @default(uuid())
-  attendanceId  String   @unique
+  attendanceId  String?  // quando existe lançamento de presença
+  postoId       String?  // chave principal da decisão (posto + dia), vale também para faltas derivadas da escala
+  dateKey       String?  // YYYY-MM-DD
   clientId      String
   decision      String   // GLOSA | ABONO
   reason        String?
@@ -1654,6 +1656,7 @@ model BillingGlosaDecision {
   decidedByName String?
   decidedAt     DateTime @default(now())
 
+  @@unique([postoId, dateKey])
   @@index([clientId])
 }
 

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
  * Mês de início do contrato (chave ano*12+mês): primeira presença/apontamento lançado
  * nos postos do cliente; se ainda não houver, a data de cadastro do cliente.
  */
-export async function getContractStart(clientIds: string[]): Promise<{ key: number; year: number; month: number }> {
+export async function getContractStart(clientIds: string[]): Promise<{ key: number; year: number; month: number; date: Date }> {
     const first = await prisma.attendance.findFirst({
         where: { posto: { clientId: { in: clientIds } } },
         orderBy: { date: "asc" },
@@ -21,7 +21,7 @@ export async function getContractStart(clientIds: string[]): Promise<{ key: numb
     }
     const year = d.getUTCFullYear();
     const month = d.getUTCMonth();
-    return { key: year * 12 + month, year, month };
+    return { key: year * 12 + month, year, month, date: new Date(Date.UTC(year, month, d.getUTCDate())) };
 }
 
 /** Soma dos itens extras APROVADOS pelo cliente, por mês (0-11) do ano. */

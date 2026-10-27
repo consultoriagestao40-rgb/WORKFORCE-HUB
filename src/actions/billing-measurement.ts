@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { getPostoDays, isUncoveredAbsence } from "@/lib/posto-days";
+import { getContractStart } from "@/lib/contract-start";
 
 const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4 MB por arquivo (base64 no banco)
 const MAX_FILES = 5;
@@ -19,10 +21,6 @@ async function checkAccess(clientId: string): Promise<Access> {
         return { ok: true, user, side: "CLIENT" };
     }
     return { ok: true, user, side: "INTERNAL" };
-}
-
-function isUncoveredAbsence(a: { status: string; coveredById: string | null; coverageType: string | null }) {
-    return a.status === "FALTA" && !a.coveredById && !a.coverageType;
 }
 
 /** Situação de cada mês do ano (para os selos da tabela de faturamento). */
@@ -53,16 +51,10 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             orderBy: { createdAt: "asc" },
         });
 
-        const [attendances, measurement] = await Promise.all([
-            prisma.attendance.findMany({
-                where: { posto: { clientId }, date: { gte: start, lte: end } },
-                include: {
-                    posto: { include: { role: { select: { name: true } }, client: { select: { name: true } } } },
-                    employee: { select: { name: true } },
-                    coveredBy: { select: { name: true } },
-                },
-                orderBy: [{ date: "desc" }],
-            }),
+        const contractStart = await getContractStart([clientId]);
+        const [dayRows, measurement, decisions] = await Promise.all([
+            // Mesma regra da Presença Diária: inclui faltas derivadas da escala (sem lançamento)
+            getPostoDays([clientId], start, new Date(Date.UTC(year, month + 1, 0)), { notBefore: contractStart.date }),
             prisma.billingMeasurement.findUnique({
                 where: { clientId_year_month: { clientId, year, month } },
                 include: {
@@ -72,31 +64,42 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                     },
                 },
             }),
+            prisma.billingGlosaDecision.findMany({
+                where: { clientId, dateKey: { gte: start.toISOString().slice(0, 10), lte: end.toISOString().slice(0, 10) } },
+            }),
         ]);
+        const decisionMap = new Map(decisions.map(d => [`${d.postoId}:${d.dateKey}`, d]));
 
-        const decisions = await prisma.billingGlosaDecision.findMany({
-            where: { attendanceId: { in: attendances.map(a => a.id) } },
-        });
-        const decisionMap = new Map(decisions.map(d => [d.attendanceId, d]));
-
-        const rows = attendances.map(a => ({
-            id: a.id,
-            date: a.date.toISOString(),
-            clientName: a.posto.client?.name || "-",
-            roleName: a.posto.role?.name || "-",
-            employeeName: a.employee?.name || "Vaga em aberto",
-            status: a.status,
-            coveredByName: a.coveredBy?.name || null,
-            coverageType: a.coverageType,
-            notes: a.notes,
-            uncovered: isUncoveredAbsence(a),
-            dailyValue: a.posto.billingValue / 30,
-            decision: isUncoveredAbsence(a) ? (decisionMap.get(a.id)?.decision || "GLOSA") : null,
-            decisionReason: decisionMap.get(a.id)?.reason || null,
-            decidedByName: decisionMap.get(a.id)?.decidedByName || null,
-            decidedAt: decisionMap.get(a.id)?.decidedAt?.toISOString() || null,
-            glosa: isUncoveredAbsence(a) && (decisionMap.get(a.id)?.decision || "GLOSA") !== "ABONO" ? a.posto.billingValue / 30 : 0,
-        }));
+        // Linhas derivadas de FOLGA/AGUARDANDO não entram na listagem (ruído); faltas derivadas entram
+        const rows = dayRows
+            .filter(r => !(r.virtual && (r.status === "FOLGA" || r.status === "AGUARDANDO")))
+            .sort((x, y) => y.dateKey.localeCompare(x.dateKey) || x.roleName.localeCompare(y.roleName) || x.employeeName.localeCompare(y.employeeName))
+            .map(r => {
+                const unc = isUncoveredAbsence(r);
+                const dec = decisionMap.get(`${r.postoId}:${r.dateKey}`);
+                const decision = unc ? (dec?.decision || "GLOSA") : null;
+                return {
+                    id: r.id,
+                    postoId: r.postoId,
+                    dateKey: r.dateKey,
+                    virtual: r.virtual,
+                    date: r.date.toISOString(),
+                    clientName: r.clientName,
+                    roleName: r.roleName,
+                    employeeName: r.employeeName,
+                    status: r.status,
+                    coveredByName: r.coveredByName,
+                    coverageType: r.coverageType,
+                    notes: r.notes,
+                    uncovered: unc,
+                    dailyValue: r.billingValue / 30,
+                    decision,
+                    decisionReason: dec?.reason || null,
+                    decidedByName: dec?.decidedByName || null,
+                    decidedAt: dec?.decidedAt?.toISOString() || null,
+                    glosa: unc && decision !== "ABONO" ? r.billingValue / 30 : 0,
+                };
+            });
 
         const active = rows.filter(r => r.status !== "FOLGA");
         const glosaRows = rows.filter(r => r.uncovered); // faltas sem cobertura (glosadas ou abonadas)
@@ -120,7 +123,7 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                 net: Math.max(0, expected - glosaTotal) + extraItems.filter(i => i.status === "APPROVED").reduce((a, i) => a + i.total, 0),
                 shifts: active.length,
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
-                coveredAbsences: rows.filter(r => r.status === "FALTA" && (r.coveredByName || r.coverageType)).length,
+                coveredAbsences: rows.filter(r => r.status === "FALTA" && !r.uncovered).length,
                 uncoveredAbsences: glosaRows.length,
                 effectiveness: active.length > 0 ? ((active.length - glosaRows.length) / active.length) * 100 : 100,
             },
@@ -283,8 +286,8 @@ export async function getMeasurementAttachment(attachmentId: string) {
     }
 }
 
-/** Decisão do gestor sobre uma falta sem cobertura: glosar (padrão) ou abonar (exige justificativa). */
-export async function setGlosaDecision(input: { attendanceId: string; decision: "GLOSA" | "ABONO"; reason?: string }) {
+/** Decisão do gestor sobre uma falta sem cobertura (posto + dia): glosar (padrão) ou abonar (exige justificativa). */
+export async function setGlosaDecision(input: { postoId: string; dateKey: string; decision: "GLOSA" | "ABONO"; reason?: string }) {
     try {
         const user = await getCurrentUser();
         if (!user) return { success: false as const, error: "Não autorizado." };
@@ -292,27 +295,27 @@ export async function setGlosaDecision(input: { attendanceId: string; decision: 
 
         const reason = (input.reason || "").trim();
         if (input.decision === "ABONO" && !reason) return { success: false as const, error: "Informe a justificativa do abono." };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(input.dateKey)) return { success: false as const, error: "Data inválida." };
 
-        const att = await prisma.attendance.findUnique({
-            where: { id: input.attendanceId },
-            include: { posto: { select: { clientId: true } } },
-        });
-        if (!att) return { success: false as const, error: "Lançamento não encontrado." };
-        if (!isUncoveredAbsence(att)) return { success: false as const, error: "Só é possível decidir sobre falta sem cobertura." };
+        const posto = await prisma.posto.findUnique({ where: { id: input.postoId }, select: { clientId: true } });
+        if (!posto) return { success: false as const, error: "Posto não encontrado." };
 
-        const clientId = att.posto.clientId;
-        const d = att.date;
+        const clientId = posto.clientId;
+        const d = new Date(input.dateKey + "T00:00:00Z");
+        const year = d.getUTCFullYear();
+        const month = d.getUTCMonth();
+
         const measurement = await prisma.billingMeasurement.findUnique({
-            where: { clientId_year_month: { clientId, year: d.getUTCFullYear(), month: d.getUTCMonth() } },
+            where: { clientId_year_month: { clientId, year, month } },
             select: { id: true, status: true },
         });
         if (measurement?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada pelo cliente." };
 
         await prisma.$transaction(async tx => {
             await tx.billingGlosaDecision.upsert({
-                where: { attendanceId: input.attendanceId },
+                where: { postoId_dateKey: { postoId: input.postoId, dateKey: input.dateKey } },
                 create: {
-                    attendanceId: input.attendanceId, clientId, decision: input.decision, reason: reason || null,
+                    postoId: input.postoId, dateKey: input.dateKey, clientId, decision: input.decision, reason: reason || null,
                     decidedById: user.id, decidedByName: user.name || null,
                 },
                 update: {
@@ -323,7 +326,7 @@ export async function setGlosaDecision(input: { attendanceId: string; decision: 
 
             // Registra no histórico da medição para o cliente acompanhar
             const m = measurement || await tx.billingMeasurement.create({
-                data: { clientId, year: d.getUTCFullYear(), month: d.getUTCMonth(), status: "PENDING" },
+                data: { clientId, year, month, status: "PENDING" },
                 select: { id: true, status: true },
             });
             await tx.billingMeasurementEvent.create({

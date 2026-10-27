@@ -167,10 +167,10 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
         }
     };
 
-    const decide = async (attendanceId: string, decision: "GLOSA" | "ABONO") => {
+    const decide = async (r: any, decision: "GLOSA" | "ABONO") => {
         setDeciding(true);
         try {
-            const res = await setGlosaDecision({ attendanceId, decision, reason: decision === "ABONO" ? abonoReason : undefined });
+            const res = await setGlosaDecision({ postoId: r.postoId, dateKey: r.dateKey, decision, reason: decision === "ABONO" ? abonoReason : undefined });
             if (res.success) {
                 toast.success(decision === "ABONO" ? "Falta abonada. O valor não será glosado." : "Falta glosada.");
                 setAbonoTarget(null);
@@ -328,7 +328,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                         <TableCell className="text-xs font-semibold text-slate-700">
                                             {r.status !== "FALTA" ? "-" : r.coveredByName ? r.coveredByName : r.coverageType === "DIARISTA" ? "Diarista" : <span className="text-red-600 font-bold">Sem cobertura</span>}
                                         </TableCell>
-                                        <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
+                                        <TableCell className="text-xs text-slate-500">{r.notes || (r.virtual && r.status === "FALTA" ? <span className="italic text-red-500">Posto descoberto, sem aviso de cobertura</span> : "-")}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -385,7 +385,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                             <TableCell className="text-right pr-4">
                                                 <div className="flex justify-end gap-1.5">
                                                     {r.decision === "ABONO" ? (
-                                                        <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => decide(r.id, "GLOSA")}>Glosar</Button>
+                                                        <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => decide(r, "GLOSA")}>Glosar</Button>
                                                     ) : (
                                                         <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => { setAbonoTarget(abonoTarget === r.id ? null : r.id); setAbonoReason(""); }}>Abonar</Button>
                                                     )}
@@ -404,7 +404,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                                         className="min-h-[56px] text-xs bg-white"
                                                     />
                                                     <div className="flex sm:flex-col gap-2 shrink-0">
-                                                        <Button size="sm" disabled={deciding} className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => decide(r.id, "ABONO")}>Confirmar abono</Button>
+                                                        <Button size="sm" disabled={deciding} className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => decide(r, "ABONO")}>Confirmar abono</Button>
                                                         <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAbonoTarget(null)}>Cancelar</Button>
                                                     </div>
                                                 </div>

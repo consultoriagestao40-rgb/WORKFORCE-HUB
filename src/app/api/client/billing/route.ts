@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getContractStart, applyContractStart, getApprovedExtrasByMonth } from "@/lib/contract-start";
+import { applyContractStart, getApprovedExtrasByMonth } from "@/lib/contract-start";
+import { getBillingDayRows, isUncoveredAbsence } from "@/lib/posto-days";
 
 export const dynamic = "force-dynamic";
 
@@ -33,25 +34,8 @@ export async function GET(request: Request) {
 
         const expectedMonthlyBilling = postos.reduce((sum, p) => sum + p.billingValue, 0);
 
-        // Buscar todas as presenças do ano
-        const attendances = await prisma.attendance.findMany({
-            where: {
-                posto: { clientId: { in: clientIds } },
-                date: { gte: startDate, lte: endDate }
-            },
-            include: {
-                posto: true
-            }
-        });
-
-        const abonoIds = new Set(
-            (await prisma.billingGlosaDecision.findMany({
-                where: { attendanceId: { in: attendances.map((a: any) => a.id) }, decision: "ABONO" },
-                select: { attendanceId: true },
-            })).map(d => d.attendanceId)
-        );
-
-        const contractStart = await getContractStart(clientIds);
+        // Mesma regra da Presença Diária: faltas sem lançamento (derivadas da escala) também contam
+        const { rows: attendances, abono: abonoIds, contractStart } = await getBillingDayRows(clientIds, targetYear);
 
         const monthNames = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -68,8 +52,8 @@ export async function GET(request: Request) {
             // Calcular glosas: Faltas sem cobertura
             let glosas = 0;
             monthAtts.forEach(a => {
-                if (a.status === "FALTA" && !a.coveredById && !a.coverageType && !abonoIds.has(a.id)) {
-                    const dailyValue = a.posto.billingValue / 30;
+                if (isUncoveredAbsence(a) && !abonoIds.has(`${a.postoId}:${a.dateKey}`)) {
+                    const dailyValue = a.billingValue / 30;
                     glosas += dailyValue;
                 }
             });
@@ -79,7 +63,7 @@ export async function GET(request: Request) {
             // Calcular efetividade operacional do mês
             const activeShifts = monthAtts.filter(a => a.status !== "FOLGA");
             const totalShifts = activeShifts.length;
-            const vacantShifts = activeShifts.filter(a => a.status === "FALTA" && !a.coveredById && !a.coverageType).length;
+            const vacantShifts = activeShifts.filter(a => isUncoveredAbsence(a)).length;
             
             const effectiveness = totalShifts > 0 
                 ? ((totalShifts - vacantShifts) / totalShifts) * 100 
