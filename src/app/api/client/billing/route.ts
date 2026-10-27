@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getContractStart, applyContractStart } from "@/lib/contract-start";
+import { getContractStart, applyContractStart, getApprovedExtrasByMonth } from "@/lib/contract-start";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +101,7 @@ export async function GET(request: Request) {
             success: true,
             year: targetYear,
             contractStart: { year: contractStart.year, month: contractStart.month },
-            months: applyContractStart(monthsData, targetYear, contractStart.key)
+            months: applyContractStart(monthsData, targetYear, contractStart.key, await getApprovedExtrasByMonth(clientIds, targetYear))
         });
     } catch (error: any) {
         console.error("Error fetching client billing:", error);

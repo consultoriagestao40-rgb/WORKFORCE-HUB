@@ -48,6 +48,11 @@ export async function getMeasurementDetail(clientId: string, year: number, month
         const start = new Date(Date.UTC(year, month, 1, 0, 0, 0));
         const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));
 
+        const extraItems = await prisma.billingExtraItem.findMany({
+            where: { clientId, year, month },
+            orderBy: { createdAt: "asc" },
+        });
+
         const [attendances, measurement] = await Promise.all([
             prisma.attendance.findMany({
                 where: { posto: { clientId }, date: { gte: start, lte: end } },
@@ -109,7 +114,10 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                 glosaTotal,
                 abonoTotal,
                 abonoCount: glosaRows.filter(r => r.decision === "ABONO").length,
-                net: Math.max(0, expected - glosaTotal),
+                extrasApproved: extraItems.filter(i => i.status === "APPROVED").reduce((a, i) => a + i.total, 0),
+                extrasPending: extraItems.filter(i => i.status === "PENDING").reduce((a, i) => a + i.total, 0),
+                extrasPendingCount: extraItems.filter(i => i.status === "PENDING").length,
+                net: Math.max(0, expected - glosaTotal) + extraItems.filter(i => i.status === "APPROVED").reduce((a, i) => a + i.total, 0),
                 shifts: active.length,
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
                 coveredAbsences: rows.filter(r => r.status === "FALTA" && (r.coveredByName || r.coverageType)).length,
@@ -118,6 +126,11 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             },
             rows,
             glosaRows,
+            extras: extraItems.map(i => ({
+                id: i.id, type: i.type, description: i.description, requestedBy: i.requestedBy, referenceDate: i.referenceDate,
+                quantity: i.quantity, unitValue: i.unitValue, total: i.total, status: i.status, decisionNote: i.decisionNote,
+                createdByName: i.createdByName, decidedByName: i.decidedByName, decidedAt: i.decidedAt?.toISOString() || null,
+            })),
             measurement: measurement
                 ? {
                       id: measurement.id,
@@ -190,6 +203,11 @@ export async function postMeasurementEvent(input: {
         const existing = await prisma.billingMeasurement.findUnique({ where });
         if (existing?.status === "APPROVED") {
             return { success: false as const, error: "Esta medição já foi aprovada pelo cliente." };
+        }
+
+        if (input.type === "APPROVAL") {
+            const pending = await prisma.billingExtraItem.count({ where: { clientId: input.clientId, year: input.year, month: input.month, status: "PENDING" } });
+            if (pending > 0) return { success: false as const, error: `Há ${pending} item(ns) extra(s) pendente(s) de decisão. Aprove ou recuse cada um antes de aprovar a medição.` };
         }
 
         let nextStatus = existing?.status || "PENDING";
@@ -325,6 +343,125 @@ export async function setGlosaDecision(input: { attendanceId: string; decision: 
         return { success: true as const };
     } catch (error) {
         console.error("Erro ao registrar decisão de glosa:", error);
+        return { success: false as const, error: "Erro ao registrar a decisão." };
+    }
+}
+
+async function logExtraEvent(clientId: string, year: number, month: number, side: "CLIENT" | "INTERNAL", user: { id: string; name?: string | null }, message: string) {
+    const m = await prisma.billingMeasurement.upsert({
+        where: { clientId_year_month: { clientId, year, month } },
+        create: { clientId, year, month, status: "PENDING" },
+        update: {},
+        select: { id: true },
+    });
+    await prisma.billingMeasurementEvent.create({
+        data: {
+            measurementId: m.id, type: "COMMENT", side, authorId: user.id,
+            authorName: user.name || (side === "CLIENT" ? "Cliente" : "Equipe interna"), message,
+        },
+    });
+}
+
+const brlFmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Gestor lança serviço extra / horas extras para aprovação do cliente. */
+export async function addExtraItem(input: {
+    clientId: string; year: number; month: number;
+    type: "SERVICO_EXTRA" | "HORA_EXTRA";
+    description: string; requestedBy?: string; referenceDate?: string;
+    quantity: number; unitValue: number;
+}) {
+    try {
+        const access = await checkAccess(input.clientId);
+        if (!access.ok) return { success: false as const, error: access.error };
+        if (access.side !== "INTERNAL") return { success: false as const, error: "Somente a equipe interna lança itens extras." };
+
+        const description = (input.description || "").trim();
+        if (!description) return { success: false as const, error: "Informe a descrição do item." };
+        if (!(input.quantity > 0)) return { success: false as const, error: "A quantidade deve ser maior que zero." };
+        if (!(input.unitValue > 0)) return { success: false as const, error: "Informe o valor unitário." };
+
+        const m = await prisma.billingMeasurement.findUnique({
+            where: { clientId_year_month: { clientId: input.clientId, year: input.year, month: input.month } },
+            select: { status: true },
+        });
+        if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada pelo cliente." };
+
+        const total = Math.round(input.quantity * input.unitValue * 100) / 100;
+        await prisma.billingExtraItem.create({
+            data: {
+                clientId: input.clientId, year: input.year, month: input.month, type: input.type, description,
+                requestedBy: (input.requestedBy || "").trim() || null, referenceDate: input.referenceDate || null,
+                quantity: input.quantity, unitValue: input.unitValue, total,
+                createdById: access.user.id, createdByName: access.user.name || null,
+            },
+        });
+        await logExtraEvent(input.clientId, input.year, input.month, "INTERNAL", access.user,
+            `Lançado ${input.type === "HORA_EXTRA" ? "horas extras" : "serviço extra"}: ${description} (${input.quantity} x ${brlFmt(input.unitValue)} = ${brlFmt(total)}). Aguardando aprovação do cliente.`);
+
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const };
+    } catch (error) {
+        console.error("Erro ao lançar item extra:", error);
+        return { success: false as const, error: "Erro ao lançar o item extra." };
+    }
+}
+
+export async function deleteExtraItem(id: string) {
+    try {
+        const item = await prisma.billingExtraItem.findUnique({ where: { id } });
+        if (!item) return { success: false as const, error: "Item não encontrado." };
+        const access = await checkAccess(item.clientId);
+        if (!access.ok) return { success: false as const, error: access.error };
+        if (access.side !== "INTERNAL") return { success: false as const, error: "Somente a equipe interna remove itens extras." };
+        if (item.status === "APPROVED") return { success: false as const, error: "Item já aprovado pelo cliente não pode ser removido." };
+
+        await prisma.billingExtraItem.delete({ where: { id } });
+        await logExtraEvent(item.clientId, item.year, item.month, "INTERNAL", access.user, `Removido item extra: ${item.description} (${brlFmt(item.total)}).`);
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const };
+    } catch (error) {
+        console.error("Erro ao remover item extra:", error);
+        return { success: false as const, error: "Erro ao remover o item extra." };
+    }
+}
+
+/** Cliente aprova ou recusa (com motivo) um item extra. */
+export async function decideExtraItem(input: { id: string; decision: "APPROVE" | "REJECT"; note?: string }) {
+    try {
+        const item = await prisma.billingExtraItem.findUnique({ where: { id: input.id } });
+        if (!item) return { success: false as const, error: "Item não encontrado." };
+        const access = await checkAccess(item.clientId);
+        if (!access.ok) return { success: false as const, error: access.error };
+        if (access.side !== "CLIENT") return { success: false as const, error: "Somente o cliente aprova ou recusa os itens extras." };
+
+        const note = (input.note || "").trim();
+        if (input.decision === "REJECT" && !note) return { success: false as const, error: "Informe o motivo da recusa." };
+
+        const m = await prisma.billingMeasurement.findUnique({
+            where: { clientId_year_month: { clientId: item.clientId, year: item.year, month: item.month } },
+            select: { status: true },
+        });
+        if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada." };
+
+        await prisma.billingExtraItem.update({
+            where: { id: input.id },
+            data: {
+                status: input.decision === "APPROVE" ? "APPROVED" : "REJECTED",
+                decisionNote: note || null,
+                decidedById: access.user.id, decidedByName: access.user.name || null, decidedAt: new Date(),
+            },
+        });
+        await logExtraEvent(item.clientId, item.year, item.month, "CLIENT", access.user,
+            `${input.decision === "APPROVE" ? "Aprovou" : "Recusou"} o item extra "${item.description}" (${brlFmt(item.total)})${note ? `: ${note}` : "."}`);
+
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const };
+    } catch (error) {
+        console.error("Erro ao decidir item extra:", error);
         return { success: false as const, error: "Erro ao registrar a decisão." };
     }
 }

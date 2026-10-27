@@ -1752,6 +1752,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         </TableCell>
                                                         <TableCell className="text-right pr-6 font-bold text-xs text-emerald-650">
                                                             {m.netBilling.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                                            {m.extras > 0 && <div className="text-[10px] font-semibold text-indigo-600">inclui {m.extras.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em extras</div>}
                                                         </TableCell>
                                                         <TableCell className="text-center">
                                                             <Badge className={`${
@@ -2685,8 +2686,8 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             </div>
         {/* Modal da Medição Mensal (relatório, glosas, análise e aprovação) */}
         <Dialog open={expandedBillingMonth !== null} onOpenChange={(open) => { if (!open) setExpandedBillingMonth(null); }}>
-            <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] overflow-y-auto p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
-                <DialogHeader className="px-6 pt-6 pb-0">
+            <DialogContent className="w-[96vw] sm:max-w-6xl h-[92vh] max-h-[92vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                <DialogHeader className="px-6 pt-5 pb-3 shrink-0">
                     <DialogTitle className="text-md font-bold text-slate-800">Aprovação de Medição</DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">Analise o relatório do mês e aprove ou solicite revisão.</DialogDescription>
                 </DialogHeader>

@@ -3287,7 +3287,7 @@ export async function getAdminClientBilling(clientId: string, year: number) {
             success: true,
             year,
             contractStart: { year: contractStart.year, month: contractStart.month },
-            months: applyContractStart(monthsData, year, contractStart.key)
+            months: applyContractStart(monthsData, year, contractStart.key, await (await import("@/lib/contract-start")).getApprovedExtrasByMonth(clientIds, year))
         };
 
     } catch (e) {

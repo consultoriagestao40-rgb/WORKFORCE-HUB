@@ -3670,8 +3670,8 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </Button>
                                     </div>
                                     <Dialog open={measurementOpen} onOpenChange={setMeasurementOpen}>
-                                        <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[92vh] overflow-y-auto p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
-                                            <DialogHeader className="px-6 pt-6 pb-0">
+                                        <DialogContent className="w-[96vw] sm:max-w-6xl h-[92vh] max-h-[92vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                                            <DialogHeader className="px-6 pt-5 pb-3 shrink-0">
                                                 <DialogTitle className="text-md font-bold text-slate-800">Medição Mensal</DialogTitle>
                                                 <DialogDescription className="text-xs text-slate-500">Relatório do mês, glosas/abonos, análise do cliente e respostas.</DialogDescription>
                                             </DialogHeader>

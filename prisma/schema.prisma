@@ -1656,3 +1656,29 @@ model BillingGlosaDecision {
 
   @@index([clientId])
 }
+
+// Itens extras da medição (serviços extras / horas extras): lançados pelo gestor e aprovados pelo cliente
+model BillingExtraItem {
+  id            String   @id @default(uuid())
+  clientId      String
+  year          Int
+  month         Int      // 0-11
+  type          String   // SERVICO_EXTRA | HORA_EXTRA
+  description   String
+  requestedBy   String?  // quem solicitou (contato do cliente)
+  referenceDate String?  // YYYY-MM-DD
+  quantity      Float    @default(1)
+  unitValue     Float    @default(0)
+  total         Float    @default(0)
+  status        String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  decisionNote  String?
+  createdById   String?
+  createdByName String?
+  decidedById   String?
+  decidedByName String?
+  decidedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([clientId, year, month])
+}

@@ -4,17 +4,21 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
     CheckCircle2, AlertTriangle, Paperclip, Send, MessageSquare, Download,
-    X, FileText, RefreshCw, Undo2, ShieldCheck, Building2,
+    X, FileText, RefreshCw, Undo2, ShieldCheck, Building2, Plus, Trash2, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
     getMeasurementDetail,
     postMeasurementEvent,
     getMeasurementAttachment,
     setGlosaDecision,
+    addExtraItem,
+    deleteExtraItem,
+    decideExtraItem,
     type MeasurementFileInput,
 } from "@/actions/billing-measurement";
 
@@ -74,13 +78,58 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     const fileInput = useRef<HTMLInputElement>(null);
     const [abonoTarget, setAbonoTarget] = useState<string | null>(null);
     const [abonoReason, setAbonoReason] = useState("");
+    const [tab, setTab] = useState("presence");
     const [deciding, setDeciding] = useState(false);
+    const [showExtraForm, setShowExtraForm] = useState(false);
+    const [extraForm, setExtraForm] = useState({ type: "HORA_EXTRA" as "HORA_EXTRA" | "SERVICO_EXTRA", description: "", requestedBy: "", referenceDate: "", quantity: "", unitValue: "" });
+    const [rejectExtraId, setRejectExtraId] = useState<string | null>(null);
+    const [rejectExtraNote, setRejectExtraNote] = useState("");
+
+    const saveExtra = async () => {
+        setDeciding(true);
+        try {
+            const res = await addExtraItem({
+                clientId, year, month, type: extraForm.type, description: extraForm.description,
+                requestedBy: extraForm.requestedBy, referenceDate: extraForm.referenceDate || undefined,
+                quantity: Number(String(extraForm.quantity).replace(",", ".")), unitValue: Number(String(extraForm.unitValue).replace(",", ".")),
+            });
+            if (res.success) {
+                toast.success("Item lançado. O cliente verá na tela dele para aprovação.");
+                setExtraForm({ type: extraForm.type, description: "", requestedBy: "", referenceDate: "", quantity: "", unitValue: "" });
+                setShowExtraForm(false);
+                await load();
+                onChanged?.();
+            } else toast.error(res.error || "Não foi possível lançar o item.");
+        } finally { setDeciding(false); }
+    };
+
+    const removeExtra = async (id: string) => {
+        if (!confirm("Remover este item extra?")) return;
+        const res = await deleteExtraItem(id);
+        if (res.success) { toast.success("Item removido."); await load(); onChanged?.(); }
+        else toast.error(res.error || "Não foi possível remover.");
+    };
+
+    const decideExtra = async (id: string, decision: "APPROVE" | "REJECT") => {
+        setDeciding(true);
+        try {
+            const res = await decideExtraItem({ id, decision, note: decision === "REJECT" ? rejectExtraNote : undefined });
+            if (res.success) {
+                toast.success(decision === "APPROVE" ? "Item aprovado." : "Item recusado.");
+                setRejectExtraId(null); setRejectExtraNote("");
+                await load(); onChanged?.();
+            } else toast.error(res.error || "Não foi possível registrar.");
+        } finally { setDeciding(false); }
+    };
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const res = await getMeasurementDetail(clientId, year, month);
-            if (res.success) setDetail(res);
+            if (res.success) {
+                setDetail(res);
+                if (res.side === "CLIENT" && res.summary.extrasPendingCount > 0) setTab(t => (t === "presence" ? "extras" : t));
+            }
             else toast.error(res.error || "Erro ao carregar a medição.");
         } catch {
             toast.error("Erro de conexão ao carregar a medição.");
@@ -184,7 +233,8 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     };
 
     return (
-        <div className="space-y-5 p-5 bg-slate-50/60 border-t border-slate-200/70">
+        <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 bg-slate-50/60 border-t border-slate-200/70">
+            <div className="px-6 pt-4 pb-3 space-y-3 shrink-0 bg-white border-b border-slate-100">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-0.5">
                     <h4 className="text-sm font-black text-slate-800">Medição de {MONTH_NAMES[month]}/{year}</h4>
@@ -201,10 +251,11 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
             </div>
 
             {/* Resumo financeiro */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                     { label: "Faturamento previsto", value: brl(s.expected), cls: "text-slate-800" },
                     { label: "Glosas", value: s.glosaTotal > 0 ? `-${brl(s.glosaTotal)}` : brl(0), cls: s.glosaTotal > 0 ? "text-red-600" : "text-slate-500" },
+                    { label: "Extras aprovados", value: brl(s.extrasApproved) + (s.extrasPending > 0 ? ` (+${brl(s.extrasPending)} pend.)` : ""), cls: "text-indigo-600" },
                     { label: "Líquido a faturar", value: brl(s.net), cls: "text-emerald-600" },
                 ].map(c => (
                     <div key={c.label} className="bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm">
@@ -214,6 +265,18 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 ))}
             </div>
 
+            </div>
+            <Tabs value={tab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0">
+                <div className="px-6 pt-3 shrink-0 overflow-x-auto">
+                    <TabsList className="bg-slate-200/60 p-1 rounded-xl h-auto">
+                        <TabsTrigger value="presence" className="text-xs font-bold px-3 py-1.5">Presenças ({detail.rows.length})</TabsTrigger>
+                        <TabsTrigger value="glosas" className="text-xs font-bold px-3 py-1.5">Glosas / Abonos ({detail.glosaRows.length})</TabsTrigger>
+                        <TabsTrigger value="extras" className="text-xs font-bold px-3 py-1.5">Extras ({detail.extras.length}){s.extrasPendingCount > 0 && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500" />}</TabsTrigger>
+                        <TabsTrigger value="history" className="text-xs font-bold px-3 py-1.5">Histórico ({m?.events?.length || 0})</TabsTrigger>
+                    </TabsList>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+                    <TabsContent value="presence" className="mt-0 space-y-4">
             {/* Relatório mensal de presenças (igual ao menu Relatório Mensal) */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 space-y-4">
                 <div>
@@ -241,9 +304,9 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 {!hasData ? (
                     <div className="py-8 text-center text-xs text-slate-400 italic font-semibold">Sem lançamentos de presença em {MONTH_NAMES[month]}/{year}.</div>
                 ) : (
-                    <div className="max-h-[560px] overflow-auto border border-slate-200/60 rounded-xl">
+                    <div className="overflow-x-auto border border-slate-200/60 rounded-xl">
                         <Table>
-                            <TableHeader className="bg-slate-50 sticky top-0">
+                            <TableHeader className="bg-slate-50">
                                 <TableRow>
                                     <TableHead className="text-xs font-bold text-slate-800">Data</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Unidade</TableHead>
@@ -274,6 +337,8 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 )}
             </div>
 
+                    </TabsContent>
+                    <TabsContent value="glosas" className="mt-0">
             {/* Faltas sem cobertura: glosar ou abonar */}
             <div className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-700">
@@ -360,6 +425,142 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 )}
             </div>
 
+                    </TabsContent>
+                    <TabsContent value="extras" className="mt-0">
+            {/* Serviços extras e horas extras (lançados pelo gestor, aprovados pelo cliente) */}
+            <div className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                    <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-indigo-600" /> Serviços extras e horas extras ({detail.extras.length})</span>
+                    {side === "INTERNAL" && !approved && (
+                        <Button size="sm" className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={() => setShowExtraForm(v => !v)}>
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Lançar item
+                        </Button>
+                    )}
+                </div>
+
+                {showExtraForm && side === "INTERNAL" && !approved && (
+                    <div className="p-4 border-b border-slate-100 bg-indigo-50/30 space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">Tipo</label>
+                                <select value={extraForm.type} onChange={e => setExtraForm(f => ({ ...f, type: e.target.value as any }))}
+                                    className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs font-semibold px-2">
+                                    <option value="HORA_EXTRA">Horas extras</option>
+                                    <option value="SERVICO_EXTRA">Serviço extra</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1 md:col-span-2">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">Descrição</label>
+                                <input value={extraForm.description} onChange={e => setExtraForm(f => ({ ...f, description: e.target.value }))}
+                                    placeholder="Ex.: Cobertura evento sábado - 4º andar" className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs px-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">Data de referência</label>
+                                <input type="date" value={extraForm.referenceDate} onChange={e => setExtraForm(f => ({ ...f, referenceDate: e.target.value }))}
+                                    className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs px-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">Solicitado por</label>
+                                <input value={extraForm.requestedBy} onChange={e => setExtraForm(f => ({ ...f, requestedBy: e.target.value }))}
+                                    placeholder="Contato do cliente" className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs px-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">{extraForm.type === "HORA_EXTRA" ? "Quantidade de horas" : "Quantidade"}</label>
+                                <input type="number" min="0" step="0.5" value={extraForm.quantity} onChange={e => setExtraForm(f => ({ ...f, quantity: e.target.value }))}
+                                    className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs px-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">{extraForm.type === "HORA_EXTRA" ? "Valor da hora (R$)" : "Valor unitário (R$)"}</label>
+                                <input type="number" min="0" step="0.01" value={extraForm.unitValue} onChange={e => setExtraForm(f => ({ ...f, unitValue: e.target.value }))}
+                                    className="w-full h-9 rounded-lg border border-slate-200 bg-white text-xs px-2" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] uppercase font-bold text-slate-500">Total</label>
+                                <div className="h-9 flex items-center text-sm font-black text-indigo-700">
+                                    {brl((Number(String(extraForm.quantity).replace(",", ".")) || 0) * (Number(String(extraForm.unitValue).replace(",", ".")) || 0))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowExtraForm(false)}>Cancelar</Button>
+                            <Button size="sm" disabled={deciding} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={saveExtra}>Lançar para aprovação do cliente</Button>
+                        </div>
+                    </div>
+                )}
+
+                {detail.extras.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400 italic font-semibold">Nenhum serviço ou hora extra lançado neste mês.</div>
+                ) : (
+                    <Table>
+                        <TableHeader className="bg-slate-50">
+                            <TableRow>
+                                <TableHead className="text-xs font-bold text-slate-800 pl-4">Tipo</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Descrição</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Data / Solicitante</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800 text-right">Qtd x Valor</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800 text-right">Total</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800 text-center">Situação</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800 text-right pr-4">Ação</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {detail.extras.map((x: any) => (
+                                <Fragment key={x.id}>
+                                    <TableRow>
+                                        <TableCell className="pl-4"><Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-50 font-bold">{x.type === "HORA_EXTRA" ? "Horas extras" : "Serviço extra"}</Badge></TableCell>
+                                        <TableCell className="text-xs font-semibold text-slate-800 max-w-[260px]">
+                                            {x.description}
+                                            {x.decisionNote && <div className="text-[10px] text-slate-500 italic mt-0.5">Cliente: {x.decisionNote}</div>}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-slate-600">
+                                            {x.referenceDate ? fmtDate(x.referenceDate) : "-"}
+                                            {x.requestedBy && <div className="text-[10px] text-slate-400">Solic.: {x.requestedBy}</div>}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-slate-600 text-right">{x.quantity} x {brl(x.unitValue)}</TableCell>
+                                        <TableCell className="text-xs font-black text-slate-800 text-right">{brl(x.total)}</TableCell>
+                                        <TableCell className="text-center">
+                                            {x.status === "APPROVED" ? <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-bold">Aprovado</Badge>
+                                                : x.status === "REJECTED" ? <Badge className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 font-bold">Recusado</Badge>
+                                                : <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-bold">Aguardando cliente</Badge>}
+                                        </TableCell>
+                                        <TableCell className="text-right pr-4">
+                                            <div className="flex justify-end gap-1.5">
+                                                {side === "CLIENT" && !approved && x.status !== "APPROVED" && (
+                                                    <>
+                                                        <Button size="sm" disabled={deciding} className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => decideExtra(x.id, "APPROVE")}>Aprovar</Button>
+                                                        {x.status !== "REJECTED" && (
+                                                            <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px] text-red-600" onClick={() => { setRejectExtraId(rejectExtraId === x.id ? null : x.id); setRejectExtraNote(""); }}>Recusar</Button>
+                                                        )}
+                                                    </>
+                                                )}
+                                                {side === "INTERNAL" && !approved && x.status !== "APPROVED" && (
+                                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50" title="Remover item" onClick={() => removeExtra(x.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                    {rejectExtraId === x.id && (
+                                        <TableRow className="bg-red-50/40">
+                                            <TableCell colSpan={7} className="px-4 py-3">
+                                                <div className="flex flex-col sm:flex-row gap-2">
+                                                    <Textarea value={rejectExtraNote} onChange={e => setRejectExtraNote(e.target.value)} placeholder="Motivo da recusa (obrigatório)" className="min-h-[56px] text-xs bg-white" />
+                                                    <div className="flex sm:flex-col gap-2 shrink-0">
+                                                        <Button size="sm" disabled={deciding} className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => decideExtra(x.id, "REJECT")}>Confirmar recusa</Button>
+                                                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setRejectExtraId(null)}>Cancelar</Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </Fragment>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+            </div>
+
+                    </TabsContent>
+                    <TabsContent value="history" className="mt-0">
             {/* Histórico */}
             <div className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -406,20 +607,25 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                     })}
                 </div>
 
-                {/* Composer */}
+            </div>
+                    </TabsContent>
+                </div>
+            </Tabs>
+            <div className="shrink-0 border-t border-slate-200 bg-white">
+                {/* Barra de ação (sempre visível) */}
                 {approved ? (
-                    <div className="px-4 py-3 border-t border-slate-100 bg-emerald-50/40 text-xs text-emerald-700 font-semibold flex items-center gap-2">
+                    <div className="px-6 py-3 bg-emerald-50 text-xs text-emerald-700 font-semibold flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4" /> Medição aprovada pelo cliente. O histórico está encerrado.
                     </div>
                 ) : (
-                    <div className="px-4 py-4 border-t border-slate-100 space-y-3 bg-slate-50/50">
+                    <div className="px-6 py-3 space-y-2">
                         <Textarea
                             value={message}
                             onChange={e => setMessage(e.target.value)}
                             placeholder={side === "CLIENT"
                                 ? "Descreva sua análise: o que está divergente? (obrigatório para solicitar revisão)"
                                 : "Escreva a resposta para o cliente sobre esta medição..."}
-                            className="min-h-[80px] text-xs bg-white"
+                            className="min-h-[56px] max-h-[96px] text-xs bg-white"
                         />
                         {files.length > 0 && (
                             <div className="flex flex-wrap gap-2">
