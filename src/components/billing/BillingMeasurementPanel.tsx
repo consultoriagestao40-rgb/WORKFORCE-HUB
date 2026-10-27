@@ -361,8 +361,8 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                     <Button size="sm" disabled={deciding} onClick={() => decideAll("GLOSA")} className="h-8 text-xs font-bold bg-red-600 hover:bg-red-700 text-white">
                                         Glosar todas ({s.glosaUnanswered})
                                     </Button>
-                                    <Button size="sm" disabled={deciding} onClick={() => decideAll("ABONO")} className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white">
-                                        Abonar todas ({s.glosaUnanswered})
+                                    <Button size="sm" disabled={deciding} onClick={() => decideAll("ABONO")} className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                                        Não glosar todas (abonar) ({s.glosaUnanswered})
                                     </Button>
                                 </>
                             )}
@@ -415,7 +415,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                             <TableCell className="text-right pr-4">
                                                 <div className="flex justify-end gap-1.5">
                                                     <Button size="sm" disabled={deciding || (r.clientStance && r.decision === "GLOSA")} className="h-7 text-[11px] bg-red-600 hover:bg-red-700 text-white" onClick={() => stance(r, "GLOSA")}>Glosar</Button>
-                                                    <Button size="sm" disabled={deciding || (r.clientStance && r.decision === "ABONO")} className="h-7 text-[11px] bg-blue-600 hover:bg-blue-700 text-white" onClick={() => stance(r, "ABONO")}>Abonar</Button>
+                                                    <Button size="sm" disabled={deciding || (r.clientStance && r.decision === "ABONO")} className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => stance(r, "ABONO")}>Não glosar (abonar)</Button>
                                                 </div>
                                             </TableCell>
                                         )}

@@ -217,7 +217,7 @@ export async function postMeasurementEvent(input: {
 
         if (input.type === "APPROVAL") {
             const gl = await countGlosaPending(input.clientId, input.year, input.month);
-            if (gl.unanswered > 0) return { success: false as const, error: `Há ${gl.unanswered} falta(s) sem cobertura sem a sua posição. Use "Concordar com todas" ou "Contestar" na aba Glosas / Abonos.` };
+            if (gl.unanswered > 0) return { success: false as const, error: `Há ${gl.unanswered} falta(s) sem cobertura sem decisão. Na aba Glosas / Abonos, escolha Glosar (desconta) ou Abonar (não desconta), dia a dia ou em todas.` };
             if (gl.contestedPending > 0) return { success: false as const, error: `Há ${gl.contestedPending} contestação(ões) aguardando resposta da equipe interna.` };
             const pending = await prisma.billingExtraItem.count({ where: { clientId: input.clientId, year: input.year, month: input.month, status: "PENDING" } });
             if (pending > 0) return { success: false as const, error: `Há ${pending} item(ns) extra(s) pendente(s) de decisão. Aprove ou recuse cada um antes de aprovar a medição.` };
