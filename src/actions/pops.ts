@@ -12,6 +12,8 @@ export async function getPopDocuments(clientId?: string, postoId?: string) {
         const where: any = {};
         if (clientId) where.clientId = clientId;
         if (postoId) where.postoId = postoId;
+        // Cliente só enxerga POPs já liberados pela aprovação interna
+        if (me.role === "CLIENTE") where.internalApprovedAt = { not: null };
 
         const pops = await prisma.popDocument.findMany({
             where,
@@ -159,6 +161,9 @@ export async function updatePopDocument(formData: FormData) {
                     status: "PENDING_APPROVAL", // Nova revisão exige novo aceite do cliente
                     approvedAt: null,
                     approvedById: null,
+                    internalApprovedAt: null, // Nova revisão volta para a aprovação interna
+                    internalApprovedById: null,
+                    internalApprovedByName: null,
                     rejectionReason: null
                 }
             });
@@ -189,6 +194,38 @@ export async function updatePopDocument(formData: FormData) {
     }
 }
 
+/** Etapa 1: aprovação interna. Libera o POP para o aceite do cliente. */
+export async function approvePopInternally(id: string) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { error: "Não autorizado." };
+        if (user.role === "CLIENTE") return { error: "Somente a equipe interna pode fazer a aprovação interna." };
+
+        const pop = await prisma.popDocument.findUnique({ where: { id } });
+        if (!pop) return { error: "Documento POP não encontrado." };
+        if (pop.status === "APPROVED") return { error: "Este POP já está em vigor." };
+
+        const updated = await prisma.popDocument.update({
+            where: { id },
+            data: {
+                status: "PENDING_APPROVAL",
+                internalApprovedAt: new Date(),
+                internalApprovedById: user.id,
+                internalApprovedByName: user.name || null,
+                rejectionReason: null,
+            },
+            select: { id: true, status: true, internalApprovedAt: true, internalApprovedByName: true },
+        });
+
+        revalidatePath("/admin/performance");
+        revalidatePath("/client/dashboard");
+        return { success: true, updated };
+    } catch (e: any) {
+        console.error("Error in approvePopInternally:", e);
+        return { error: e.message || "Erro ao registrar a aprovação interna do POP." };
+    }
+}
+
 export async function approvePopDocument(id: string) {
     try {
         const user = await getCurrentUser();
@@ -197,6 +234,7 @@ export async function approvePopDocument(id: string) {
         const pop = await prisma.popDocument.findUnique({ where: { id } });
         if (!pop) return { error: "Documento POP não encontrado." };
         if (user.role !== "CLIENTE") return { error: "O aceite do POP deve ser dado pelo cliente." };
+        if (!pop.internalApprovedAt) return { error: "Este POP ainda não foi liberado pela aprovação interna." };
         if (user.role === "CLIENTE" && !(user.clientIds || []).includes(pop.clientId)) return { error: "Sem permissão para este contrato." };
 
         const now = new Date();

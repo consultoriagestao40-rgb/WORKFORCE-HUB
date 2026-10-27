@@ -2557,17 +2557,18 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                     )}
 
                     {activeTab === "service_plan" && (
-                        /* TAB 8: PLANO DE SERVIÇOS (Rotinas de Trabalho) */
+                        /* TAB 8: PLANO DE SERVIÇOS (espelho da visão do gestor, somente leitura) */
                         <div className="space-y-6">
+                            {/* Card de Topo com Filtros Integrados */}
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-premium border border-slate-200/50">
                                 <div className="space-y-1">
-                                    <h3 className="text-md font-bold text-slate-850">Plano de Trabalho e Serviços</h3>
-                                    <p className="text-xs text-slate-500 font-medium">Veja o detalhamento diário de atividades e áreas de atuação mapeadas para os colaboradores do posto.</p>
+                                    <h3 className="text-md font-bold text-slate-850">Plano de Serviços e Rotinas</h3>
+                                    <p className="text-xs text-slate-500 font-medium">Instruções de trabalho por posto de trabalho.</p>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
                                     <select
                                         value={selectedServicePlanPostoId}
-                                        onChange={(e) => setSelectedServicePlanPostoId(e.target.value)}
+                                        onChange={(e) => { setSelectedServicePlanPostoId(e.target.value); setSelectedPlanPostoId(""); }}
                                         className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                                     >
                                         {contracts.map(c => (
@@ -2580,7 +2581,7 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                         className="h-10 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer shadow-premium"
                                     >
                                         {((servicePlanData?.postos || []) as any[]).map((p, i) => (
-                                            <option key={p.id} value={p.id}>{`Posto ${i + 1} - ${p.roleName}${p.schedule ? ` (${p.schedule})` : ""}`}</option>
+                                            <option key={p.id} value={p.id}>{`Posto ${i + 1} - ${p.roleName} (${p.schedule})`}</option>
                                         ))}
                                     </select>
                                     <Button variant="ghost" size="icon" onClick={() => fetchServicePlanRoutines(selectedServicePlanPostoId)} className="h-10 w-10 border border-slate-200/50 bg-white rounded-xl shadow-premium">
@@ -2589,95 +2590,45 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                 </div>
                             </div>
 
-                            {loadingServicePlan && !servicePlanData ? (
-                                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                                    <span className="text-xs text-slate-500 font-semibold">Carregando plano de serviços...</span>
-                                </div>
-                            ) : (servicePlanData?.postos || []).length === 0 ? (
-                                <Card className="border-none shadow-premium bg-white p-10 text-center text-slate-500 text-sm font-semibold">
-                                    Nenhum posto ativo encontrado para este contrato.
-                                </Card>
-                            ) : (() => {
-                                const postos = servicePlanData.postos as any[];
-                                const posto = postos.find(p => p.id === selectedPlanPostoId) || postos[0];
-                                return (
-                                    <Card className="border-none shadow-premium bg-white overflow-hidden p-6 space-y-5">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-50/50 border border-slate-200/50 text-xs font-bold text-slate-700">
-                                            <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Cliente / Unidade</span>
-                                                <span className="text-slate-800 font-black truncate block">{servicePlanData.client?.name}</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Endereço</span>
-                                                <span className="text-slate-800 font-black block">{servicePlanData.client?.address || "-"}</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Função</span>
-                                                <span className="text-slate-800 font-black truncate block">{posto.roleName}{posto.isReservaTecnica ? " (Reserva Técnica)" : ""}</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Carga Horária</span>
-                                                <span className="text-slate-800 font-black">{posto.startTime} - {posto.endTime}{posto.schedule ? ` · ${posto.schedule}` : ""}</span>
-                                            </div>
+                            {/* Routines Table */}
+                            {selectedPlanPostoId && (
+                                <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                    <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/30">
+                                        <div className="space-y-0.5">
+                                            <h4 className="text-xs font-bold text-slate-700">Cronograma de Atividades</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium">Cadastre a rotina sequencial do posto.</p>
                                         </div>
-
-                                        <div className="space-y-2">
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Colaboradores alocados ({posto.employees.length})</span>
-                                            {posto.employees.length === 0 ? (
-                                                <span className="text-xs text-slate-400 italic">Posto sem colaborador alocado no momento.</span>
-                                            ) : (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {posto.employees.map((emp: any) => (
-                                                        <Badge key={emp.id} className="bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100">{emp.name}</Badge>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="bg-slate-900 rounded-xl px-4 py-2 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center select-none shadow-premium">
-                                            Rotina de Trabalho - DIÁRIO
-                                        </div>
-
+                                    </div>
+                                    <CardContent className="p-0">
                                         {loadingPlanRoutines ? (
-                                            <div className="flex justify-center py-10"><RefreshCw className="w-6 h-6 text-primary animate-spin" /></div>
+                                            <div className="text-center py-12 text-slate-450 italic text-xs animate-pulse">Carregando rotinas...</div>
                                         ) : planRoutines.length === 0 ? (
-                                            <div className="text-center text-slate-500 py-8 text-xs font-semibold border border-dashed border-slate-200 rounded-xl">
-                                                Plano de trabalho ainda não cadastrado para este posto.
-                                            </div>
+                                            <div className="text-center py-12 text-slate-400 font-semibold italic text-xs">Nenhuma rotina associada a este posto.</div>
                                         ) : (
-                                            <div className="w-full overflow-x-auto border border-slate-200/60 rounded-xl">
-                                                <Table>
-                                                    <TableHeader className="bg-slate-800 text-white">
-                                                        <TableRow className="hover:bg-slate-800 border-none">
-                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Início</TableHead>
-                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Tempo</TableHead>
-                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-24">Final</TableHead>
-                                                            <TableHead className="font-bold text-white text-xs py-3 h-10 w-40">Local</TableHead>
-                                                            <TableHead className="font-bold text-white text-xs py-3 h-10">Atividade / Descrição do Serviço</TableHead>
+                                            <Table>
+                                                <TableHeader className="bg-slate-50">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-slate-800 text-xs pl-6 py-3.5">Horário</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Duração</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Local</TableHead>
+                                                        <TableHead className="font-bold text-slate-800 text-xs py-3.5">Descrição da Atividade</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {planRoutines.map((r: any) => (
+                                                        <TableRow key={r.id} className="hover:bg-slate-50/50">
+                                                            <TableCell className="text-xs font-bold text-slate-700 pl-6 py-3">{r.startTime} - {r.endTime}</TableCell>
+                                                            <TableCell className="text-xs text-slate-500 font-semibold py-3">{r.duration}</TableCell>
+                                                            <TableCell className="text-xs text-slate-700 font-semibold py-3">{r.location}</TableCell>
+                                                            <TableCell className="text-xs text-slate-600 font-medium py-3">{r.activity}</TableCell>
                                                         </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {planRoutines.map((routine: any) => (
-                                                            <TableRow key={routine.id} className="hover:bg-slate-50/50 border-slate-100 transition-colors">
-                                                                <TableCell className="font-bold text-xs text-slate-800">{routine.startTime}</TableCell>
-                                                                <TableCell className="text-slate-500 text-xs font-semibold">{routine.duration || "-"}</TableCell>
-                                                                <TableCell className="text-slate-800 text-xs font-bold">{routine.endTime}</TableCell>
-                                                                <TableCell className="text-slate-700 text-xs font-semibold">
-                                                                    <Badge className={routine.location === "Intervalo" ? "bg-amber-50 text-amber-700 border-amber-200 font-bold hover:opacity-100" : "bg-slate-100 text-slate-700 border-slate-200 font-bold hover:opacity-100"}>{routine.location}</Badge>
-                                                                </TableCell>
-                                                                <TableCell className="text-xs text-slate-800 leading-normal font-semibold">
-                                                                    {routine.activity || <span className="text-slate-400 italic">Horário livre / Pausa de transição</span>}
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
                                         )}
-                                    </Card>
-                                );
-                            })()}
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
                     )}
 

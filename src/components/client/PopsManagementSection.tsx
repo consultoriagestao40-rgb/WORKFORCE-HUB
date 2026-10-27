@@ -37,11 +37,19 @@ import {
     createPopDocument,
     updatePopDocument,
     approvePopDocument,
+    approvePopInternally,
     rejectPopDocument,
     deletePopDocument
 } from "@/actions/pops";
 
 const EMPTY_POPS: any[] = [];
+
+// Fluxo: aprovação interna -> aceite do cliente -> em vigor
+const popStage = (p: any): "APPROVED" | "REJECTED" | "PENDING_INTERNAL" | "PENDING_CLIENT" => {
+    if (p.status === "APPROVED") return "APPROVED";
+    if (p.status === "REJECTED") return "REJECTED";
+    return p.internalApprovedAt ? "PENDING_CLIENT" : "PENDING_INTERNAL";
+};
 
 interface PopsManagementSectionProps {
     clientId: string;
@@ -80,11 +88,13 @@ export function PopsManagementSection({
     const [isPending, startTransition] = useTransition();
     // Aceite é exclusivo do cliente (POP emitido internamente aguarda o aceite do contratante)
     const canAccept = isClientUser && !isAdminUser;
+    const canApproveInternally = !isClientUser || isAdminUser;
 
     // Stats
     const totalPops = pops.length;
     const approvedPops = pops.filter(p => p.status === "APPROVED").length;
-    const pendingPops = pops.filter(p => p.status === "PENDING_APPROVAL").length;
+    const pendingInternalPops = pops.filter(p => popStage(p) === "PENDING_INTERNAL").length;
+    const pendingClientPops = pops.filter(p => popStage(p) === "PENDING_CLIENT").length;
     const rejectedPops = pops.filter(p => p.status === "REJECTED").length;
 
     // Filtered POPs
@@ -100,15 +110,15 @@ export function PopsManagementSection({
             p.postoId === selectedPostoFilter;
 
         const matchesStatus =
-            selectedStatusFilter === "all" || p.status === selectedStatusFilter;
+            selectedStatusFilter === "all" || popStage(p) === selectedStatusFilter;
 
         return matchesSearch && matchesPosto && matchesStatus;
     });
 
     const formatRevision = (ver: number) => `Rev. ${String(ver - 1).padStart(2, '0')}`;
 
-    const getStatusBadge = (status: string) => {
-        switch (status) {
+    const getStatusBadge = (pop: any) => {
+        switch (popStage(pop)) {
             case "APPROVED":
                 return (
                     <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold">
@@ -116,11 +126,18 @@ export function PopsManagementSection({
                         Em Vigor (Aprovado)
                     </Badge>
                 );
-            case "PENDING_APPROVAL":
+            case "PENDING_INTERNAL":
+                return (
+                    <Badge className="bg-slate-100 text-slate-700 border-slate-300 flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold">
+                        <Clock className="w-3.5 h-3.5 text-slate-500" />
+                        Aguardando Aprovação Interna
+                    </Badge>
+                );
+            case "PENDING_CLIENT":
                 return (
                     <Badge className="bg-amber-100 text-amber-800 border-amber-300 flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        Pendente de Aceite
+                        Pendente de Aceite do Cliente
                     </Badge>
                 );
             case "REJECTED":
@@ -249,7 +266,7 @@ export function PopsManagementSection({
             if (res.error) {
                 toast.error(res.error);
             } else {
-                toast.success("Documento POP criado com sucesso e enviado para aceite do cliente!");
+                toast.success("Documento POP criado com sucesso! Aguardando a aprovação interna para liberar ao cliente.");
                 setIsCreateOpen(false);
                 if (res.pop) setPops(prev => [res.pop, ...prev]);
             }
@@ -267,11 +284,24 @@ export function PopsManagementSection({
             if (res.error) {
                 toast.error(res.error);
             } else {
-                toast.success(`Nova revisão (${formatRevision((selectedPop.version || 1) + 1)}) salva e enviada para aceite!`);
+                toast.success(`Nova revisão (${formatRevision((selectedPop.version || 1) + 1)}) salva! Aguardando a aprovação interna para liberar ao cliente.`);
                 setIsEditOpen(false);
                 if (res.updated) {
                     setPops(prev => prev.map(p => p.id === selectedPop.id ? res.updated : p));
                 }
+            }
+        });
+    };
+
+    const handleApproveInternal = async (popId: string) => {
+        startTransition(async () => {
+            const res = await approvePopInternally(popId);
+            if (res.error) {
+                toast.error(res.error);
+            } else {
+                toast.success("Aprovação interna registrada! O POP foi liberado para o aceite do cliente.");
+                setIsReadOpen(false);
+                setPops(prev => prev.map(p => p.id === popId ? { ...p, status: "PENDING_APPROVAL", internalApprovedAt: new Date(), internalApprovedByName: res.updated?.internalApprovedByName } : p));
             }
         });
     };
@@ -374,8 +404,8 @@ export function PopsManagementSection({
                         <Clock className="w-5 h-5" />
                     </div>
                     <div>
-                        <div className="text-xs text-amber-700 font-medium">Pendente de Aceite</div>
-                        <div className="text-2xl font-bold text-amber-900">{pendingPops}</div>
+                        <div className="text-xs text-amber-700 font-medium">{canApproveInternally ? "Pend. Interna / Aceite Cliente" : "Pendente de Aceite"}</div>
+                        <div className="text-2xl font-bold text-amber-900">{canApproveInternally ? `${pendingInternalPops} / ${pendingClientPops}` : pendingClientPops}</div>
                     </div>
                 </div>
 
@@ -428,7 +458,8 @@ export function PopsManagementSection({
                             <SelectContent>
                                 <SelectItem value="all">Todos os Status</SelectItem>
                                 <SelectItem value="APPROVED">Em Vigor (Aprovados)</SelectItem>
-                                <SelectItem value="PENDING_APPROVAL">Pendente de Aceite</SelectItem>
+                                {canApproveInternally && <SelectItem value="PENDING_INTERNAL">Aguardando Aprovação Interna</SelectItem>}
+                                <SelectItem value="PENDING_CLIENT">Pendente de Aceite do Cliente</SelectItem>
                                 <SelectItem value="REJECTED">Solicitada Revisão</SelectItem>
                             </SelectContent>
                         </Select>
@@ -521,7 +552,7 @@ export function PopsManagementSection({
                                         </td>
 
                                         <td className="py-3.5 px-4 whitespace-nowrap">
-                                            {getStatusBadge(pop.status)}
+                                            {getStatusBadge(pop)}
                                         </td>
 
                                         <td className="py-3.5 px-4 whitespace-nowrap text-right">
@@ -551,7 +582,20 @@ export function PopsManagementSection({
                                                     Imprimir PDF
                                                 </Button>
 
-                                                {canAccept && pop.status !== "APPROVED" && (
+                                                {canApproveInternally && popStage(pop) === "PENDING_INTERNAL" && (
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={isPending}
+                                                        onClick={() => handleApproveInternal(pop.id)}
+                                                        className="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                        title="Aprovar internamente e liberar para o cliente"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                        Aprovar Internamente
+                                                    </Button>
+                                                )}
+
+                                                {canAccept && popStage(pop) === "PENDING_CLIENT" && (
                                                     <Button
                                                         size="sm"
                                                         onClick={() => {
@@ -644,7 +688,7 @@ export function PopsManagementSection({
 
                             {/* Status */}
                             <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                                {getStatusBadge(pop.status)}
+                                {getStatusBadge(pop)}
 
                                 {pop.approvedAt && (
                                     <span className="text-[10px] text-slate-400 font-medium">
@@ -678,7 +722,20 @@ export function PopsManagementSection({
                                     <Printer className="w-3.5 h-3.5 text-slate-600" />
                                 </Button>
 
-                                {canAccept && pop.status !== "APPROVED" && (
+                                {canApproveInternally && popStage(pop) === "PENDING_INTERNAL" && (
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={isPending}
+                                                        onClick={() => handleApproveInternal(pop.id)}
+                                                        className="h-9 px-3 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                                                        title="Aprovar internamente e liberar para o cliente"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                        Aprovar Internamente
+                                                    </Button>
+                                                )}
+
+                                                {canAccept && popStage(pop) === "PENDING_CLIENT" && (
                                                     <Button
                                                         size="sm"
                                                         onClick={() => {
@@ -976,7 +1033,7 @@ export function PopsManagementSection({
                                             Imprimir Cópia Controlada PDF
                                         </Button>
 
-                                        {getStatusBadge(selectedPop.status)}
+                                        {getStatusBadge(selectedPop)}
                                     </div>
                                 </div>
 
@@ -1140,7 +1197,19 @@ export function PopsManagementSection({
                                     Fechar
                                 </Button>
 
-                                {canAccept && selectedPop.status !== "APPROVED" && (
+                                {canApproveInternally && popStage(selectedPop) === "PENDING_INTERNAL" && (
+                                    <Button
+                                        size="sm"
+                                        disabled={isPending}
+                                        onClick={() => handleApproveInternal(selectedPop.id)}
+                                        className="h-10 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md px-5"
+                                    >
+                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                        {isPending ? "Registrando..." : "Aprovar Internamente e Liberar ao Cliente"}
+                                    </Button>
+                                )}
+
+                                {canAccept && popStage(selectedPop) === "PENDING_CLIENT" && (
                                     <div className="flex gap-2 w-full sm:w-auto justify-end">
                                         <Button
                                             variant="destructive"

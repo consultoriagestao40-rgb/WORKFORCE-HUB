@@ -885,6 +885,11 @@ model PopDocument {
   authorId        String?
   author          User?         @relation("PopAuthor", fields: [authorId], references: [id])
 
+  // Etapa 1 - aprovação interna (libera o POP para o cliente). Etapa 2 - aceite do cliente (approvedAt/approvedBy) => Em Vigor
+  internalApprovedAt     DateTime?
+  internalApprovedById   String?
+  internalApprovedByName String?
+
   approvedAt      DateTime?
   approvedById    String?
   approvedBy      User?         @relation("PopApprover", fields: [approvedById], references: [id])
