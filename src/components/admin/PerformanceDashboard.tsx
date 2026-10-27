@@ -3670,10 +3670,10 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                         </Button>
                                     </div>
                                     <Dialog open={measurementOpen} onOpenChange={setMeasurementOpen}>
-                                        <DialogContent className="w-[96vw] sm:max-w-6xl h-[92vh] max-h-[92vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
-                                            <DialogHeader className="px-6 pt-5 pb-3 shrink-0">
-                                                <DialogTitle className="text-md font-bold text-slate-800">Medição Mensal</DialogTitle>
-                                                <DialogDescription className="text-xs text-slate-500">Relatório do mês, glosas/abonos, análise do cliente e respostas.</DialogDescription>
+                                        <DialogContent className="w-[98vw] sm:max-w-[98vw] xl:max-w-[1500px] h-[96vh] max-h-[96vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                                            <DialogHeader className="sr-only">
+                                                <DialogTitle className="sr-only">Medição Mensal</DialogTitle>
+                                                <DialogDescription className="sr-only">Relatório do mês, glosas/abonos, análise do cliente e respostas.</DialogDescription>
                                             </DialogHeader>
                                             {measurementOpen && (
                                                 <BillingMeasurementPanel

@@ -234,40 +234,30 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
 
     return (
         <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 bg-slate-50/60 border-t border-slate-200/70">
-            <div className="px-6 pt-4 pb-3 space-y-3 shrink-0 bg-white border-b border-slate-100">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                    <h4 className="text-sm font-black text-slate-800">Medição de {MONTH_NAMES[month]}/{year}</h4>
-                    <p className="text-[11px] text-slate-500 font-medium">Relatório de presenças, glosas e análise da medição do mês.</p>
-                </div>
-                <div className="flex items-center gap-2">
+            <div className="px-5 py-2.5 shrink-0 bg-white border-b border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-2 pr-12">
+                <div className="flex items-center gap-2 mr-2">
+                    <h4 className="text-sm font-black text-slate-800 whitespace-nowrap">Medição de {MONTH_NAMES[month]}/{year}</h4>
                     {measurementStatusBadge(status)}
                     {approved && m?.approvedAt && (
-                        <span className="text-[11px] text-emerald-700 font-semibold">
-                            por {m.approvedByName || "Cliente"} em {fmtDateTime(m.approvedAt)}
-                        </span>
+                        <span className="text-[11px] text-emerald-700 font-semibold">por {m.approvedByName || "Cliente"} em {fmtDateTime(m.approvedAt)}</span>
                     )}
                 </div>
-            </div>
-
-            {/* Resumo financeiro */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                {[
-                    { label: "Faturamento previsto", value: brl(s.expected), cls: "text-slate-800" },
-                    { label: "Glosas", value: s.glosaTotal > 0 ? `-${brl(s.glosaTotal)}` : brl(0), cls: s.glosaTotal > 0 ? "text-red-600" : "text-slate-500" },
-                    { label: "Extras aprovados", value: brl(s.extrasApproved) + (s.extrasPending > 0 ? ` (+${brl(s.extrasPending)} pend.)` : ""), cls: "text-indigo-600" },
-                    { label: "Líquido a faturar", value: brl(s.net), cls: "text-emerald-600" },
-                ].map(c => (
-                    <div key={c.label} className="bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm">
-                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{c.label}</div>
-                        <div className={`text-base font-black mt-1 ${c.cls}`}>{c.value}</div>
-                    </div>
-                ))}
-            </div>
-
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                    {[
+                        { label: "Previsto", value: brl(s.expected), cls: "text-slate-800" },
+                        { label: "Glosas", value: s.glosaTotal > 0 ? `-${brl(s.glosaTotal)}` : brl(0), cls: s.glosaTotal > 0 ? "text-red-600" : "text-slate-500" },
+                        { label: "Extras", value: brl(s.extrasApproved) + (s.extrasPending > 0 ? ` (+${brl(s.extrasPending)} pend.)` : ""), cls: "text-indigo-600" },
+                        { label: "Líquido", value: brl(s.net), cls: "text-emerald-600" },
+                    ].map(c => (
+                        <div key={c.label} className="bg-slate-50 rounded-lg border border-slate-200/70 px-3 py-1 leading-tight">
+                            <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold">{c.label}</div>
+                            <div className={`text-sm font-black ${c.cls}`}>{c.value}</div>
+                        </div>
+                    ))}
+                </div>
             </div>
             <Tabs value={tab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0">
-                <div className="px-6 pt-3 shrink-0 overflow-x-auto">
+                <div className="px-5 pt-2 shrink-0 overflow-x-auto">
                     <TabsList className="bg-slate-200/60 p-1 rounded-xl h-auto">
                         <TabsTrigger value="presence" className="text-xs font-bold px-3 py-1.5">Presenças ({detail.rows.length})</TabsTrigger>
                         <TabsTrigger value="glosas" className="text-xs font-bold px-3 py-1.5">Glosas / Abonos ({detail.glosaRows.length})</TabsTrigger>
@@ -275,53 +265,36 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                         <TabsTrigger value="history" className="text-xs font-bold px-3 py-1.5">Histórico ({m?.events?.length || 0})</TabsTrigger>
                     </TabsList>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
                     <TabsContent value="presence" className="mt-0 space-y-4">
             {/* Relatório mensal de presenças (igual ao menu Relatório Mensal) */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 space-y-4">
-                <div>
-                    <h5 className="text-sm font-bold text-slate-800">Relatório de Efetividade e Ocorrências</h5>
-                    <p className="text-xs text-slate-500 font-medium">Histórico completo de presenças, coberturas e faltas de {MONTH_NAMES[month]}/{year}.</p>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div className="rounded-xl bg-slate-900 text-white p-4">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-300">Presenças confirmadas</div>
-                        <div className="text-3xl font-black mt-2">{s.present}</div>
-                    </div>
-                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Faltas cobertas</div>
-                        <div className="text-3xl font-black mt-2 text-blue-600">{s.coveredAbsences}</div>
-                    </div>
-                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Postos vagos (glosas)</div>
-                        <div className={`text-3xl font-black mt-2 ${s.uncoveredAbsences > 0 ? "text-red-600" : "text-slate-900"}`}>{s.uncoveredAbsences}</div>
-                    </div>
-                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Efetividade geral</div>
-                        <div className="text-3xl font-black mt-2 text-slate-900">{s.effectiveness.toFixed(1)}%</div>
-                    </div>
+            <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-bold text-slate-800 mr-2">Efetividade e Ocorrências</span>
+                    <span className="rounded-full bg-slate-900 text-white px-3 py-1 font-bold">Presenças: {s.present}</span>
+                    <span className="rounded-full bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 font-bold">Faltas cobertas: {s.coveredAbsences}</span>
+                    <span className={`rounded-full border px-3 py-1 font-bold ${s.uncoveredAbsences > 0 ? "bg-red-50 text-red-700 border-red-100" : "bg-slate-50 text-slate-700 border-slate-200"}`}>Postos vagos (glosas): {s.uncoveredAbsences}</span>
+                    <span className="rounded-full bg-slate-50 text-slate-800 border border-slate-200 px-3 py-1 font-bold">Efetividade: {s.effectiveness.toFixed(1)}%</span>
                 </div>
                 {!hasData ? (
                     <div className="py-8 text-center text-xs text-slate-400 italic font-semibold">Sem lançamentos de presença em {MONTH_NAMES[month]}/{year}.</div>
                 ) : (
-                    <div className="overflow-x-auto border border-slate-200/60 rounded-xl">
-                        <Table>
+                    <div className="border border-slate-200/60 rounded-xl">
+                        <Table className="text-xs [&_td]:py-1.5 [&_th]:h-8">
                             <TableHeader className="bg-slate-50">
                                 <TableRow>
                                     <TableHead className="text-xs font-bold text-slate-800">Data</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Unidade</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Cargo / Função</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Colaborador</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800 text-center">Status</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Quem cobriu</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Notas Operacionais</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Notas</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {detail.rows.map((r: any) => (
                                     <TableRow key={r.id} className={r.uncovered && r.decision !== "ABONO" ? "bg-red-50/20" : r.status === "FOLGA" ? "opacity-75 bg-slate-100/40" : ""}>
                                         <TableCell className="text-xs font-bold">{fmtDate(r.date)}</TableCell>
-                                        <TableCell className="text-xs font-semibold truncate max-w-[150px]">{r.clientName}</TableCell>
                                         <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
                                         <TableCell className="text-xs font-bold text-slate-800">{r.employeeName}</TableCell>
                                         <TableCell className="text-center">{statusBadge(r)}</TableCell>
@@ -618,15 +591,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                         <CheckCircle2 className="w-4 h-4" /> Medição aprovada pelo cliente. O histórico está encerrado.
                     </div>
                 ) : (
-                    <div className="px-6 py-3 space-y-2">
-                        <Textarea
-                            value={message}
-                            onChange={e => setMessage(e.target.value)}
-                            placeholder={side === "CLIENT"
-                                ? "Descreva sua análise: o que está divergente? (obrigatório para solicitar revisão)"
-                                : "Escreva a resposta para o cliente sobre esta medição..."}
-                            className="min-h-[56px] max-h-[96px] text-xs bg-white"
-                        />
+                    <div className="px-5 py-2.5 space-y-2">
                         {files.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                                 {files.map((f, i) => (
@@ -639,17 +604,23 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                 ))}
                             </div>
                         )}
-                        <div className="flex flex-wrap items-center gap-2 justify-between">
-                            <div className="flex items-center gap-2">
-                                <input ref={fileInput} type="file" multiple className="hidden" onChange={e => onPickFiles(e.target.files)} />
-                                <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={() => fileInput.current?.click()} disabled={sending}>
-                                    <Paperclip className="w-3.5 h-3.5 mr-1.5" /> Anexar evidências
-                                </Button>
-                                <span className="text-[10px] text-slate-400">até 5 arquivos, 4 MB cada</span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-end gap-2">
+                            <input ref={fileInput} type="file" multiple className="hidden" onChange={e => onPickFiles(e.target.files)} />
+                            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" title="até 5 arquivos, 4 MB cada" onClick={() => fileInput.current?.click()} disabled={sending}>
+                                <Paperclip className="w-3.5 h-3.5 mr-1.5" /> Anexar
+                            </Button>
+                            <Textarea
+                                value={message}
+                                onChange={e => setMessage(e.target.value)}
+                                rows={1}
+                                placeholder={side === "CLIENT"
+                                    ? "Descreva sua análise (obrigatório para solicitar revisão)"
+                                    : "Escreva a resposta para o cliente sobre esta medição..."}
+                                className="min-h-[36px] max-h-[80px] h-9 flex-1 text-xs bg-white py-2 resize-none focus:h-16 transition-all"
+                            />
+                            <div className="flex items-center gap-2 shrink-0 ml-auto">
                                 <Button type="button" variant="outline" size="sm" className="h-9 text-xs" disabled={sending} onClick={() => submit("COMMENT")}>
-                                    <Send className="w-3.5 h-3.5 mr-1.5" /> Apenas comentar
+                                    <Send className="w-3.5 h-3.5 mr-1.5" /> Comentar
                                 </Button>
                                 {side === "CLIENT" ? (
                                     <>

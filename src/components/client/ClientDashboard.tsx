@@ -2686,10 +2686,10 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
             </div>
         {/* Modal da Medição Mensal (relatório, glosas, análise e aprovação) */}
         <Dialog open={expandedBillingMonth !== null} onOpenChange={(open) => { if (!open) setExpandedBillingMonth(null); }}>
-            <DialogContent className="w-[96vw] sm:max-w-6xl h-[92vh] max-h-[92vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
-                <DialogHeader className="px-6 pt-5 pb-3 shrink-0">
-                    <DialogTitle className="text-md font-bold text-slate-800">Aprovação de Medição</DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500">Analise o relatório do mês e aprove ou solicite revisão.</DialogDescription>
+            <DialogContent className="w-[98vw] sm:max-w-[98vw] xl:max-w-[1500px] h-[96vh] max-h-[96vh] flex flex-col gap-0 overflow-hidden p-0 rounded-3xl bg-white border border-slate-100 shadow-premium">
+                <DialogHeader className="sr-only">
+                    <DialogTitle className="sr-only">Aprovação de Medição</DialogTitle>
+                    <DialogDescription className="sr-only">Analise o relatório do mês e aprove ou solicite revisão.</DialogDescription>
                 </DialogHeader>
                 {expandedBillingMonth !== null && billingClientId && (
                     <BillingMeasurementPanel
