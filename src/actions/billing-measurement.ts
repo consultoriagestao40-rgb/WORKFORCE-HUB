@@ -52,11 +52,11 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             prisma.attendance.findMany({
                 where: { posto: { clientId }, date: { gte: start, lte: end } },
                 include: {
-                    posto: { include: { role: { select: { name: true } } } },
+                    posto: { include: { role: { select: { name: true } }, client: { select: { name: true } } } },
                     employee: { select: { name: true } },
                     coveredBy: { select: { name: true } },
                 },
-                orderBy: [{ date: "asc" }],
+                orderBy: [{ date: "desc" }],
             }),
             prisma.billingMeasurement.findUnique({
                 where: { clientId_year_month: { clientId, year, month } },
@@ -72,6 +72,7 @@ export async function getMeasurementDetail(clientId: string, year: number, month
         const rows = attendances.map(a => ({
             id: a.id,
             date: a.date.toISOString(),
+            clientName: a.posto.client?.name || "-",
             roleName: a.posto.role?.name || "-",
             employeeName: a.employee?.name || "Vaga em aberto",
             status: a.status,
@@ -99,6 +100,7 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
                 coveredAbsences: rows.filter(r => r.status === "FALTA" && (r.coveredByName || r.coverageType)).length,
                 uncoveredAbsences: glosaRows.length,
+                effectiveness: active.length > 0 ? ((active.length - glosaRows.length) / active.length) * 100 : 100,
             },
             rows,
             glosaRows,

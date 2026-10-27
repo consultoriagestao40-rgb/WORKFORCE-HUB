@@ -70,7 +70,6 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     const [message, setMessage] = useState("");
     const [files, setFiles] = useState<File[]>([]);
     const [sending, setSending] = useState(false);
-    const [showAllRows, setShowAllRows] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
 
     const load = useCallback(async () => {
@@ -149,15 +148,14 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     const status: string = m?.status || "PENDING";
     const approved = status === "APPROVED";
     const hasData = detail.rows.length > 0;
-    const visibleRows = showAllRows ? detail.rows : detail.rows.slice(0, 15);
     const s = detail.summary;
 
     const statusBadge = (r: any) => {
         if (r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL") return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50 font-bold">● Confirmado</Badge>;
         if (r.status === "FALTA") {
-            if (r.coveredByName) return <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">● Falta coberta: {r.coveredByName}</Badge>;
-            if (r.coverageType === "DIARISTA") return <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">● Coberto (diarista)</Badge>;
-            return <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black">▲ Posto vago (glosa)</Badge>;
+            if (r.coveredByName) return <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">● Falta Coberta: {r.coveredByName}</Badge>;
+            if (r.coverageType === "DIARISTA") return <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">● Coberto Diarista</Badge>;
+            return <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black">▲ Posto Vago (Glosa)</Badge>;
         }
         if (r.status === "FOLGA") return <Badge className="bg-slate-100 text-slate-500 border-slate-200/50 hover:bg-slate-100 font-semibold">○ Folga</Badge>;
         return <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">○ Aguardando</Badge>;
@@ -168,7 +166,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-0.5">
                     <h4 className="text-sm font-black text-slate-800">Medição de {MONTH_NAMES[month]}/{year}</h4>
-                    <p className="text-[11px] text-slate-500 font-medium">Presenças, glosas e análise da medição do mês.</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Relatório de presenças, glosas e análise da medição do mês.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {measurementStatusBadge(status)}
@@ -180,21 +178,74 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 </div>
             </div>
 
-            {/* Resumo */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {/* Resumo financeiro */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                     { label: "Faturamento previsto", value: brl(s.expected), cls: "text-slate-800" },
                     { label: "Glosas", value: s.glosaTotal > 0 ? `-${brl(s.glosaTotal)}` : brl(0), cls: s.glosaTotal > 0 ? "text-red-600" : "text-slate-500" },
                     { label: "Líquido a faturar", value: brl(s.net), cls: "text-emerald-600" },
-                    { label: "Presenças confirmadas", value: String(s.present), cls: "text-slate-800" },
-                    { label: "Faltas cobertas", value: String(s.coveredAbsences), cls: "text-blue-600" },
-                    { label: "Postos vagos (glosa)", value: String(s.uncoveredAbsences), cls: s.uncoveredAbsences > 0 ? "text-red-600" : "text-slate-500" },
                 ].map(c => (
                     <div key={c.label} className="bg-white rounded-xl border border-slate-200/60 p-3 shadow-sm">
                         <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{c.label}</div>
                         <div className={`text-base font-black mt-1 ${c.cls}`}>{c.value}</div>
                     </div>
                 ))}
+            </div>
+
+            {/* Relatório mensal de presenças (igual ao menu Relatório Mensal) */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 space-y-4">
+                <div>
+                    <h5 className="text-sm font-bold text-slate-800">Relatório de Efetividade e Ocorrências</h5>
+                    <p className="text-xs text-slate-500 font-medium">Histórico completo de presenças, coberturas e faltas de {MONTH_NAMES[month]}/{year}.</p>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="rounded-xl bg-slate-900 text-white p-4">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-300">Presenças confirmadas</div>
+                        <div className="text-3xl font-black mt-2">{s.present}</div>
+                    </div>
+                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Faltas cobertas</div>
+                        <div className="text-3xl font-black mt-2 text-blue-600">{s.coveredAbsences}</div>
+                    </div>
+                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Postos vagos (glosas)</div>
+                        <div className={`text-3xl font-black mt-2 ${s.uncoveredAbsences > 0 ? "text-red-600" : "text-slate-900"}`}>{s.uncoveredAbsences}</div>
+                    </div>
+                    <div className="rounded-xl bg-white border border-slate-200/60 p-4">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Efetividade geral</div>
+                        <div className="text-3xl font-black mt-2 text-slate-900">{s.effectiveness.toFixed(1)}%</div>
+                    </div>
+                </div>
+                {!hasData ? (
+                    <div className="py-8 text-center text-xs text-slate-400 italic font-semibold">Sem lançamentos de presença em {MONTH_NAMES[month]}/{year}.</div>
+                ) : (
+                    <div className="max-h-[560px] overflow-auto border border-slate-200/60 rounded-xl">
+                        <Table>
+                            <TableHeader className="bg-slate-50 sticky top-0">
+                                <TableRow>
+                                    <TableHead className="text-xs font-bold text-slate-800">Data</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Unidade</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Cargo / Função</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Colaborador</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800 text-center">Status</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Notas Operacionais</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {detail.rows.map((r: any) => (
+                                    <TableRow key={r.id} className={r.glosa > 0 ? "bg-red-50/20" : r.status === "FOLGA" ? "opacity-75 bg-slate-100/40" : ""}>
+                                        <TableCell className="text-xs font-bold">{fmtDate(r.date)}</TableCell>
+                                        <TableCell className="text-xs font-semibold truncate max-w-[150px]">{r.clientName}</TableCell>
+                                        <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
+                                        <TableCell className="text-xs font-bold text-slate-800">{r.employeeName}</TableCell>
+                                        <TableCell className="text-center">{statusBadge(r)}</TableCell>
+                                        <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                )}
             </div>
 
             {/* Glosas */}
@@ -231,46 +282,6 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                             </TableRow>
                         </TableBody>
                     </Table>
-                )}
-            </div>
-
-            {/* Presença diária */}
-            <div className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between text-xs font-bold text-slate-700">
-                    <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Presença diária ({detail.rows.length} lançamentos)</span>
-                    {detail.rows.length > 15 && (
-                        <button className="text-[11px] text-blue-600 font-bold hover:underline" onClick={() => setShowAllRows(v => !v)}>
-                            {showAllRows ? "Mostrar menos" : `Ver todos (${detail.rows.length})`}
-                        </button>
-                    )}
-                </div>
-                {!hasData ? (
-                    <div className="py-6 text-center text-xs text-slate-400 italic font-semibold">Sem lançamentos de presença neste mês.</div>
-                ) : (
-                    <div className="max-h-[420px] overflow-auto">
-                        <Table>
-                            <TableHeader className="bg-slate-50 sticky top-0">
-                                <TableRow>
-                                    <TableHead className="text-xs font-bold text-slate-800 pl-4">Data</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Função</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Colaborador</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Status</TableHead>
-                                    <TableHead className="text-xs font-bold text-slate-800">Notas</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {visibleRows.map((r: any) => (
-                                    <TableRow key={r.id} className={r.glosa > 0 ? "bg-red-50/30" : ""}>
-                                        <TableCell className="text-xs font-bold pl-4">{fmtDate(r.date)}</TableCell>
-                                        <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
-                                        <TableCell className="text-xs font-semibold">{r.employeeName}</TableCell>
-                                        <TableCell>{statusBadge(r)}</TableCell>
-                                        <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
                 )}
             </div>
 
