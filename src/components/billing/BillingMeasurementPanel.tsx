@@ -333,6 +333,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                     <TableHead className="text-xs font-bold text-slate-800 text-center">Status</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Quem cobriu</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Notas</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800 text-right whitespace-nowrap">Glosa / Dia</TableHead>
                                     {!approved && <TableHead className="text-xs font-bold text-slate-800 text-right pr-4">Ação (posto vago)</TableHead>}
                                 </TableRow>
                             </TableHeader>
@@ -347,6 +348,20 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                             {r.status !== "FALTA" ? "-" : r.coveredByName ? r.coveredByName : r.coverageType === "DIARISTA" ? "Diarista" : <span className="text-red-600 font-bold">Sem cobertura</span>}
                                         </TableCell>
                                         <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
+                                        <TableCell className="text-xs text-right whitespace-nowrap">
+                                            {r.uncovered ? (
+                                                r.decision === "ABONO" ? (
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <span className="text-emerald-600 font-bold">R$ 0,00</span>
+                                                        <span className="text-[10px] text-slate-400 line-through">({brl(r.dailyValue)})</span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-red-600 font-bold">-{brl(r.dailyValue)}</span>
+                                                )
+                                            ) : (
+                                                <span className="text-slate-400">-</span>
+                                            )}
+                                        </TableCell>
                                         {!approved && (
                                             <TableCell className="text-right pr-4">
                                                 {r.uncovered ? (
