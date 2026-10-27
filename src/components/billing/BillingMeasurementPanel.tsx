@@ -89,26 +89,27 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     const [stanceTarget, setStanceTarget] = useState<string | null>(null);
     const [stanceNote, setStanceNote] = useState("");
 
-    const stance = async (r: any, st: "AGREED" | "CONTESTED") => {
-        if (st === "CONTESTED" && !stanceNote.trim()) { toast.error("Informe o motivo da contestação."); return; }
+    const stance = async (r: any, dec: "GLOSA" | "ABONO") => {
         setDeciding(true);
         try {
-            const res = await setClientGlosaStance({ postoId: r.postoId, dateKey: r.dateKey, stance: st, note: st === "CONTESTED" ? stanceNote : undefined });
+            const res = await setClientGlosaStance({ postoId: r.postoId, dateKey: r.dateKey, decision: dec, note: stanceNote });
             if (res.success) {
-                toast.success(st === "AGREED" ? "Glosa confirmada." : "Contestação enviada. O gestor vai analisar o abono.");
+                toast.success(dec === "GLOSA" ? "Glosa confirmada: o valor do dia será descontado." : "Falta abonada: o valor do dia não será descontado.");
                 setStanceTarget(null); setStanceNote("");
                 await load(); onChanged?.();
             } else toast.error(res.error || "Não foi possível registrar.");
         } finally { setDeciding(false); }
     };
 
-    const agreeAll = async () => {
+    const decideAll = async (dec: "GLOSA" | "ABONO") => {
         const n = detail?.summary?.glosaUnanswered || 0;
-        if (!confirm(`Confirmar a glosa de ${n} falta${n > 1 ? "s" : ""} sem cobertura ainda sem posição?`)) return;
+        if (!confirm(dec === "GLOSA"
+            ? `Confirmar a glosa (desconto) de ${n} dia(s) sem cobertura?`
+            : `Abonar ${n} dia(s) sem cobertura? O valor desses dias NÃO será descontado.`)) return;
         setDeciding(true);
         try {
-            const res: any = await agreeAllGlosas({ clientId, year, month });
-            if (res.success) { toast.success("Glosas confirmadas."); await load(); onChanged?.(); }
+            const res: any = await agreeAllGlosas({ clientId, year, month, decision: dec });
+            if (res.success) { toast.success(dec === "GLOSA" ? "Glosas confirmadas." : "Faltas abonadas."); await load(); onChanged?.(); }
             else toast.error(res.error || "Não foi possível registrar.");
         } finally { setDeciding(false); }
     };
@@ -289,7 +290,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 <div className="px-5 pt-2 shrink-0 overflow-x-auto">
                     <TabsList className="bg-slate-200/60 p-1 rounded-xl h-auto">
                         <TabsTrigger value="presence" className="text-xs font-bold px-3 py-1.5">Presenças ({detail.rows.length})</TabsTrigger>
-                        <TabsTrigger value="glosas" className="text-xs font-bold px-3 py-1.5">Glosas / Abonos ({detail.glosaRows.length}){side === "CLIENT" && !approved && s.glosaUnanswered > 0 && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500" />}{side === "INTERNAL" && s.glosaContestedPending > 0 && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500" />}</TabsTrigger>
+                        <TabsTrigger value="glosas" className="text-xs font-bold px-3 py-1.5">Glosas / Abonos ({detail.glosaRows.length}){side === "CLIENT" && !approved && s.glosaUnanswered > 0 && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-red-500" />}</TabsTrigger>
                         <TabsTrigger value="extras" className="text-xs font-bold px-3 py-1.5">Extras ({detail.extras.length}){s.extrasPendingCount > 0 && <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500" />}</TabsTrigger>
                         <TabsTrigger value="history" className="text-xs font-bold px-3 py-1.5">Histórico ({m?.events?.length || 0})</TabsTrigger>
                     </TabsList>
@@ -347,20 +348,23 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                     <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-500" /> Faltas sem cobertura (glosa ou abono)</span>
                     {side === "INTERNAL" && !approved && detail.glosaRows.length > 0 && (
                         <span className="text-[11px] font-medium text-slate-500">
-                            Padrão: glosar. Para não descontar, abone com justificativa.
-                            {s.glosaContestedPending > 0 && <b className="text-amber-600"> {s.glosaContestedPending} contestação(ões) do cliente aguardando sua decisão.</b>}
+                            Quem decide é o cliente: glosa (desconta) ou abono (não desconta). Até lá, vale o padrão: glosar.
                         </span>
                     )}
                     {side === "CLIENT" && !approved && detail.glosaRows.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="text-[11px] font-medium text-slate-500">
-                                {s.glosaUnanswered > 0 ? `${s.glosaUnanswered} sem sua posição` : "Todas com posição"}
-                                {s.glosaContestedPending > 0 ? ` · ${s.glosaContestedPending} contestada(s) aguardando o gestor` : ""}
+                                {s.glosaUnanswered > 0 ? `${s.glosaUnanswered} dia(s) aguardando sua decisão` : "Todos os dias decididos"}
                             </span>
                             {s.glosaUnanswered > 0 && (
-                                <Button size="sm" disabled={deciding} onClick={agreeAll} className="h-8 text-xs font-bold bg-red-600 hover:bg-red-700 text-white">
-                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Confirmar todas as glosas ({s.glosaUnanswered})
-                                </Button>
+                                <>
+                                    <Button size="sm" disabled={deciding} onClick={() => decideAll("GLOSA")} className="h-8 text-xs font-bold bg-red-600 hover:bg-red-700 text-white">
+                                        Glosar todas ({s.glosaUnanswered})
+                                    </Button>
+                                    <Button size="sm" disabled={deciding} onClick={() => decideAll("ABONO")} className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white">
+                                        Abonar todas ({s.glosaUnanswered})
+                                    </Button>
+                                </>
                             )}
                         </div>
                     )}
@@ -376,7 +380,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                 <TableHead className="text-xs font-bold text-slate-800">Colaborador ausente</TableHead>
                                 <TableHead className="text-xs font-bold text-slate-800">Decisão</TableHead>
                                 <TableHead className="text-xs font-bold text-slate-800">Justificativa</TableHead>
-                                <TableHead className="text-xs font-bold text-slate-800">Posição do cliente</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Decisão do cliente</TableHead>
                                 <TableHead className="text-xs font-bold text-slate-800 text-right">Valor</TableHead>
                                 {!approved && <TableHead className="text-xs font-bold text-slate-800 text-right pr-4">Ação</TableHead>}
                             </TableRow>
@@ -384,7 +388,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                         <TableBody>
                             {detail.glosaRows.map((r: any) => (
                                 <Fragment key={r.id}>
-                                    <TableRow className={r.clientStance === "CONTESTED" && !r.contestResolved ? "bg-amber-50/50" : ""}>
+                                    <TableRow >
                                         <TableCell className="text-xs font-bold pl-4">{fmtDate(r.date)}</TableCell>
                                         <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
                                         <TableCell className="text-xs font-semibold">{r.employeeName}</TableCell>
@@ -398,9 +402,10 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                             {r.decidedByName && <div className="text-[10px] text-slate-400">por {r.decidedByName}{r.decidedAt ? ` em ${fmtDateTime(r.decidedAt)}` : ""}</div>}
                                         </TableCell>
                                         <TableCell className="text-xs max-w-[220px]">
-                                            {r.clientStance === "AGREED" && <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-bold">✔ Confirmou a glosa</Badge>}
-                                            {r.clientStance === "CONTESTED" && <Badge className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50 font-bold">↺ Contestou{r.contestResolved ? " (respondida)" : ""}</Badge>}
-                                            {!r.clientStance && <span className="text-slate-400">{r.decision === "ABONO" ? "-" : "Sem posição"}</span>}
+                                            {r.clientStance && (r.decision === "ABONO"
+                                                ? <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 font-bold">✔ Cliente abonou</Badge>
+                                                : <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-bold">✔ Cliente confirmou a glosa</Badge>)}
+                                            {!r.clientStance && <span className="text-slate-400">Aguardando</span>}
                                             {r.clientNote && <div className="text-[10px] text-slate-500 mt-0.5">{r.clientNote}</div>}
                                         </TableCell>
                                         <TableCell className={`text-xs font-bold text-right ${r.decision === "ABONO" ? "text-blue-600 line-through" : "text-red-600"}`}>
@@ -408,18 +413,16 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                         </TableCell>
                                         {side === "CLIENT" && !approved && (
                                             <TableCell className="text-right pr-4">
-                                                {r.decision === "ABONO" ? <span className="text-[11px] text-blue-600 font-semibold">Abonada</span> : (
-                                                    <div className="flex justify-end gap-1.5">
-                                                        <Button size="sm" disabled={deciding || r.clientStance === "AGREED"} className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => stance(r, "AGREED")}>Confirmar glosa</Button>
-                                                        <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => { setStanceTarget(stanceTarget === r.id ? null : r.id); setStanceNote(r.clientNote || ""); }}>Contestar</Button>
-                                                    </div>
-                                                )}
+                                                <div className="flex justify-end gap-1.5">
+                                                    <Button size="sm" disabled={deciding || (r.clientStance && r.decision === "GLOSA")} className="h-7 text-[11px] bg-red-600 hover:bg-red-700 text-white" onClick={() => stance(r, "GLOSA")}>Glosar</Button>
+                                                    <Button size="sm" disabled={deciding || (r.clientStance && r.decision === "ABONO")} className="h-7 text-[11px] bg-blue-600 hover:bg-blue-700 text-white" onClick={() => stance(r, "ABONO")}>Abonar</Button>
+                                                </div>
                                             </TableCell>
                                         )}
                                         {side === "INTERNAL" && !approved && (
                                             <TableCell className="text-right pr-4">
                                                 <div className="flex justify-end gap-1.5">
-                                                    {r.decision === "ABONO" ? (
+                                                    {r.clientStance ? <span className="text-[11px] text-slate-400">Decidido pelo cliente</span> : r.decision === "ABONO" ? (
                                                         <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => decide(r, "GLOSA")}>Glosar</Button>
                                                     ) : (
                                                         <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => { setAbonoTarget(abonoTarget === r.id ? null : r.id); setAbonoReason(""); }}>Abonar</Button>
@@ -428,21 +431,6 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                             </TableCell>
                                         )}
                                     </TableRow>
-                                    {side === "CLIENT" && stanceTarget === r.id && (
-                                        <TableRow key={r.id + "-stance"} className="bg-amber-50/40">
-                                            <TableCell colSpan={8} className="px-4 py-3">
-                                                <div className="flex flex-col sm:flex-row gap-2">
-                                                    <Textarea value={stanceNote} onChange={e => setStanceNote(e.target.value)}
-                                                        placeholder="Motivo da contestação (obrigatório). Ex.: o posto foi coberto por outro colaborador, feriado, acordo com o gestor..."
-                                                        className="min-h-[56px] text-xs bg-white" />
-                                                    <div className="flex sm:flex-col gap-2 shrink-0">
-                                                        <Button size="sm" disabled={deciding} className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => stance(r, "CONTESTED")}>Enviar contestação</Button>
-                                                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setStanceTarget(null)}>Cancelar</Button>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
                                     {abonoTarget === r.id && (
                                         <TableRow key={r.id + "-abono"} className="bg-blue-50/40">
                                             <TableCell colSpan={8} className="px-4 py-3">

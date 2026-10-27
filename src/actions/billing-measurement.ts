@@ -129,7 +129,7 @@ export async function getMeasurementDetail(clientId: string, year: number, month
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
                 coveredAbsences: rows.filter(r => r.status === "FALTA" && !r.uncovered).length,
                 uncoveredAbsences: glosaRows.length,
-                glosaUnanswered: glosaRows.filter(r => !r.clientStance && r.decision !== "ABONO").length,
+                glosaUnanswered: glosaRows.filter(r => !r.clientStance).length,
                 glosaContestedPending: glosaRows.filter(r => r.clientStance === "CONTESTED" && !r.contestResolved).length,
                 glosaAgreed: glosaRows.filter(r => r.clientStance === "AGREED").length,
                 effectiveness: active.length > 0 ? ((active.length - glosaRows.length) / active.length) * 100 : 100,
@@ -495,15 +495,13 @@ async function countGlosaPending(clientId: string, year: number, month: number) 
     let unanswered = 0, contestedPending = 0;
     for (const r of unc) {
         const d = map.get(`${r.postoId}:${r.dateKey}`);
-        if (d?.decision === "ABONO") continue;
         if (!d?.clientStance) unanswered++;
-        else if (d.clientStance === "CONTESTED" && !d.contestResolved) contestedPending++;
     }
     return { unanswered, contestedPending };
 }
 
-/** Cliente concorda com a glosa ou contesta (pede abono, com motivo) uma falta sem cobertura. */
-export async function setClientGlosaStance(input: { postoId: string; dateKey: string; stance: "AGREED" | "CONTESTED"; note?: string }) {
+/** Cliente define, para uma falta sem cobertura: GLOSA (confirma o desconto do dia) ou ABONO (não quer o desconto). */
+export async function setClientGlosaStance(input: { postoId: string; dateKey: string; decision: "GLOSA" | "ABONO"; note?: string }) {
     try {
         const user = await getCurrentUser();
         if (!user) return { success: false as const, error: "Não autorizado." };
@@ -511,11 +509,9 @@ export async function setClientGlosaStance(input: { postoId: string; dateKey: st
         if (!posto) return { success: false as const, error: "Posto não encontrado." };
         const access = await checkAccess(posto.clientId);
         if (!access.ok) return { success: false as const, error: access.error };
-        if (access.side !== "CLIENT") return { success: false as const, error: "Somente o cliente registra a posição sobre a glosa." };
+        if (access.side !== "CLIENT") return { success: false as const, error: "Somente o cliente confirma a glosa ou o abono." };
 
         const note = (input.note || "").trim();
-        if (input.stance === "CONTESTED" && !note) return { success: false as const, error: "Informe o motivo da contestação." };
-
         const d = new Date(input.dateKey + "T00:00:00Z");
         const year = d.getUTCFullYear(), month = d.getUTCMonth();
         const m = await prisma.billingMeasurement.findUnique({
@@ -523,33 +519,31 @@ export async function setClientGlosaStance(input: { postoId: string; dateKey: st
         });
         if (m?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada." };
 
+        const common = {
+            decision: input.decision, reason: note || null,
+            decidedById: access.user.id, decidedByName: access.user.name || null, decidedAt: new Date(),
+            clientStance: "AGREED", clientNote: note || null, clientStanceAt: new Date(), clientStanceByName: access.user.name || null,
+            contestResolved: true,
+        };
         await prisma.billingGlosaDecision.upsert({
             where: { postoId_dateKey: { postoId: input.postoId, dateKey: input.dateKey } },
-            create: {
-                postoId: input.postoId, dateKey: input.dateKey, clientId: posto.clientId, decision: "GLOSA",
-                clientStance: input.stance, clientNote: note || null, clientStanceAt: new Date(), clientStanceByName: access.user.name || null,
-            },
-            update: {
-                clientStance: input.stance, clientNote: note || null, clientStanceAt: new Date(), clientStanceByName: access.user.name || null,
-                contestResolved: false,
-            },
+            create: { postoId: input.postoId, dateKey: input.dateKey, clientId: posto.clientId, ...common },
+            update: common,
         });
 
-        if (input.stance === "CONTESTED") {
-            await logExtraEvent(posto.clientId, year, month, "CLIENT", access.user,
-                `Contestou a glosa de ${d.toLocaleDateString("pt-BR", { timeZone: "UTC" })} e pediu abono: ${note}`);
-        }
+        await logExtraEvent(posto.clientId, year, month, "CLIENT", access.user,
+            `${input.decision === "ABONO" ? "Abonou" : "Confirmou a glosa de"} ${input.decision === "ABONO" ? "a falta de " : ""}${d.toLocaleDateString("pt-BR", { timeZone: "UTC" })}${input.decision === "ABONO" ? " (sem desconto)" : ""}${note ? `: ${note}` : "."}`);
         revalidatePath("/client/dashboard");
         revalidatePath("/admin/performance");
         return { success: true as const };
     } catch (error) {
-        console.error("Erro ao registrar posição sobre glosa:", error);
-        return { success: false as const, error: "Erro ao registrar a posição." };
+        console.error("Erro ao registrar decisão do cliente sobre glosa:", error);
+        return { success: false as const, error: "Erro ao registrar a decisão." };
     }
 }
 
-/** Cliente concorda de uma vez com todas as glosas do mês que ainda não tiveram posição. */
-export async function agreeAllGlosas(input: { clientId: string; year: number; month: number }) {
+/** Cliente glosa (desconta) ou abona (não desconta) de uma vez todas as faltas do mês que ainda não tiveram posição. */
+export async function agreeAllGlosas(input: { clientId: string; year: number; month: number; decision: "GLOSA" | "ABONO" }) {
     try {
         const access = await checkAccess(input.clientId);
         if (!access.ok) return { success: false as const, error: access.error };
@@ -568,16 +562,16 @@ export async function agreeAllGlosas(input: { clientId: string; year: number; mo
         let count = 0;
         for (const r of unc) {
             const d = map.get(`${r.postoId}:${r.dateKey}`);
-            if (d?.clientStance || d?.decision === "ABONO") continue;
+            if (d?.clientStance) continue;
             await prisma.billingGlosaDecision.upsert({
                 where: { postoId_dateKey: { postoId: r.postoId, dateKey: r.dateKey } },
-                create: { postoId: r.postoId, dateKey: r.dateKey, clientId: input.clientId, decision: "GLOSA", clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null },
-                update: { clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null },
+                create: { postoId: r.postoId, dateKey: r.dateKey, clientId: input.clientId, decision: input.decision, decidedById: access.user.id, decidedByName: access.user.name || null, clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null, contestResolved: true },
+                update: { decision: input.decision, decidedById: access.user.id, decidedByName: access.user.name || null, decidedAt: new Date(), clientStance: "AGREED", clientStanceAt: new Date(), clientStanceByName: access.user.name || null, contestResolved: true },
             });
             count++;
         }
         if (count > 0) {
-            await logExtraEvent(input.clientId, input.year, input.month, "CLIENT", access.user, `Concordou com ${count} glosa(s) de falta sem cobertura.`);
+            await logExtraEvent(input.clientId, input.year, input.month, "CLIENT", access.user, input.decision === "ABONO" ? `Abonou ${count} falta(s) sem cobertura (sem desconto).` : `Confirmou a glosa de ${count} falta(s) sem cobertura.`);
         }
         revalidatePath("/client/dashboard");
         revalidatePath("/admin/performance");
