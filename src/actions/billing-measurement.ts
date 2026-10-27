@@ -69,6 +69,11 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             }),
         ]);
 
+        const decisions = await prisma.billingGlosaDecision.findMany({
+            where: { attendanceId: { in: attendances.map(a => a.id) } },
+        });
+        const decisionMap = new Map(decisions.map(d => [d.attendanceId, d]));
+
         const rows = attendances.map(a => ({
             id: a.id,
             date: a.date.toISOString(),
@@ -79,12 +84,19 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             coveredByName: a.coveredBy?.name || null,
             coverageType: a.coverageType,
             notes: a.notes,
-            glosa: isUncoveredAbsence(a) ? a.posto.billingValue / 30 : 0,
+            uncovered: isUncoveredAbsence(a),
+            dailyValue: a.posto.billingValue / 30,
+            decision: isUncoveredAbsence(a) ? (decisionMap.get(a.id)?.decision || "GLOSA") : null,
+            decisionReason: decisionMap.get(a.id)?.reason || null,
+            decidedByName: decisionMap.get(a.id)?.decidedByName || null,
+            decidedAt: decisionMap.get(a.id)?.decidedAt?.toISOString() || null,
+            glosa: isUncoveredAbsence(a) && (decisionMap.get(a.id)?.decision || "GLOSA") !== "ABONO" ? a.posto.billingValue / 30 : 0,
         }));
 
         const active = rows.filter(r => r.status !== "FOLGA");
-        const glosaRows = rows.filter(r => r.glosa > 0);
+        const glosaRows = rows.filter(r => r.uncovered); // faltas sem cobertura (glosadas ou abonadas)
         const glosaTotal = glosaRows.reduce((s, r) => s + r.glosa, 0);
+        const abonoTotal = glosaRows.filter(r => r.decision === "ABONO").reduce((s, r) => s + r.dailyValue, 0);
 
         const postos = await prisma.posto.findMany({ where: { clientId }, select: { billingValue: true } });
         const expected = postos.reduce((s, p) => s + p.billingValue, 0);
@@ -95,6 +107,8 @@ export async function getMeasurementDetail(clientId: string, year: number, month
             summary: {
                 expected,
                 glosaTotal,
+                abonoTotal,
+                abonoCount: glosaRows.filter(r => r.decision === "ABONO").length,
                 net: Math.max(0, expected - glosaTotal),
                 shifts: active.length,
                 present: rows.filter(r => r.status === "PRESENTE_PONTO" || r.status === "PRESENTE_MANUAL").length,
@@ -248,5 +262,69 @@ export async function getMeasurementAttachment(attachmentId: string) {
     } catch (error) {
         console.error("Erro ao baixar anexo da medição:", error);
         return { success: false as const, error: "Erro ao baixar o anexo." };
+    }
+}
+
+/** Decisão do gestor sobre uma falta sem cobertura: glosar (padrão) ou abonar (exige justificativa). */
+export async function setGlosaDecision(input: { attendanceId: string; decision: "GLOSA" | "ABONO"; reason?: string }) {
+    try {
+        const user = await getCurrentUser();
+        if (!user) return { success: false as const, error: "Não autorizado." };
+        if (user.role === "CLIENTE") return { success: false as const, error: "Somente a equipe interna decide sobre glosa ou abono." };
+
+        const reason = (input.reason || "").trim();
+        if (input.decision === "ABONO" && !reason) return { success: false as const, error: "Informe a justificativa do abono." };
+
+        const att = await prisma.attendance.findUnique({
+            where: { id: input.attendanceId },
+            include: { posto: { select: { clientId: true } } },
+        });
+        if (!att) return { success: false as const, error: "Lançamento não encontrado." };
+        if (!isUncoveredAbsence(att)) return { success: false as const, error: "Só é possível decidir sobre falta sem cobertura." };
+
+        const clientId = att.posto.clientId;
+        const d = att.date;
+        const measurement = await prisma.billingMeasurement.findUnique({
+            where: { clientId_year_month: { clientId, year: d.getUTCFullYear(), month: d.getUTCMonth() } },
+            select: { id: true, status: true },
+        });
+        if (measurement?.status === "APPROVED") return { success: false as const, error: "A medição deste mês já foi aprovada pelo cliente." };
+
+        await prisma.$transaction(async tx => {
+            await tx.billingGlosaDecision.upsert({
+                where: { attendanceId: input.attendanceId },
+                create: {
+                    attendanceId: input.attendanceId, clientId, decision: input.decision, reason: reason || null,
+                    decidedById: user.id, decidedByName: user.name || null,
+                },
+                update: {
+                    decision: input.decision, reason: reason || null,
+                    decidedById: user.id, decidedByName: user.name || null, decidedAt: new Date(),
+                },
+            });
+
+            // Registra no histórico da medição para o cliente acompanhar
+            const m = measurement || await tx.billingMeasurement.create({
+                data: { clientId, year: d.getUTCFullYear(), month: d.getUTCMonth(), status: "PENDING" },
+                select: { id: true, status: true },
+            });
+            await tx.billingMeasurementEvent.create({
+                data: {
+                    measurementId: m.id,
+                    type: "COMMENT",
+                    side: "INTERNAL",
+                    authorId: user.id,
+                    authorName: user.name || "Equipe interna",
+                    message: `${input.decision === "ABONO" ? "Falta ABONADA" : "Falta GLOSADA"} em ${d.toLocaleDateString("pt-BR", { timeZone: "UTC" })}${reason ? `: ${reason}` : "."}`,
+                },
+            });
+        });
+
+        revalidatePath("/client/dashboard");
+        revalidatePath("/admin/performance");
+        return { success: true as const };
+    } catch (error) {
+        console.error("Erro ao registrar decisão de glosa:", error);
+        return { success: false as const, error: "Erro ao registrar a decisão." };
     }
 }

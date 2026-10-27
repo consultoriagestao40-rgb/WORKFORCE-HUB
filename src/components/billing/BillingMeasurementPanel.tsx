@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
     CheckCircle2, AlertTriangle, Paperclip, Send, MessageSquare, Download,
@@ -14,6 +14,7 @@ import {
     getMeasurementDetail,
     postMeasurementEvent,
     getMeasurementAttachment,
+    setGlosaDecision,
     type MeasurementFileInput,
 } from "@/actions/billing-measurement";
 
@@ -71,6 +72,9 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
     const [files, setFiles] = useState<File[]>([]);
     const [sending, setSending] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
+    const [abonoTarget, setAbonoTarget] = useState<string | null>(null);
+    const [abonoReason, setAbonoReason] = useState("");
+    const [deciding, setDeciding] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -111,6 +115,24 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
             toast.error("Erro ao enviar. Verifique o tamanho dos anexos (máx. 4 MB cada).");
         } finally {
             setSending(false);
+        }
+    };
+
+    const decide = async (attendanceId: string, decision: "GLOSA" | "ABONO") => {
+        setDeciding(true);
+        try {
+            const res = await setGlosaDecision({ attendanceId, decision, reason: decision === "ABONO" ? abonoReason : undefined });
+            if (res.success) {
+                toast.success(decision === "ABONO" ? "Falta abonada. O valor não será glosado." : "Falta glosada.");
+                setAbonoTarget(null);
+                setAbonoReason("");
+                await load();
+                onChanged?.();
+            } else {
+                toast.error(res.error || "Não foi possível registrar a decisão.");
+            }
+        } finally {
+            setDeciding(false);
         }
     };
 
@@ -155,7 +177,7 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
         if (r.status === "FALTA") {
             if (r.coveredByName) return <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">● Falta Coberta: {r.coveredByName}</Badge>;
             if (r.coverageType === "DIARISTA") return <Badge className="bg-orange-50 text-orange-700 border-orange-100 hover:bg-orange-50 font-bold">● Coberto Diarista</Badge>;
-            return <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black">▲ Posto Vago (Glosa)</Badge>;
+            return (r.decision === "ABONO" ? <Badge className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50 font-bold">▲ Posto Vago (Abonado)</Badge> : <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-50 font-black">▲ Posto Vago (Glosa)</Badge>);
         }
         if (r.status === "FOLGA") return <Badge className="bg-slate-100 text-slate-500 border-slate-200/50 hover:bg-slate-100 font-semibold">○ Folga</Badge>;
         return <Badge className="bg-slate-100 text-slate-600 border-none hover:bg-slate-100">○ Aguardando</Badge>;
@@ -228,17 +250,21 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                                     <TableHead className="text-xs font-bold text-slate-800">Cargo / Função</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Colaborador</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800 text-center">Status</TableHead>
+                                    <TableHead className="text-xs font-bold text-slate-800">Quem cobriu</TableHead>
                                     <TableHead className="text-xs font-bold text-slate-800">Notas Operacionais</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {detail.rows.map((r: any) => (
-                                    <TableRow key={r.id} className={r.glosa > 0 ? "bg-red-50/20" : r.status === "FOLGA" ? "opacity-75 bg-slate-100/40" : ""}>
+                                    <TableRow key={r.id} className={r.uncovered && r.decision !== "ABONO" ? "bg-red-50/20" : r.status === "FOLGA" ? "opacity-75 bg-slate-100/40" : ""}>
                                         <TableCell className="text-xs font-bold">{fmtDate(r.date)}</TableCell>
                                         <TableCell className="text-xs font-semibold truncate max-w-[150px]">{r.clientName}</TableCell>
                                         <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
                                         <TableCell className="text-xs font-bold text-slate-800">{r.employeeName}</TableCell>
                                         <TableCell className="text-center">{statusBadge(r)}</TableCell>
+                                        <TableCell className="text-xs font-semibold text-slate-700">
+                                            {r.status !== "FALTA" ? "-" : r.coveredByName ? r.coveredByName : r.coverageType === "DIARISTA" ? "Diarista" : <span className="text-red-600 font-bold">Sem cobertura</span>}
+                                        </TableCell>
                                         <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
                                     </TableRow>
                                 ))}
@@ -248,37 +274,86 @@ export function BillingMeasurementPanel({ clientId, year, month, onChanged }: Pr
                 )}
             </div>
 
-            {/* Glosas */}
+            {/* Faltas sem cobertura: glosar ou abonar */}
             <div className="bg-white rounded-xl border border-slate-200/60 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-700">
-                    <AlertTriangle className="w-4 h-4 text-red-500" /> Glosas do mês (faltas não cobertas)
+                <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                    <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-500" /> Faltas sem cobertura (glosa ou abono)</span>
+                    {side === "INTERNAL" && !approved && detail.glosaRows.length > 0 && (
+                        <span className="text-[11px] font-medium text-slate-500">Padrão: glosar. Para não descontar, abone com justificativa.</span>
+                    )}
                 </div>
                 {detail.glosaRows.length === 0 ? (
-                    <div className="py-6 text-center text-xs text-slate-400 italic font-semibold">Nenhuma glosa neste mês.</div>
+                    <div className="py-6 text-center text-xs text-slate-400 italic font-semibold">Nenhuma falta sem cobertura neste mês.</div>
                 ) : (
                     <Table>
                         <TableHeader className="bg-slate-50">
                             <TableRow>
                                 <TableHead className="text-xs font-bold text-slate-800 pl-4">Data</TableHead>
                                 <TableHead className="text-xs font-bold text-slate-800">Função</TableHead>
-                                <TableHead className="text-xs font-bold text-slate-800">Colaborador</TableHead>
-                                <TableHead className="text-xs font-bold text-slate-800">Observação</TableHead>
-                                <TableHead className="text-xs font-bold text-slate-800 text-right pr-4">Valor da glosa</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Colaborador ausente</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Decisão</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800">Justificativa</TableHead>
+                                <TableHead className="text-xs font-bold text-slate-800 text-right">Valor</TableHead>
+                                {side === "INTERNAL" && !approved && <TableHead className="text-xs font-bold text-slate-800 text-right pr-4">Ação</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {detail.glosaRows.map((r: any) => (
-                                <TableRow key={r.id}>
-                                    <TableCell className="text-xs font-bold pl-4">{fmtDate(r.date)}</TableCell>
-                                    <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
-                                    <TableCell className="text-xs font-semibold">{r.employeeName}</TableCell>
-                                    <TableCell className="text-xs text-slate-500">{r.notes || "-"}</TableCell>
-                                    <TableCell className="text-xs font-bold text-red-600 text-right pr-4">-{brl(r.glosa)}</TableCell>
-                                </TableRow>
+                                <Fragment key={r.id}>
+                                    <TableRow>
+                                        <TableCell className="text-xs font-bold pl-4">{fmtDate(r.date)}</TableCell>
+                                        <TableCell className="text-xs font-semibold">{r.roleName}</TableCell>
+                                        <TableCell className="text-xs font-semibold">{r.employeeName}</TableCell>
+                                        <TableCell>
+                                            {r.decision === "ABONO"
+                                                ? <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 font-bold">Abonada</Badge>
+                                                : <Badge className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 font-bold">Glosada</Badge>}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-slate-600 max-w-[260px]">
+                                            {r.decisionReason || "-"}
+                                            {r.decidedByName && <div className="text-[10px] text-slate-400">por {r.decidedByName}{r.decidedAt ? ` em ${fmtDateTime(r.decidedAt)}` : ""}</div>}
+                                        </TableCell>
+                                        <TableCell className={`text-xs font-bold text-right ${r.decision === "ABONO" ? "text-blue-600 line-through" : "text-red-600"}`}>
+                                            {r.decision === "ABONO" ? brl(r.dailyValue) : `-${brl(r.glosa)}`}
+                                        </TableCell>
+                                        {side === "INTERNAL" && !approved && (
+                                            <TableCell className="text-right pr-4">
+                                                <div className="flex justify-end gap-1.5">
+                                                    {r.decision === "ABONO" ? (
+                                                        <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => decide(r.id, "GLOSA")}>Glosar</Button>
+                                                    ) : (
+                                                        <Button size="sm" variant="outline" disabled={deciding} className="h-7 text-[11px]" onClick={() => { setAbonoTarget(abonoTarget === r.id ? null : r.id); setAbonoReason(""); }}>Abonar</Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                    {abonoTarget === r.id && (
+                                        <TableRow key={r.id + "-abono"} className="bg-blue-50/40">
+                                            <TableCell colSpan={7} className="px-4 py-3">
+                                                <div className="flex flex-col sm:flex-row gap-2">
+                                                    <Textarea
+                                                        value={abonoReason}
+                                                        onChange={e => setAbonoReason(e.target.value)}
+                                                        placeholder="Justificativa do abono (obrigatória). Ex.: falta por motivo do cliente, feriado, acordo comercial..."
+                                                        className="min-h-[56px] text-xs bg-white"
+                                                    />
+                                                    <div className="flex sm:flex-col gap-2 shrink-0">
+                                                        <Button size="sm" disabled={deciding} className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => decide(r.id, "ABONO")}>Confirmar abono</Button>
+                                                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setAbonoTarget(null)}>Cancelar</Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </Fragment>
                             ))}
-                            <TableRow className="bg-red-50/40">
-                                <TableCell colSpan={4} className="text-xs font-black text-slate-700 pl-4">Total de glosas</TableCell>
-                                <TableCell className="text-xs font-black text-red-600 text-right pr-4">-{brl(s.glosaTotal)}</TableCell>
+                            <TableRow className="bg-slate-50/60">
+                                <TableCell colSpan={5} className="text-xs font-black text-slate-700 pl-4">
+                                    Total glosado{s.abonoCount > 0 ? ` (${s.abonoCount} abonada${s.abonoCount > 1 ? "s" : ""}: ${brl(s.abonoTotal)} não descontado)` : ""}
+                                </TableCell>
+                                <TableCell className="text-xs font-black text-red-600 text-right">-{brl(s.glosaTotal)}</TableCell>
+                                {side === "INTERNAL" && !approved && <TableCell />}
                             </TableRow>
                         </TableBody>
                     </Table>

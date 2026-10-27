@@ -3232,6 +3232,13 @@ export async function getAdminClientBilling(clientId: string, year: number) {
             }
         });
 
+        const abonoIds = new Set(
+            (await prisma.billingGlosaDecision.findMany({
+                where: { attendanceId: { in: attendances.map((a: any) => a.id) }, decision: "ABONO" },
+                select: { attendanceId: true },
+            })).map(d => d.attendanceId)
+        );
+
         const monthNames = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -3245,7 +3252,7 @@ export async function getAdminClientBilling(clientId: string, year: number) {
 
             let glosas = 0;
             monthAtts.forEach((a: any) => {
-                if (a.status === "FALTA" && !a.coveredById && !a.coverageType) {
+                if (a.status === "FALTA" && !a.coveredById && !a.coverageType && !abonoIds.has(a.id)) {
                     const dailyValue = a.posto.billingValue / 30;
                     glosas += dailyValue;
                 }

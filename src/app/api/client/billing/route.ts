@@ -43,6 +43,13 @@ export async function GET(request: Request) {
             }
         });
 
+        const abonoIds = new Set(
+            (await prisma.billingGlosaDecision.findMany({
+                where: { attendanceId: { in: attendances.map((a: any) => a.id) }, decision: "ABONO" },
+                select: { attendanceId: true },
+            })).map(d => d.attendanceId)
+        );
+
         const monthNames = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -58,7 +65,7 @@ export async function GET(request: Request) {
             // Calcular glosas: Faltas sem cobertura
             let glosas = 0;
             monthAtts.forEach(a => {
-                if (a.status === "FALTA" && !a.coveredById && !a.coverageType) {
+                if (a.status === "FALTA" && !a.coveredById && !a.coverageType && !abonoIds.has(a.id)) {
                     const dailyValue = a.posto.billingValue / 30;
                     glosas += dailyValue;
                 }
