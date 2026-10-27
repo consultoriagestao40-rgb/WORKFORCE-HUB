@@ -1335,6 +1335,31 @@ model RhNotificationLog {
   @@index([status])
 }
 
+// Avisos programados: comunicados recorrentes dentro de um período (ex.: Trintídio),
+// enviados por WhatsApp (grupos/contatos) e/ou como notificação dentro do sistema.
+// Datas guardadas como "YYYY-MM-DD" (fuso America/Sao_Paulo) para evitar problemas de timezone.
+model Announcement {
+  id            String   @id @default(uuid())
+  title         String
+  message       String   @db.Text
+  startDate     String   // YYYY-MM-DD
+  endDate       String   // YYYY-MM-DD
+  intervalDays  Int      @default(3)
+  recipients    String   @default("") // Mesmo formato dos canais: "OPERATIONS,ADMIN,<idGrupoExtra>,<idContato>"
+  sendInApp     Boolean  @default(true)
+  inAppRoles    String   @default("ADMIN,COORD_RH,ASSIST_RH,SUPERVISOR")
+  isActive      Boolean  @default(true)
+  lastSentDate  String?  // YYYY-MM-DD do último envio
+  lastSentAt    DateTime?
+  sendCount     Int      @default(0)
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, startDate, endDate])
+}
+
 // Lançamento e Validação de Atestados Médicos (Secullum + WhatsApp)
 model MedicalCertificate {
   id                 String    @id @default(uuid())

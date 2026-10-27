@@ -34,6 +34,7 @@ import {
 } from "@/actions/rh-notifications";
 import { ExtraPhoneItem, ExtraGroupItem } from "@/lib/rh-notifications";
 import { RhRecipientSelector } from "@/components/admin/RhRecipientSelector";
+import { AnnouncementsPanel } from "@/components/admin/notifications/AnnouncementsPanel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,7 @@ export default function RhNotificationsPage() {
     // Logs
     const [logs, setLogs] = useState<any[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(false);
-    const [activeTab, setActiveTab] = useState<"config" | "logs">("config");
+    const [activeTab, setActiveTab] = useState<"config" | "logs" | "avisos">("config");
 
     const loadData = async () => {
         setLoading(true);
@@ -465,6 +466,18 @@ export default function RhNotificationsPage() {
                     >
                         <FileText className="w-4 h-4" />
                         Histórico de Envios ({logs.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("avisos")}
+                        className={cn(
+                            "px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2",
+                            activeTab === "avisos" 
+                                ? "bg-slate-900 text-white shadow-sm" 
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                        )}
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        Avisos Programados
                     </button>
                 </div>
 
@@ -1279,6 +1292,15 @@ export default function RhNotificationsPage() {
                         </div>
                     </div>
                 </div>
+            ) : activeTab === "avisos" ? (
+                <AnnouncementsPanel
+                    operationsGroupJid={operationsGroupJid}
+                    operationsGroupName={operationsGroupName}
+                    adminGroupJid={adminGroupJid}
+                    adminGroupName={adminGroupName}
+                    extraGroups={extraGroups}
+                    extraPhones={extraPhones}
+                />
             ) : (
                 /* Aba de Logs de Auditoria */
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
