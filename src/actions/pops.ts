@@ -196,6 +196,7 @@ export async function approvePopDocument(id: string) {
 
         const pop = await prisma.popDocument.findUnique({ where: { id } });
         if (!pop) return { error: "Documento POP não encontrado." };
+        if (user.role !== "CLIENTE") return { error: "O aceite do POP deve ser dado pelo cliente." };
         if (user.role === "CLIENTE" && !(user.clientIds || []).includes(pop.clientId)) return { error: "Sem permissão para este contrato." };
 
         const now = new Date();

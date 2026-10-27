@@ -78,6 +78,8 @@ export function PopsManagementSection({
     const [rejectReason, setRejectReason] = useState("");
 
     const [isPending, startTransition] = useTransition();
+    // Aceite é exclusivo do cliente (POP emitido internamente aguarda o aceite do contratante)
+    const canAccept = isClientUser && !isAdminUser;
 
     // Stats
     const totalPops = pops.length;
@@ -549,6 +551,21 @@ export function PopsManagementSection({
                                                     Imprimir PDF
                                                 </Button>
 
+                                                {canAccept && pop.status !== "APPROVED" && (
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setSelectedPop(pop);
+                                                            setIsReadOpen(true);
+                                                        }}
+                                                        className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                        title="Ler o POP e dar o aceite"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                        Dar Aceite
+                                                    </Button>
+                                                )}
+
                                                 {(!isClientUser || isAdminUser) && (
                                                     <Button
                                                         size="sm"
@@ -661,7 +678,22 @@ export function PopsManagementSection({
                                     <Printer className="w-3.5 h-3.5 text-slate-600" />
                                 </Button>
 
-                                {(!isClientUser || isAdminUser) && (
+                                {canAccept && pop.status !== "APPROVED" && (
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setSelectedPop(pop);
+                                                            setIsReadOpen(true);
+                                                        }}
+                                                        className="h-9 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                        title="Ler o POP e dar o aceite"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                                        Dar Aceite
+                                                    </Button>
+                                                )}
+
+                                                {(!isClientUser || isAdminUser) && (
                                     <Button
                                         size="sm"
                                         variant="ghost"
@@ -1108,7 +1140,7 @@ export function PopsManagementSection({
                                     Fechar
                                 </Button>
 
-                                {selectedPop.status !== "APPROVED" && (
+                                {canAccept && selectedPop.status !== "APPROVED" && (
                                     <div className="flex gap-2 w-full sm:w-auto justify-end">
                                         <Button
                                             variant="destructive"
