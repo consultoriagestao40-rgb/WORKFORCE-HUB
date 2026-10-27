@@ -42,6 +42,7 @@ import {
 } from "@/app/admin/requests/actions";
 import { getPopDocuments } from "@/actions/pops";
 import { PopsManagementSection } from "@/components/client/PopsManagementSection";
+import { BillingMeasurementPanel } from "@/components/billing/BillingMeasurementPanel";
 import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { 
     ArrowLeft, Award, Calendar, Users, DollarSign, 
@@ -63,6 +64,7 @@ const monthShortNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago",
 export function PerformanceDashboard({ initialClients, userRole, userName }: PerformanceDashboardProps) {
     const [selectedClientId, setSelectedClientId] = useState<string>("all");
     const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+    const [measurementMonth, setMeasurementMonth] = useState<number>(new Date().getMonth());
     const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
     const [date, setDate] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
 
@@ -3634,6 +3636,33 @@ export function PerformanceDashboard({ initialClients, userRole, userName }: Per
                                             </TableBody>
                                         </Table>
                                     </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Medição mensal: relatório, glosas, análise do cliente e respostas */}
+                            {selectedClientId !== "all" && (
+                                <Card className="border border-slate-200/50 shadow-premium bg-white overflow-hidden rounded-2xl">
+                                    <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-b border-slate-100 bg-slate-50/30">
+                                        <div className="space-y-0.5">
+                                            <h4 className="text-xs font-bold text-slate-700">Medição Mensal</h4>
+                                            <p className="text-[10px] text-slate-400 font-medium">Relatório do mês, análise do cliente, respostas e evidências.</p>
+                                        </div>
+                                        <select
+                                            value={measurementMonth}
+                                            onChange={(e) => setMeasurementMonth(Number(e.target.value))}
+                                            className="h-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold px-3 outline-none cursor-pointer"
+                                        >
+                                            {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((n, i) => (
+                                                <option key={i} value={i}>{n}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <BillingMeasurementPanel
+                                        key={`${selectedClientId}-${selectedYear}-${measurementMonth}`}
+                                        clientId={selectedClientId}
+                                        year={selectedYear}
+                                        month={measurementMonth}
+                                    />
                                 </Card>
                             )}
                         </div>

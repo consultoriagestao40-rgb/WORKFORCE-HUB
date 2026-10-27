@@ -113,6 +113,7 @@ model Client {
   visitRequirements   ClientVisitRequirement[]
   requests            Request[]
   pops                PopDocument[]
+  billingMeasurements BillingMeasurement[]
   monthlyDocumentRequirements MonthlyDocumentRequirement[]
   punchAdjustments           AttendancePunchAdjustment[]
   approvalRequests           ApprovalRequest[]
@@ -1592,3 +1593,52 @@ model ApprovalWorkflowRule {
   updatedAt      DateTime      @updatedAt
 }
 
+
+// Medição mensal de faturamento: análise do cliente, histórico de interações e evidências
+model BillingMeasurement {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year         Int
+  month        Int      // 0-11
+  status       String   @default("PENDING") // PENDING | REVISION_REQUESTED | APPROVED
+  approvedAt   DateTime?
+  approvedById String?
+  approvedByName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  events       BillingMeasurementEvent[]
+
+  @@unique([clientId, year, month])
+  @@index([clientId, year])
+}
+
+model BillingMeasurementEvent {
+  id            String   @id @default(uuid())
+  measurementId String
+  measurement   BillingMeasurement @relation(fields: [measurementId], references: [id], onDelete: Cascade)
+  type          String   // REVISION_REQUEST | RESPONSE | COMMENT | APPROVAL
+  side          String   // CLIENT | INTERNAL
+  authorId      String?
+  authorName    String
+  message       String?
+  createdAt     DateTime @default(now())
+
+  attachments   BillingMeasurementAttachment[]
+
+  @@index([measurementId])
+}
+
+model BillingMeasurementAttachment {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     BillingMeasurementEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fileName  String
+  mimeType  String?
+  size      Int      @default(0)
+  fileData  String   // Base64 (carregado sob demanda)
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+}

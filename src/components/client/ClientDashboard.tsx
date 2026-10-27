@@ -22,6 +22,8 @@ import { PopsManagementSection } from "@/components/client/PopsManagementSection
 import { MonthlyDocsSection } from "@/components/admin/MonthlyDocsSection";
 import { getPopDocuments } from "@/actions/pops";
 import { getClientServicePlan } from "@/actions/client-service-plan";
+import { getMeasurementStatuses } from "@/actions/billing-measurement";
+import { BillingMeasurementPanel, measurementStatusBadge } from "@/components/billing/BillingMeasurementPanel";
 import { getPostoRoutines } from "@/app/admin/requests/actions";
 import { logout } from "@/app/actions";
 import { 
@@ -161,6 +163,17 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
     };
     const [servicePlanData, setServicePlanData] = useState<any>(null);
     const [selectedPlanPostoId, setSelectedPlanPostoId] = useState<string>("");
+    const [expandedBillingMonth, setExpandedBillingMonth] = useState<number | null>(null);
+    const [measurementStatuses, setMeasurementStatuses] = useState<Record<number, string>>({});
+    const billingClientId = activeContractId || (contracts[0] as any)?.clientId || contracts[0]?.id || "";
+    const loadMeasurementStatuses = useCallback(async () => {
+        if (!billingClientId) return;
+        const res = await getMeasurementStatuses(billingClientId, billingYear);
+        if (res.success) setMeasurementStatuses(res.statuses);
+    }, [billingClientId, billingYear]);
+    useEffect(() => {
+        if (activeTab === "billing") { setExpandedBillingMonth(null); loadMeasurementStatuses(); }
+    }, [activeTab, billingYear, loadMeasurementStatuses]);
     const [planRoutines, setPlanRoutines] = useState<any[]>([]);
     const [loadingPlanRoutines, setLoadingPlanRoutines] = useState(false);
     const [loadingServicePlan, setLoadingServicePlan] = useState(false);
@@ -1711,11 +1724,17 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                     <TableHead className="font-bold text-slate-800 text-right pr-6">Faturamento Líquido</TableHead>
                                                     <TableHead className="font-bold text-slate-800 text-center">Efetividade Operacional</TableHead>
                                                     <TableHead className="font-bold text-slate-800 text-center">Escalas / Faltas</TableHead>
+                                                    <TableHead className="font-bold text-slate-800 text-center">Medição</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {billingData.map((m) => (
-                                                    <TableRow key={m.monthIndex} className="hover:bg-slate-50/50 transition-colors">
+                                                    <React.Fragment key={m.monthIndex}>
+                                                    <TableRow
+                                                        onClick={() => setExpandedBillingMonth(expandedBillingMonth === m.monthIndex ? null : m.monthIndex)}
+                                                        className={`hover:bg-slate-50/50 transition-colors cursor-pointer ${expandedBillingMonth === m.monthIndex ? "bg-slate-50" : ""}`}
+                                                        title="Clique para abrir o relatório da medição do mês"
+                                                    >
                                                         <TableCell className="font-bold text-xs text-slate-900">
                                                             {m.name}
                                                         </TableCell>
@@ -1740,7 +1759,26 @@ export function ClientDashboard({ userName, contracts }: ClientDashboardProps) {
                                                         <TableCell className="text-center text-xs font-semibold text-slate-505">
                                                             {m.totalShifts} Escalas / <span className={m.vacantShifts > 0 ? "text-red-650 font-bold" : ""}>{m.vacantShifts} Faltas</span>
                                                         </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                {measurementStatusBadge(measurementStatuses[m.monthIndex])}
+                                                                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expandedBillingMonth === m.monthIndex ? "rotate-90" : ""}`} />
+                                                            </div>
+                                                        </TableCell>
                                                     </TableRow>
+                                                    {expandedBillingMonth === m.monthIndex && billingClientId && (
+                                                        <TableRow className="hover:bg-transparent">
+                                                            <TableCell colSpan={7} className="p-0">
+                                                                <BillingMeasurementPanel
+                                                                    clientId={billingClientId}
+                                                                    year={billingYear}
+                                                                    month={m.monthIndex}
+                                                                    onChanged={loadMeasurementStatuses}
+                                                                />
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                    </React.Fragment>
                                                 ))}
                                             </TableBody>
                                         </Table>
