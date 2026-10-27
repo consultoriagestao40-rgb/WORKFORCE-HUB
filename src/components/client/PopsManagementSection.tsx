@@ -130,7 +130,7 @@ export function PopsManagementSection({
                 return (
                     <Badge className="bg-slate-100 text-slate-700 border-slate-300 flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold">
                         <Clock className="w-3.5 h-3.5 text-slate-500" />
-                        Aguardando Aprovação Interna
+                        Em Elaboração
                     </Badge>
                 );
             case "PENDING_CLIENT":
@@ -404,7 +404,7 @@ export function PopsManagementSection({
                         <Clock className="w-5 h-5" />
                     </div>
                     <div>
-                        <div className="text-xs text-amber-700 font-medium">{canApproveInternally ? "Pend. Interna / Aceite Cliente" : "Pendente de Aceite"}</div>
+                        <div className="text-xs text-amber-700 font-medium">{canApproveInternally ? "Elaboração / Aceite Cliente" : "Pendente de Aceite"}</div>
                         <div className="text-2xl font-bold text-amber-900">{canApproveInternally ? `${pendingInternalPops} / ${pendingClientPops}` : pendingClientPops}</div>
                     </div>
                 </div>
@@ -458,7 +458,7 @@ export function PopsManagementSection({
                             <SelectContent>
                                 <SelectItem value="all">Todos os Status</SelectItem>
                                 <SelectItem value="APPROVED">Em Vigor (Aprovados)</SelectItem>
-                                {canApproveInternally && <SelectItem value="PENDING_INTERNAL">Aguardando Aprovação Interna</SelectItem>}
+                                <SelectItem value="PENDING_INTERNAL">Em Elaboração</SelectItem>
                                 <SelectItem value="PENDING_CLIENT">Pendente de Aceite do Cliente</SelectItem>
                                 <SelectItem value="REJECTED">Solicitada Revisão</SelectItem>
                             </SelectContent>

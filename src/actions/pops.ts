@@ -12,8 +12,6 @@ export async function getPopDocuments(clientId?: string, postoId?: string) {
         const where: any = {};
         if (clientId) where.clientId = clientId;
         if (postoId) where.postoId = postoId;
-        // Cliente só enxerga POPs já liberados pela aprovação interna
-        if (me.role === "CLIENTE") where.internalApprovedAt = { not: null };
 
         const pops = await prisma.popDocument.findMany({
             where,
