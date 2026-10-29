@@ -215,13 +215,14 @@ export async function createApprovalRequest(data: {
         }
     });
 
-    // Se o gestor imediato do solicitante já for um aprovador N2 (ou ADMIN da Diretoria como Cristiano),
+    // Se o gestor imediato do solicitante já for um aprovador exclusivo N2 (Diretoria como Cristiano),
     // ou se o solicitante NÃO tiver superior imediato,
-    // ou se o próprio solicitante já for um Gestor N1 (como o Wellington):
-    // A solicitação NUNCA fica parada para ele aprovar a si mesmo! Pula a etapa N1 e sobe DIRETO para o N2 (Diretoria / Cristiano).
-    // Aprovado no N2, o fluxo fica liberado imediatamente para o RH trabalhar.
-    const requesterIsN1 = !!(requester?.isApproverN1 || requester?.role === 'SUPERVISOR');
-    const directManagerIsN2 = !!(requester?.manager?.isApproverN2 || requester?.manager?.role === 'ADMIN');
+    // ou se o próprio solicitante já for um Gestor N1 (como o Wellington, para evitar autoaprovação):
+    // A solicitação pula a etapa N1 e sobe DIRETO para o N2 (Diretoria / Cristiano).
+    // Caso contrário (ex: Supervisor comum subordinado ao Gestor N1 Wellington Klas),
+    // a solicitação PASSA PRIMEIRO pelo N1 (Wellington) antes de subir para o N2.
+    const requesterIsN1 = !!(requester?.isApproverN1);
+    const directManagerIsN2 = !!(requester?.manager?.isApproverN2 && !requester?.manager?.isApproverN1);
     const hasN1 = !!(requester?.managerId && !directManagerIsN2 && !requesterIsN1);
 
     // REGRA DE N1 E N2:
