@@ -25,6 +25,8 @@ interface ImportSecullumSheetDialogProps {
     month: number;
     companies?: string[];
     defaultCompany?: string;
+    trigger?: React.ReactNode;
+    className?: string;
     onSuccess: () => void;
 }
 
@@ -33,6 +35,8 @@ export function ImportSecullumSheetDialog({
     month, 
     companies = [], 
     defaultCompany = "all", 
+    trigger,
+    className,
     onSuccess 
 }: ImportSecullumSheetDialogProps) {
     const [open, setOpen] = useState(false);
@@ -412,13 +416,17 @@ export function ImportSecullumSheetDialog({
             }
         }}>
             <DialogTrigger asChild>
-                <Button 
-                    variant="outline" 
-                    className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-sm font-medium gap-2 h-11 px-4 rounded-2xl"
-                >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <span>Importar Planilha Secullum</span>
-                </Button>
+                {trigger ? (
+                    trigger
+                ) : (
+                    <Button 
+                        variant="outline" 
+                        className={className || "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-100 shadow-sm font-bold gap-2 h-10 px-3.5 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"}
+                    >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Importar Planilha Secullum</span>
+                    </Button>
+                )}
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 rounded-2xl bg-white">
                 <DialogHeader>

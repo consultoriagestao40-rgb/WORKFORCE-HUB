@@ -25,7 +25,8 @@ import {
     ShieldAlert,
     FileText,
     MessageSquare,
-    ExternalLink
+    ExternalLink,
+    Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1211,124 +1212,166 @@ export default function PayrollPreviewPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header com gradiente */}
+            {/* Header com gradiente e layout estruturado em dois níveis */}
             <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white p-6 shadow-xl border border-slate-800">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#1e293b,transparent)]" />
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <div className="bg-sky-500/10 p-2 rounded-xl border border-sky-400/20 text-sky-400">
-                                <Calculator className="w-5 h-5" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#1e293b,transparent)] pointer-events-none" />
+                <div className="relative z-10 space-y-5">
+                    {/* NÍVEL 1: Identificação, Informações de Competência e Seletor de Período */}
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-sky-500/10 p-2 rounded-xl border border-sky-400/20 text-sky-400 shadow-inner">
+                                    <Calculator className="w-5 h-5" />
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                    Financeiro & DP
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                                    Fechamento Mensal
+                                </span>
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Financeiro & DP</span>
+
+                            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
+                                Prévia de Folha de Pagamento
+                            </h1>
+
+                            {/* Chips destacados e organizados de Período de Apuração e Previsão de Pagamento */}
+                            <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs text-slate-300 shadow-xs">
+                                    <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                    <span>Apuração:</span>
+                                    <strong className="text-white font-bold bg-slate-700/70 px-2 py-0.5 rounded-md text-sky-200">
+                                        {getOccurrencesWindowLabel()}
+                                    </strong>
+                                </div>
+
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs text-slate-300 shadow-xs">
+                                    <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                    <span>Previsão de Pagamento:</span>
+                                    <strong className="text-amber-300 font-bold">
+                                        {getPaydayLabel()}
+                                    </strong>
+                                </div>
+                            </div>
                         </div>
-                        <h1 className="text-xl md:text-2xl font-black tracking-tight">Prévia de Folha de Pagamento</h1>
-                        <p className="text-xs text-slate-400 font-semibold mt-1">
-                            Competência de Apuração: <span className="text-white underline decoration-sky-400 font-bold">{getOccurrencesWindowLabel()}</span>
-                        </p>
-                        <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                            Previsão de Pagamento: <span className="text-slate-300 font-bold">{getPaydayLabel()}</span>
-                        </p>
+
+                        {/* Bloco dedicado de Seleção de Competência (Mês / Ano) */}
+                        <div className="bg-slate-800/90 p-2.5 rounded-2xl border border-slate-700/80 backdrop-blur-sm self-start lg:self-center shadow-lg flex flex-col sm:flex-row sm:items-center gap-2">
+                            <div className="flex items-center gap-1.5 px-2 text-slate-400">
+                                <Calendar className="w-4 h-4 text-sky-400 shrink-0" />
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Competência:</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
+                                    <SelectTrigger className="h-9 border border-slate-700 bg-slate-900/90 hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[120px] cursor-pointer">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
+                                        <SelectItem value="1">Janeiro</SelectItem>
+                                        <SelectItem value="2">Fevereiro</SelectItem>
+                                        <SelectItem value="3">Março</SelectItem>
+                                        <SelectItem value="4">Abril</SelectItem>
+                                        <SelectItem value="5">Maio</SelectItem>
+                                        <SelectItem value="6">Junho</SelectItem>
+                                        <SelectItem value="7">Julho</SelectItem>
+                                        <SelectItem value="8">Agosto</SelectItem>
+                                        <SelectItem value="9">Setembro</SelectItem>
+                                        <SelectItem value="10">Outubro</SelectItem>
+                                        <SelectItem value="11">Novembro</SelectItem>
+                                        <SelectItem value="12">Dezembro</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
+                                    <SelectTrigger className="h-9 border border-slate-700 bg-slate-900/90 hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[85px] cursor-pointer">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
+                                        <SelectItem value="2025">2025</SelectItem>
+                                        <SelectItem value="2026">2026</SelectItem>
+                                        <SelectItem value="2027">2027</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex items-center gap-3 self-start md:self-center">
-                        {/* Ano / Mês Selector */}
-                        <div className="flex items-center gap-2 bg-slate-800/80 p-2 rounded-2xl border border-slate-700/60 w-fit backdrop-blur-sm">
-                            <Calendar className="w-4 h-4 text-sky-400 ml-1.5" />
-                            <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(Number(v))}>
-                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[100px] cursor-pointer">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
-                                    <SelectItem value="1">Janeiro</SelectItem>
-                                    <SelectItem value="2">Fevereiro</SelectItem>
-                                    <SelectItem value="3">Março</SelectItem>
-                                    <SelectItem value="4">Abril</SelectItem>
-                                    <SelectItem value="5">Maio</SelectItem>
-                                    <SelectItem value="6">Junho</SelectItem>
-                                    <SelectItem value="7">Julho</SelectItem>
-                                    <SelectItem value="8">Agosto</SelectItem>
-                                    <SelectItem value="9">Setembro</SelectItem>
-                                    <SelectItem value="10">Outubro</SelectItem>
-                                    <SelectItem value="11">Novembro</SelectItem>
-                                    <SelectItem value="12">Dezembro</SelectItem>
-                                </SelectContent>
-                            </Select>
+                    {/* NÍVEL 2: Barra de Ações com grupos funcionais organizados e flex-wrap (sem botões saindo pra fora) */}
+                    <div className="border-t border-slate-800/80 pt-4 flex flex-wrap items-center justify-between gap-3">
+                        {/* Grupo 1: Ponto & Sincronização Secullum */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden xl:inline-block">
+                                Ponto:
+                            </span>
+                            <button
+                                onClick={handleOpenSyncModal}
+                                disabled={isSyncingSecullum}
+                                className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800/50 text-white font-bold text-xs h-10 px-3.5 rounded-xl border border-sky-400/30 transition-all cursor-pointer shadow-md shadow-sky-950/30 active:scale-[0.98] disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
+                                <span>{isSyncingSecullum ? 'Sincronizando...' : 'Sincronizar Secullum'}</span>
+                            </button>
 
-                            <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(Number(v))}>
-                                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-slate-700 text-white font-bold text-xs rounded-xl w-[80px] cursor-pointer">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-900 border-slate-800 text-white text-xs">
-                                    <SelectItem value="2025">2025</SelectItem>
-                                    <SelectItem value="2026">2026</SelectItem>
-                                    <SelectItem value="2027">2027</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <ImportSecullumSheetDialog 
+                                year={selectedYear} 
+                                month={selectedMonth} 
+                                companies={uniqueCompanies}
+                                defaultCompany={selectedCompany}
+                                onSuccess={loadData} 
+                            />
                         </div>
 
-                        {/* Sincronizar Secullum com Modal de Seleção de Empresa */}
-                        <button
-                            onClick={handleOpenSyncModal}
-                            disabled={isSyncingSecullum}
-                            className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800/50 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-sky-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:cursor-not-allowed"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? 'animate-spin' : ''}`} />
-                            <span>{isSyncingSecullum ? 'Sincronizando...' : 'Sincronizar Secullum'}</span>
-                        </button>
+                        {/* Grupo 2: Exportações e Relatórios */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden xl:inline-block">
+                                Relatórios:
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setExportSelectedYear(selectedYear);
+                                    setExportSelectedMonth(selectedMonth);
+                                    setExportSelectedCompany(selectedCompany);
+                                    setExportSelectedClient(selectedClient);
+                                    setExportModalOpen(true);
+                                }}
+                                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-10 px-3.5 rounded-xl border border-emerald-400/30 transition-all cursor-pointer shadow-md shadow-emerald-950/30 active:scale-[0.98] whitespace-nowrap"
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5" />
+                                <span>Exportar Excel</span>
+                            </button>
 
-                        {/* Importar Planilha de Ponto Secullum */}
-                        <ImportSecullumSheetDialog 
-                            year={selectedYear} 
-                            month={selectedMonth} 
-                            companies={uniqueCompanies}
-                            defaultCompany={selectedCompany}
-                            onSuccess={loadData} 
-                        />
+                            <button
+                                onClick={handleExportContabilidade}
+                                disabled={isLoadingContabilidade}
+                                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold text-xs h-10 px-3.5 rounded-xl border border-slate-700 transition-all cursor-pointer shadow-md active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>{isLoadingContabilidade ? "Gerando..." : "Planilha Contabilidade"}</span>
+                            </button>
+                        </div>
 
-                        {/* Exportar Excel */}
-                        <button
-                            onClick={() => {
-                                setExportSelectedYear(selectedYear);
-                                setExportSelectedMonth(selectedMonth);
-                                setExportSelectedCompany(selectedCompany);
-                                setExportSelectedClient(selectedClient);
-                                setExportModalOpen(true);
-                            }}
-                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-emerald-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
-                        >
-                            <FileSpreadsheet className="w-4 h-4" />
-                            <span>Exportar Excel</span>
-                        </button>
+                        {/* Grupo 3: Módulos & Cruzamentos Conectados */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden xl:inline-block">
+                                Módulos:
+                            </span>
+                            <Link
+                                href="/admin/payroll-onvio"
+                                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-orange-300 hover:text-orange-200 font-bold text-xs h-10 px-3.5 rounded-xl border border-orange-500/30 transition-all cursor-pointer shadow-md active:scale-[0.98] whitespace-nowrap"
+                            >
+                                <ClipboardCheck className="w-3.5 h-3.5 text-orange-400" />
+                                <span>Rubricas Onvio</span>
+                            </Link>
 
-                        {/* Planilha Contabilidade */}
-                        <button
-                            onClick={handleExportContabilidade}
-                            disabled={isLoadingContabilidade}
-                            className="flex items-center gap-2 bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-cyan-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            <FileSpreadsheet className="w-4 h-4" />
-                            <span>{isLoadingContabilidade ? "Gerando..." : "Planilha Contabilidade"}</span>
-                        </button>
-
-                        {/* Lançamento de Rubricas Onvio */}
-                        <Link
-                            href="/admin/payroll-onvio"
-                            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-orange-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
-                        >
-                            <ClipboardCheck className="w-4 h-4" />
-                            <span>Rubricas Onvio</span>
-                        </Link>
-
-                        {/* Auditoria & Cruzamento Triplo */}
-                        <Link
-                            href="/admin/payroll-audit"
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs h-11 px-4 rounded-2xl border border-purple-500/30 transition-all cursor-pointer shadow-lg shadow-slate-950/20 active:scale-[0.98]"
-                            title="Auditoria e cruzamento: Holerites da Contabilidade vs Cartão Ponto vs WFH"
-                        >
-                            <ShieldAlert className="w-4 h-4" />
-                            <span>Auditoria de Folha</span>
-                        </Link>
+                            <Link
+                                href="/admin/payroll-audit"
+                                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-purple-300 hover:text-purple-200 font-bold text-xs h-10 px-3.5 rounded-xl border border-purple-500/30 transition-all cursor-pointer shadow-md active:scale-[0.98] whitespace-nowrap"
+                                title="Auditoria e cruzamento: Holerites da Contabilidade vs Cartão Ponto vs WFH"
+                            >
+                                <ShieldAlert className="w-3.5 h-3.5 text-purple-400" />
+                                <span>Auditoria de Folha</span>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
