@@ -2500,6 +2500,80 @@ export async function addVacation(formData: FormData) {
     }
 
     const currentUser = await getCurrentUser();
+    if (!currentUser) return { error: "Não autorizado" };
+
+    // ── VERIFICAR ALÇADA DE APROVAÇÃO PARA FÉRIAS ────────────────────
+    const rule = await prisma.approvalWorkflowRule.findUnique({
+        where: { type: ApprovalType.FERIAS }
+    });
+
+    const isApprovalRequired = rule?.n1Enabled || rule?.n2Enabled;
+    if (isApprovalRequired) {
+        const emp = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: {
+                role: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: true, role: true } } }
+                }
+            }
+        });
+        if (!emp) return { error: "Colaborador não encontrado." };
+
+        const activeAssignment = emp.assignments[0];
+        const clientName = activeAssignment?.posto?.client?.name || "Sem Posto Fixo";
+        const roleName = emp.role?.name || activeAssignment?.posto?.role?.name || "Sem Função";
+
+        const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+        const appRes = await createApprovalRequest({
+            type: ApprovalType.FERIAS,
+            title: `Programação de Férias: ${emp.name} (${startFormatted} a ${endFormatted})`,
+            description: notes || `Férias programadas de ${startFormatted} até ${endFormatted} (${daysTaken} dias de gozo${daysSold > 0 ? `, ${daysSold} dias vendidos` : ''})`,
+            employeeId,
+            clientId: activeAssignment?.posto?.clientId || undefined,
+            postoId: activeAssignment?.postoId || undefined,
+            snapshotCurrent: {
+                clientName,
+                roleName,
+                admissionDate: emp.admissionDate,
+                lastVacationStart: emp.lastVacationStart,
+                lastVacationEnd: emp.lastVacationEnd,
+                totalVacationDaysTaken: emp.totalVacationDaysTaken
+            },
+            snapshotProposed: {
+                startDate: startDateStr,
+                endDate: endDateStr,
+                daysTaken,
+                daysSold,
+                notes
+            },
+            executionPayload: {
+                employeeId,
+                startDate: startDateStr,
+                endDate: endDateStr,
+                daysTaken,
+                daysSold,
+                notes
+            }
+        });
+
+        if ((appRes as any)?.error) {
+            return { error: (appRes as any).error };
+        }
+
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/vacation-monitor");
+        revalidatePath("/admin/aprovacoes");
+
+        return {
+            success: true,
+            pendingApproval: true,
+            message: "Programação de férias encaminhada para aprovação da Diretoria (N2)!"
+        };
+    }
 
     await prisma.vacation.create({
         data: {
@@ -2646,6 +2720,87 @@ export async function updateVacation(formData: FormData) {
     const diffTotal = newTotal - oldTotal;
 
     const currentUser = await getCurrentUser();
+    if (!currentUser) return { error: "Não autorizado" };
+
+    // ── VERIFICAR ALÇADA DE APROVAÇÃO PARA ALTERAÇÃO DE FÉRIAS ───────
+    const rule = await prisma.approvalWorkflowRule.findUnique({
+        where: { type: ApprovalType.FERIAS }
+    });
+
+    const isApprovalRequired = rule?.n1Enabled || rule?.n2Enabled;
+    if (isApprovalRequired) {
+        const emp = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: {
+                role: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: true, role: true } } }
+                }
+            }
+        });
+        if (!emp) return { error: "Colaborador não encontrado." };
+
+        const activeAssignment = emp.assignments[0];
+        const clientName = activeAssignment?.posto?.client?.name || "Sem Posto Fixo";
+        const roleName = emp.role?.name || activeAssignment?.posto?.role?.name || "Sem Função";
+
+        const startFormatted = startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        const endFormatted = endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        const oldStartFormatted = oldVacation.startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+        const oldEndFormatted = oldVacation.endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+        const appRes = await createApprovalRequest({
+            type: ApprovalType.FERIAS,
+            title: `Alteração de Férias: ${emp.name} (${startFormatted} a ${endFormatted})`,
+            description: notes || `Alteração do período de férias de (${oldStartFormatted} a ${oldEndFormatted}) para (${startFormatted} a ${endFormatted})`,
+            employeeId,
+            clientId: activeAssignment?.posto?.clientId || undefined,
+            postoId: activeAssignment?.postoId || undefined,
+            snapshotCurrent: {
+                clientName,
+                roleName,
+                startDate: oldVacation.startDate,
+                endDate: oldVacation.endDate,
+                daysTaken: oldVacation.daysTaken,
+                daysSold: oldVacation.daysSold,
+                notes: oldVacation.notes
+            },
+            snapshotProposed: {
+                vacationId,
+                startDate: startDateStr,
+                endDate: endDateStr,
+                daysTaken,
+                daysSold,
+                notes,
+                isUpdate: true
+            },
+            executionPayload: {
+                vacationId,
+                employeeId,
+                startDate: startDateStr,
+                endDate: endDateStr,
+                daysTaken,
+                daysSold,
+                notes,
+                isUpdate: true
+            }
+        });
+
+        if ((appRes as any)?.error) {
+            return { error: (appRes as any).error };
+        }
+
+        revalidatePath("/admin/employees");
+        revalidatePath("/admin/vacation-monitor");
+        revalidatePath("/admin/aprovacoes");
+
+        return {
+            success: true,
+            pendingApproval: true,
+            message: "Alteração de férias encaminhada para aprovação da Diretoria (N2)!"
+        };
+    }
 
     await prisma.vacation.update({
         where: { id: vacationId },
@@ -2714,8 +2869,80 @@ export async function deleteVacation(vacationId: string, employeeId: string) {
 
     const totalDays = vacation.daysTaken + (vacation.daysSold || 0);
     const currentUser = await getCurrentUser();
+    if (!currentUser) return { error: "Não autorizado" };
+
     const startFormatted = vacation.startDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
     const endFormatted = vacation.endDate.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+    // ── VERIFICAR ALÇADA DE APROVAÇÃO PARA CANCELAMENTO DE FÉRIAS ─────
+    const rule = await prisma.approvalWorkflowRule.findUnique({
+        where: { type: ApprovalType.FERIAS }
+    });
+
+    const isApprovalRequired = rule?.n1Enabled || rule?.n2Enabled;
+    if (isApprovalRequired) {
+        const emp = await prisma.employee.findUnique({
+            where: { id: employeeId },
+            include: {
+                role: true,
+                assignments: {
+                    where: { endDate: null },
+                    include: { posto: { include: { client: true, role: true } } }
+                }
+            }
+        });
+        if (!emp) return { error: "Colaborador não encontrado." };
+
+        const activeAssignment = emp.assignments[0];
+        const clientName = activeAssignment?.posto?.client?.name || "Sem Posto Fixo";
+        const roleName = emp.role?.name || activeAssignment?.posto?.role?.name || "Sem Função";
+
+        const appRes = await createApprovalRequest({
+            type: ApprovalType.FERIAS,
+            title: `Cancelamento de Férias: ${emp.name} (${startFormatted} a ${endFormatted})`,
+            description: `Solicitação de cancelamento/exclusão do período de férias de ${startFormatted} até ${endFormatted} (${totalDays} dias)`,
+            employeeId,
+            clientId: activeAssignment?.posto?.clientId || undefined,
+            postoId: activeAssignment?.postoId || undefined,
+            snapshotCurrent: {
+                clientName,
+                roleName,
+                startDate: vacation.startDate,
+                endDate: vacation.endDate,
+                daysTaken: vacation.daysTaken,
+                daysSold: vacation.daysSold,
+                notes: vacation.notes
+            },
+            snapshotProposed: {
+                vacationId,
+                isCancellation: true,
+                startDate: vacation.startDate,
+                endDate: vacation.endDate,
+                totalDays
+            },
+            executionPayload: {
+                vacationId,
+                employeeId,
+                totalDays,
+                isCancellation: true
+            }
+        });
+
+        if ((appRes as any)?.error) {
+            return { error: (appRes as any).error };
+        }
+
+        revalidatePath("/admin/employees");
+        revalidatePath(`/admin/employees/${employeeId}`);
+        revalidatePath("/admin/vacation-monitor");
+        revalidatePath("/admin/aprovacoes");
+
+        return {
+            success: true,
+            pendingApproval: true,
+            message: "Cancelamento de férias encaminhado para aprovação da Diretoria (N2)!"
+        };
+    }
 
     await prisma.vacation.delete({
         where: { id: vacationId }
@@ -2739,6 +2966,7 @@ export async function deleteVacation(vacationId: string, employeeId: string) {
 
     revalidatePath("/admin/employees");
     revalidatePath(`/admin/employees/${employeeId}`);
+    return { success: true };
 }
 
 export async function getEmployeesOnVacation() {
@@ -4296,10 +4524,15 @@ export async function internalExecuteDismissal(data: {
         });
 
         // 3. Log the process start
+        const isColabInit = data.initiative === "COLABORADOR" || data.dismissalSubType?.startsWith("PEDIDO_");
+        const initiativeDesc = isColabInit
+            ? "Colaborador (Pedido de Demissão)"
+            : (data.initiative === "ABANDONO" ? "Abandono de Emprego" : "Decisão da Empresa");
+
         await tx.log.create({
             data: {
                 action: "INICIO_PROCESSO_DESLIGAMENTO",
-                details: `Processo de "${data.processType}" iniciado. Solicitado por: ${data.requesterName || "Operação"}${data.approverName ? ` | Aprovado por: ${data.approverName}` : ""}. Observações: ${data.notes || "Sem notas."}`,
+                details: `Processo de "${data.processType}" iniciado. Iniciativa: ${initiativeDesc}. Registrado no sistema por: ${data.requesterName || "Operação"}${data.approverName ? ` | Aprovado por: ${data.approverName}` : ""}. Observações: ${data.notes || "Sem notas."}`,
                 employeeId: data.employeeId,
                 userId: data.requesterId || null,
                 timestamp: new Date()
@@ -4403,12 +4636,19 @@ export async function internalExecuteDismissal(data: {
         if (empData) {
             const isAbandono = data.initiative === "ABANDONO" || data.dismissalSubType === "ABANDONO" || data.processType === "Processo de abandono";
             const isTerminoExp = data.dismissalSubType?.startsWith("TERMINO_EXP");
+            const isColab = data.initiative === "COLABORADOR" || data.dismissalSubType?.startsWith("PEDIDO_");
             const activeAss = empData.assignments[0];
             const clientName = activeAss?.posto?.client?.name || "Sem Posto Fixo";
             const supervisor = activeAss?.posto?.client?.accountManager;
             const simNet = data.terminationSimulation?.netAmount 
                 ? `\n💰 *Valor Rescisório Líquido Estimado:* R$ ${Number(data.terminationSimulation.netAmount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` 
                 : "";
+
+            const initiativeBlock = isColab
+                ? `📋 *Iniciativa:* Pedido de Demissão (Colaborador)\n💻 *Registrado no sistema por:* ${data.requesterName || "Operação"}\n`
+                : (isAbandono
+                    ? `📋 *Iniciativa:* Abandono de Emprego\n💻 *Registrado no sistema por:* ${data.requesterName || "Operação"}\n`
+                    : `📋 *Iniciativa:* Decisão da Empresa\n💻 *Registrado no sistema por:* ${data.requesterName || "Operação"}\n`);
 
             if (isAbandono) {
                 await dispatchRhNotification({
@@ -4418,7 +4658,7 @@ export async function internalExecuteDismissal(data: {
                              `👤 *Colaborador:* ${empData.name}\n` +
                              `📍 *Cliente/Contrato:* ${clientName}\n` +
                              `📅 *Início das Faltas:* ${data.startDate || "Não informada"}\n` +
-                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             initiativeBlock +
                              (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
                              `📬 *Próxima Ação:* Envio do 1º Telegrama com AR convocando para justificativa de faltas.\n` +
                              `👉 *DP:* Liberado para acompanhamento operacional.`,
@@ -4433,7 +4673,7 @@ export async function internalExecuteDismissal(data: {
                              `👤 *Colaborador:* ${empData.name}\n` +
                              `📍 *Cliente/Contrato:* ${clientName}\n` +
                              `📅 *Último dia:* ${data.endDate || data.startDate || "A definir"}\n` +
-                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             initiativeBlock +
                              (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
                              simNet + `\n` +
                              `👉 *DP:* Liberado para conferência de verbas e homologação.`,
@@ -4449,7 +4689,7 @@ export async function internalExecuteDismissal(data: {
                              `🏷️ *Tipo:* ${data.processType} (${data.dismissalSubType})\n` +
                              `📍 *Cliente/Contrato:* ${clientName}\n` +
                              `📅 *Previsão de Saída:* ${data.endDate || data.startDate || "Imediato"}\n` +
-                             `👤 *Solicitado por:* ${data.requesterName || "Operação"}\n` +
+                             initiativeBlock +
                              (data.approverName ? `✅ *Aprovado por:* ${data.approverName}\n` : "") +
                              simNet + `\n` +
                              `👉 *DP:* Liberado para o Departamento Pessoal dar sequência aos cálculos e trâmites.`,
@@ -4543,10 +4783,25 @@ export async function initiateEmployeeDismissalProcess(data: {
             const clientName = activeAssignment?.posto?.client?.name || "Rotativo / Sem Posto";
             const roleName = emp.role?.name || activeAssignment?.posto?.role?.name || "Sem Função";
 
+            const isColab = data.initiative === "COLABORADOR" || data.dismissalSubType?.startsWith("PEDIDO_");
+            const isAbandono = data.initiative === "ABANDONO" || data.dismissalSubType === "ABANDONO";
+            const reqTitle = isColab
+                ? `Pedido de Demissão (Colaborador): ${emp.name} (${data.processType})`
+                : (isAbandono
+                    ? `Processo de Abandono: ${emp.name}`
+                    : `Desligamento: ${emp.name} (${data.processType})`);
+
+            const reqDescription = data.notes 
+                || (isColab
+                    ? `Pedido de demissão formulado pelo colaborador (${data.dismissalSubType}). Registrado no sistema por: ${user.name}`
+                    : (isAbandono
+                        ? `Processo de abandono registrado no sistema por: ${user.name}`
+                        : `Desligamento por iniciativa da empresa (${data.dismissalSubType}). Registrado no sistema por: ${user.name}`));
+
             const appRes = await createApprovalRequest({
                 type: ApprovalType.DESLIGAMENTO,
-                title: `Desligamento: ${emp.name} (${data.processType})`,
-                description: data.notes || `Desligamento solicitado (${data.dismissalSubType})`,
+                title: reqTitle,
+                description: reqDescription,
                 employeeId: data.employeeId,
                 clientId: activeAssignment?.posto?.clientId || undefined,
                 postoId: activeAssignment?.postoId || undefined,

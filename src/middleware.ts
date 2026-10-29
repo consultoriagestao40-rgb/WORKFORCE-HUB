@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
         pathname.startsWith("/disciplinary-upload") ||
         pathname.startsWith("/disciplinary-print")
     ) {
-        if (pathname === "/login" && sessionCookie) {
+        if (pathname === "/login" && sessionCookie && !request.nextUrl.searchParams.has("switch") && !request.nextUrl.searchParams.has("trocar")) {
             try {
                 const sessionData = JSON.parse(atob(sessionCookie.value));
                 if (sessionData.role === "SUPERVISOR") {

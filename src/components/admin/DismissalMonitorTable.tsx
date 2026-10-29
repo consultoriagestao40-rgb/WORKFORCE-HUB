@@ -821,7 +821,7 @@ export function DismissalMonitorTable({
                                 <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                                     <div className="flex items-center gap-1">
                                         <User className="w-3.5 h-3.5 text-slate-400" />
-                                        <span>Solicitado por: <strong>{selectedEmployee.createdByName || "Sistema"}</strong></span>
+                                        <span>Registrado no sistema por: <strong>{selectedEmployee.createdByName || "Sistema"}</strong></span>
                                     </div>
                                     {selectedEmployee.createdAt && (
                                         <div className="flex items-center gap-1">

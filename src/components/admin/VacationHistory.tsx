@@ -120,7 +120,13 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
                 return;
             }
             handleCancel();
-            toast.success(editingId ? "Férias atualizadas com sucesso!" : "Férias registradas com sucesso!");
+            if (result?.pendingApproval) {
+                toast.success("Solicitação enviada para aprovação!", {
+                    description: result.message || "Aguardando deliberação da Diretoria (N2)."
+                });
+            } else {
+                toast.success(editingId ? "Férias atualizadas com sucesso!" : "Férias registradas com sucesso!");
+            }
         } catch (error: any) {
             toast.error(error.message);
         } finally {
@@ -131,8 +137,16 @@ export function VacationHistory({ employeeId, vacations, hasActivePosto }: Vacat
     async function handleDelete(id: string) {
         if (confirm("Confirmar exclusão deste registro de férias?")) {
             try {
-                await deleteVacation(id, employeeId);
-                toast.success("Registro removido.");
+                const res: any = await deleteVacation(id, employeeId);
+                if (res?.error) {
+                    toast.error(res.error);
+                } else if (res?.pendingApproval) {
+                    toast.success("Solicitação de cancelamento enviada!", {
+                        description: res.message || "Cancelamento encaminhado para deliberação da Diretoria (N2)."
+                    });
+                } else {
+                    toast.success("Registro removido.");
+                }
             } catch (error: any) {
                 toast.error(error.message);
             }

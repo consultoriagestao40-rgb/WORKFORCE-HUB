@@ -687,32 +687,87 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
 
         // ── 3. FÉRIAS ────────────────────────────────────────────────
         else if (request.type === ApprovalType.FERIAS) {
-            const { employeeId, startDate, endDate, daysTaken, daysSold, notes } = payload;
+            const { vacationId, employeeId, startDate, endDate, daysTaken, daysSold, notes, isUpdate, isCancellation, totalDays } = payload;
 
-            if (employeeId && startDate && endDate) {
+            if (isCancellation && vacationId) {
+                const targetVac = await prisma.vacation.findUnique({ where: { id: vacationId } });
+                const daysToRemove = totalDays || (targetVac ? targetVac.daysTaken + (targetVac.daysSold || 0) : 0);
+
+                await prisma.vacation.delete({ where: { id: vacationId } });
+
+                if (employeeId && daysToRemove > 0) {
+                    await prisma.employee.update({
+                        where: { id: employeeId },
+                        data: {
+                            totalVacationDaysTaken: { decrement: daysToRemove }
+                        }
+                    });
+                }
+
+                await prisma.log.create({
+                    data: {
+                        action: "CANCELAMENTO_FERIAS_APROVADO",
+                        details: `Cancelamento de férias aprovado por ${approverName}. Férias excluídas e saldo recomposto em ${daysToRemove} dias.`,
+                        employeeId: employeeId || null,
+                        userId: request.n2ApproverId || request.n1ApproverId || request.requesterId || null
+                    }
+                });
+
+                secullumSuccess = true;
+                secullumLogMsg = "Cancelamento de férias efetivado no sistema.";
+            } else if (employeeId && startDate && endDate) {
                 const startUtc = new Date(startDate + "T00:00:00.000Z");
                 const endUtc = new Date(endDate + "T00:00:00.000Z");
+                const daysGozados = Number(daysTaken) || 30;
+                const daysVendidos = Number(daysSold) || 0;
 
-                await prisma.vacation.create({
-                    data: {
-                        employeeId,
-                        startDate: startUtc,
-                        endDate: endUtc,
-                        daysTaken: Number(daysTaken) || 30,
-                        daysSold: Number(daysSold) || 0,
-                        notes: notes || null,
-                        createdByName: approverName
-                    }
-                });
+                if (isUpdate && vacationId) {
+                    const oldVac = await prisma.vacation.findUnique({ where: { id: vacationId } });
+                    const oldTotal = oldVac ? oldVac.daysTaken + (oldVac.daysSold || 0) : 0;
+                    const newTotal = daysGozados + daysVendidos;
+                    const diff = newTotal - oldTotal;
 
-                await prisma.employee.update({
-                    where: { id: employeeId },
-                    data: {
-                        lastVacationStart: startUtc,
-                        lastVacationEnd: endUtc,
-                        totalVacationDaysTaken: { increment: (Number(daysTaken) || 30) + (Number(daysSold) || 0) }
-                    }
-                });
+                    await prisma.vacation.update({
+                        where: { id: vacationId },
+                        data: {
+                            startDate: startUtc,
+                            endDate: endUtc,
+                            daysTaken: daysGozados,
+                            daysSold: daysVendidos,
+                            notes: notes || null
+                        }
+                    });
+
+                    await prisma.employee.update({
+                        where: { id: employeeId },
+                        data: {
+                            lastVacationStart: startUtc,
+                            lastVacationEnd: endUtc,
+                            totalVacationDaysTaken: { increment: diff }
+                        }
+                    });
+                } else {
+                    await prisma.vacation.create({
+                        data: {
+                            employeeId,
+                            startDate: startUtc,
+                            endDate: endUtc,
+                            daysTaken: daysGozados,
+                            daysSold: daysVendidos,
+                            notes: notes || null,
+                            createdByName: approverName
+                        }
+                    });
+
+                    await prisma.employee.update({
+                        where: { id: employeeId },
+                        data: {
+                            lastVacationStart: startUtc,
+                            lastVacationEnd: endUtc,
+                            totalVacationDaysTaken: { increment: daysGozados + daysVendidos }
+                        }
+                    });
+                }
             }
 
             // Sincroniza afastamento por Férias no Secullum
@@ -969,12 +1024,17 @@ export async function notifyApprovalFlow(params: {
                 n1Users.forEach(u => u.phone && targets.add(u.phone));
             }
 
+            const isColab = params.title.includes("Pedido de Demissão") || params.title.includes("Colaborador");
+            const initiativeDesc = isColab
+                ? `📋 *Iniciativa:* Pedido de Demissão pelo Colaborador\n💻 *Registrado no sistema por:* ${params.requesterName || 'Operação'}\n`
+                : `✍️ *Solicitado / Registrado por:* ${params.requesterName || 'Operação'}\n`;
+
             const msg = `🔔 *WORKFORCE HUB - NOVA SOLICITAÇÃO (N1)*\n\n` +
                 `Uma nova solicitação foi aberta e aguarda sua aprovação como Gestor N1:\n\n` +
                 `📌 *Solicitação:* ${params.title}\n` +
                 `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
                 `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
-                `✍️ *Solicitado por:* ${params.requesterName || 'Operação'}\n\n` +
+                initiativeDesc + `\n` +
                 `🔗 Acesse o portal para deliberar:\n${portalUrl}`;
 
             for (const phone of targets) {
@@ -988,12 +1048,17 @@ export async function notifyApprovalFlow(params: {
             n2Users.forEach(u => u.phone && targets.add(u.phone));
             if (adminGroup) targets.add(adminGroup);
 
+            const isColab = params.title.includes("Pedido de Demissão") || params.title.includes("Colaborador");
+            const initiativeDesc = isColab
+                ? `📋 *Iniciativa:* Pedido de Demissão pelo Colaborador\n💻 *Registrado no sistema por:* ${params.requesterName || 'Operação'}\n`
+                : `✍️ *Solicitado / Registrado por:* ${params.requesterName || 'Operação'}\n`;
+
             const msg = `👑 *WORKFORCE HUB - APROVAÇÃO DIRETORIA (N2)*\n\n` +
                 `Nova solicitação aguardando deliberação da Diretoria (N2):\n\n` +
                 `📌 *Solicitação:* ${params.title}\n` +
                 `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
                 `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
-                `✍️ *Solicitante:* ${params.requesterName || 'Operação'}\n` +
+                initiativeDesc +
                 `⭐ *Alçada N1:* Direto para N2 (sem N1 intermediário)\n\n` +
                 `🔗 Acesse para deliberação:\n${portalUrl}`;
 
@@ -1009,12 +1074,17 @@ export async function notifyApprovalFlow(params: {
             n2Users.forEach(u => u.phone && targetsN2.add(u.phone));
             if (adminGroup) targetsN2.add(adminGroup);
 
+            const isColab = params.title.includes("Pedido de Demissão") || params.title.includes("Colaborador");
+            const initiativeDesc = isColab
+                ? `📋 *Iniciativa:* Pedido de Demissão pelo Colaborador\n💻 *Registrado no sistema por:* ${params.requesterName || 'Operação'}\n`
+                : `✍️ *Solicitado / Registrado por:* ${params.requesterName || 'Operação'}\n`;
+
             const msgN2 = `👑 *WORKFORCE HUB - APROVADO NO N1 ➔ PENDENTE N2*\n\n` +
                 `A solicitação foi aprovada no Nível 1 por *${params.n1ApproverName || 'Gestor N1'}* e subiu para aprovação final da Diretoria (N2):\n\n` +
                 `📌 *Solicitação:* ${params.title}\n` +
                 `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
                 `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
-                `✍️ *Solicitante:* ${params.requesterName || 'Operação'}\n` +
+                initiativeDesc +
                 `⭐ *Parecer N1:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
                 `🔗 Acesse para deliberação:\n${portalUrl}`;
 

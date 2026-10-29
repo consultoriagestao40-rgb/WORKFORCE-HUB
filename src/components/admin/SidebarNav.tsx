@@ -11,6 +11,7 @@ interface SidebarNavProps {
     user?: {
         name: string;
         role: string;
+        username?: string;
     } | null;
     isCollapsed?: boolean;
 }
@@ -162,26 +163,34 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 </div>
             </div>
 
-            <div className="pt-4 mt-4 border-t border-white/5 space-y-3">
+            <div className="pt-4 mt-4 border-t border-white/5 space-y-2">
+                {user && !isCollapsed && (
+                    <div className="px-3 py-2.5 bg-white/[0.04] border border-white/5 rounded-2xl animate-in fade-in duration-300">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sessão Ativa</span>
+                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 uppercase">
+                                {user.role === 'ADMIN' ? 'Diretoria' : (user.role === 'COORD_RH' ? 'Coord. RH' : user.role)}
+                            </span>
+                        </div>
+                        <p className="text-xs font-bold text-white truncate" title={user.name}>{user.name}</p>
+                        {user.username && (
+                            <p className="text-[10px] text-slate-400 font-mono truncate">@{user.username}</p>
+                        )}
+                    </div>
+                )}
+
                 <form action={async () => {
                     const { logout } = await import("@/app/actions");
                     await logout();
                 }}>
                     <button type="submit" className={cn(
-                        "flex items-center gap-3 px-4 py-3 text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-2xl transition-all duration-300 w-full text-left group",
+                        "flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-2xl transition-all duration-300 w-full text-left group cursor-pointer",
                         isCollapsed && "justify-center px-2"
-                    )}>
-                        <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                        {!isCollapsed && <span>Sair do Sistema</span>}
+                    )} title={user ? `Sair (Logado como ${user.name})` : "Sair do Sistema"}>
+                        <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform shrink-0" />
+                        {!isCollapsed && <span>Sair / Trocar Usuário</span>}
                     </button>
                 </form>
-
-                {user && !isCollapsed && (
-                    <div className="px-4 pb-2 animate-in fade-in duration-300">
-                        <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">Logado como</p>
-                        <p className="text-xs font-bold text-white truncate">{user.name}</p>
-                    </div>
-                )}
             </div>
         </nav>
     );

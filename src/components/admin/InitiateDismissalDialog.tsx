@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2, Sparkles, Calendar, Calculator, DollarSign, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { UserMinus, Upload, X, FileText, AlertTriangle, Loader2, Sparkles, Calendar, Calculator, DollarSign, ChevronDown, ChevronUp, CheckCircle2, ShieldAlert } from "lucide-react";
 import { initiateEmployeeDismissalProcess, getEmployeeDismissalContext } from "@/app/actions";
 import { calculateTermination, TerminationResult, DismissalReason, NoticeType as TermNoticeType } from "@/lib/termination";
 
@@ -791,35 +791,41 @@ export function InitiateDismissalDialog({
                         </div>
                     </div>
 
-                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-2 shrink-0">
-                        <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={() => setOpen(false)}
-                            disabled={loading}
-                            className="rounded-xl"
-                        >
-                            Cancelar
-                        </Button>
-                         <Button 
-                            type="submit" 
-                            disabled={loading || !simulationResult || loadingContext}
-                            className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Processando...</span>
-                                </>
-                            ) : loadingContext ? (
-                                <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Calculando Rescisão...</span>
-                                </>
-                            ) : (
-                                <span>Confirmar e Enviar para Aprovação</span>
-                            )}
-                        </Button>
+                    <DialogFooter className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
+                            <ShieldAlert className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span>Registrado sob a sessão e auditoria do usuário ativo no sistema.</span>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={() => setOpen(false)}
+                                disabled={loading}
+                                className="rounded-xl"
+                            >
+                                Cancelar
+                            </Button>
+                             <Button 
+                                type="submit" 
+                                disabled={loading || !simulationResult || loadingContext}
+                                className="bg-primary hover:bg-primary/95 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Processando...</span>
+                                    </>
+                                ) : loadingContext ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Calculando Rescisão...</span>
+                                    </>
+                                ) : (
+                                    <span>Confirmar e Enviar para Aprovação</span>
+                                )}
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </form>
             </DialogContent>
