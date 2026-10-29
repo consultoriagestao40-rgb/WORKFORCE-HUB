@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { ApprovalStatus } from "@prisma/client";
+import { ApprovalStatus, ApprovalType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET() {
             return NextResponse.json({ count: 0 });
         }
 
-        const count = await prisma.approvalRequest.count({
+        const pendingCount = await prisma.approvalRequest.count({
             where: {
                 status: {
                     in: [ApprovalStatus.PENDENTE_N1, ApprovalStatus.PENDENTE_N2]
@@ -20,7 +20,23 @@ export async function GET() {
             }
         });
 
-        return NextResponse.json({ count });
+        // Contar solicitações aprovadas aguardando execução pelo RH/DP
+        const rhApproved = await prisma.approvalRequest.findMany({
+            where: {
+                status: ApprovalStatus.APROVADO,
+                type: { in: [ApprovalType.DESLIGAMENTO, ApprovalType.OUTROS, ApprovalType.AJUSTE_SALARIAL] }
+            },
+            select: { executionPayload: true }
+        });
+
+        const waitingRhCount = rhApproved.filter(r => {
+            const payload = (r.executionPayload as any) || {};
+            return !payload.rhConclusion;
+        }).length;
+
+        const count = pendingCount + waitingRhCount;
+
+        return NextResponse.json({ count, pending: pendingCount, waitingRh: waitingRhCount });
     } catch (e: any) {
         return NextResponse.json({ count: 0, error: e.message });
     }

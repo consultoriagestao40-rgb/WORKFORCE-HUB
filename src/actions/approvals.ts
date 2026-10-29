@@ -119,7 +119,8 @@ export async function getApprovalMetrics() {
         pendingN1,
         pendingN2,
         approvedTotal,
-        rejectedTotal
+        rejectedTotal,
+        allApprovedRhTypes
     ] = await Promise.all([
         prisma.approvalRequest.count({
             where: { status: { in: [ApprovalStatus.PENDENTE_N1, ApprovalStatus.PENDENTE_N2] } }
@@ -135,15 +136,28 @@ export async function getApprovalMetrics() {
         }),
         prisma.approvalRequest.count({
             where: { status: ApprovalStatus.REPROVADO }
+        }),
+        prisma.approvalRequest.findMany({
+            where: {
+                status: ApprovalStatus.APROVADO,
+                type: { in: [ApprovalType.DESLIGAMENTO, ApprovalType.OUTROS, ApprovalType.AJUSTE_SALARIAL] }
+            },
+            select: { id: true, executionPayload: true }
         })
     ]);
+
+    const waitingRh = allApprovedRhTypes.filter(r => {
+        const payload = (r.executionPayload as any) || {};
+        return !payload.rhConclusion;
+    }).length;
 
     return {
         totalPending,
         pendingN1,
         pendingN2,
         approvedTotal,
-        rejectedTotal
+        rejectedTotal,
+        waitingRh
     };
 }
 
@@ -557,6 +571,41 @@ export async function processApprovalDecision(
                     n2Feedback: feedback || "Aprovado no N2."
                 }
             });
+
+            // Se for DESLIGAMENTO: NÃO executa automaticamente!
+            // Fica parado na fila do RH/DP para que o RH assuma formalmente e dê sequência aos trâmites rescisórios.
+            if (request.type === ApprovalType.DESLIGAMENTO) {
+                await prisma.log.create({
+                    data: {
+                        action: "APROVACAO_N2",
+                        details: `Solicitação "${request.title}" aprovada no N2 por ${user.name}. Processo parado na fila de Execução do RH/DP para assumir e dar sequência ao desligamento.`,
+                        employeeId: request.employeeId || null,
+                        userId: user.id
+                    }
+                });
+
+                await notifyApprovalFlow({
+                    event: 'APROVADO_FINAL',
+                    requestId,
+                    title: request.title,
+                    type: request.type,
+                    employeeName: request.employeeName,
+                    clientName: request.clientName,
+                    requesterName: request.requesterName,
+                    n1ApproverName: request.n1ApproverName,
+                    n2ApproverName: user.name,
+                    feedback
+                });
+
+                revalidatePath("/admin/aprovacoes");
+                revalidatePath("/admin/dismissal-monitor");
+                return { 
+                    success: true, 
+                    status: ApprovalStatus.APROVADO, 
+                    message: "Aprovado no N2! Encaminhado para a fila de Execução do RH/DP para assumir e dar sequência ao desligamento.",
+                    waitingRh: true 
+                };
+            }
 
             await prisma.log.create({
                 data: {
@@ -1112,16 +1161,31 @@ export async function notifyApprovalFlow(params: {
             rhUsers.forEach(u => u.phone && targetsRh.add(u.phone));
             if (adminGroup) targetsRh.add(adminGroup);
 
-            const msgRh = `✅ *WORKFORCE HUB - PROCESSO APROVADO! LIBERADO PARA O RH*\n\n` +
-                `A seguinte solicitação foi *100% HOMOLOGADA* pela Diretoria e está *LIBERADA* para execução operacional do RH:\n\n` +
-                `📌 *Solicitação:* ${params.title}\n` +
-                `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
-                `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
-                `⭐ *Aprovador N1:* ${params.n1ApproverName || 'Dispensado / Direto N2'}\n` +
-                `👑 *Aprovador N2:* ${params.n2ApproverName || 'Diretoria'}\n` +
-                `💬 *Parecer:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
-                `👉 *Ação do RH:* Efetivar no sistema, documentos, Secullum e trâmites de departamento pessoal.\n\n` +
-                `🔗 Acesse para dar sequência:\n${portalUrl}`;
+            let msgRh = "";
+            if (params.type === ApprovalType.DESLIGAMENTO) {
+                msgRh = `⚠️ *WORKFORCE HUB - DESLIGAMENTO APROVADO! AGUARDANDO AÇÃO DO RH/DP*\n\n` +
+                    `O processo de desligamento foi *APROVADO* pela Diretoria (N2) e está *AGUARDANDO O RH ASSUMIR* na aba *Execução RH & DP*:\n\n` +
+                    `📌 *Processo:* ${params.title}\n` +
+                    `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                    `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                    `✍️ *Solicitante:* ${params.requesterName || 'Operação'}\n` +
+                    `⭐ *Aprovador N1:* ${params.n1ApproverName || 'Dispensado / Direto N2'}\n` +
+                    `👑 *Aprovador N2:* ${params.n2ApproverName || 'Diretoria'}\n` +
+                    `💬 *Parecer:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
+                    `👉 *AÇÃO OBRIGATÓRIA DO RH:* Acesse o portal, abra a aba *Execução RH & DP* e clique em *\"Assumir e Dar Sequência no Desligamento\"* para formalizar o aviso prévio, colher as assinaturas e cumprir os prazos CLT!\n\n` +
+                    `🔗 Acesse a Fila de Execução do RH:\n${portalUrl}/admin/aprovacoes?tab=RH_WAITING`;
+            } else {
+                msgRh = `✅ *WORKFORCE HUB - PROCESSO APROVADO! LIBERADO PARA O RH*\n\n` +
+                    `A seguinte solicitação foi *100% HOMOLOGADA* pela Diretoria e está *LIBERADA* para execução operacional do RH:\n\n` +
+                    `📌 *Solicitação:* ${params.title}\n` +
+                    `👤 *Colaborador:* ${params.employeeName || 'N/A'}\n` +
+                    `🏢 *Cliente/Posto:* ${params.clientName || 'N/A'}\n` +
+                    `⭐ *Aprovador N1:* ${params.n1ApproverName || 'Dispensado / Direto N2'}\n` +
+                    `👑 *Aprovador N2:* ${params.n2ApproverName || 'Diretoria'}\n` +
+                    `💬 *Parecer:* ${params.feedback || 'Aprovado sem ressalvas'}\n\n` +
+                    `👉 *Ação do RH:* Efetivar no sistema, documentos, Secullum e trâmites de departamento pessoal.\n\n` +
+                    `🔗 Acesse para dar sequência:\n${portalUrl}/admin/aprovacoes`;
+            }
 
             for (const target of targetsRh) {
                 await sendZapiRaw(target, msgRh);
@@ -1289,7 +1353,10 @@ export async function concludeRhExecution(
             throw new Error("Informe o motivo de a solicitação não ter sido executada.");
         }
 
-        const request = await prisma.approvalRequest.findUnique({ where: { id: requestId } });
+        const request = await prisma.approvalRequest.findUnique({ 
+            where: { id: requestId },
+            include: { employee: true }
+        });
         if (!request) throw new Error("Solicitação não encontrada.");
         if (request.status !== ApprovalStatus.APROVADO) {
             throw new Error("Só é possível concluir solicitações já aprovadas.");
@@ -1298,6 +1365,14 @@ export async function concludeRhExecution(
         const payload = ((request.executionPayload as any) || {}) as Record<string, any>;
         if (payload.rhConclusion) {
             throw new Error("Esta solicitação já foi concluída pelo RH.");
+        }
+
+        // Se for DESLIGAMENTO e o RH deu sequência (CONCLUIDO), efetiva o desligamento agora
+        if (request.type === ApprovalType.DESLIGAMENTO && outcome === "CONCLUIDO") {
+            const execResult = await executeApprovedRequest(requestId, user.name);
+            if (execResult && (execResult as any).error) {
+                throw new Error(`Falha ao efetivar desligamento: ${(execResult as any).error}`);
+            }
         }
 
         const rhConclusion = {
@@ -1310,20 +1385,40 @@ export async function concludeRhExecution(
 
         await prisma.approvalRequest.update({
             where: { id: requestId },
-            data: { executionPayload: { ...payload, rhConclusion } },
+            data: { 
+                executionPayload: { ...payload, rhConclusion },
+                appliedBy: user.name,
+                appliedAt: new Date()
+            },
         });
 
         await prisma.log.create({
             data: {
-                action: outcome === "CONCLUIDO" ? "RH_CONCLUIU_SOLICITACAO" : "RH_NAO_EXECUTOU_SOLICITACAO",
-                details: `Solicitação "${request.title}" ${outcome === "CONCLUIDO" ? "concluída" : "marcada como não executada"} pelo RH (${user.name}).${cleanNote ? " Obs: " + cleanNote : ""}`,
+                action: request.type === ApprovalType.DESLIGAMENTO
+                    ? (outcome === "CONCLUIDO" ? "RH_ASSUMIU_DESLIGAMENTO" : "RH_RECUSOU_EXECUCAO_DESLIGAMENTO")
+                    : (outcome === "CONCLUIDO" ? "RH_CONCLUIU_SOLICITACAO" : "RH_NAO_EXECUTOU_SOLICITACAO"),
+                details: request.type === ApprovalType.DESLIGAMENTO
+                    ? (outcome === "CONCLUIDO"
+                        ? `Desligamento de "${request.employeeName}" assumido e processado pelo RH (${user.name}). Efetivado e direcionado para a Central de Desligamento.`
+                        : `Desligamento de "${request.employeeName}" NÃO executado pelo RH (${user.name}). Motivo: ${cleanNote}`)
+                    : `Solicitação "${request.title}" ${outcome === "CONCLUIDO" ? "concluída" : "marcada como não executada"} pelo RH (${user.name}).${cleanNote ? " Obs: " + cleanNote : ""}`,
                 employeeId: request.employeeId || null,
                 userId: user.id,
             },
         });
 
         revalidatePath("/admin/aprovacoes");
-        return { success: true, rhConclusion };
+        revalidatePath("/admin/dismissal-monitor");
+        revalidatePath("/admin/colaboradores");
+        revalidatePath("/admin/employees");
+
+        return { 
+            success: true, 
+            rhConclusion,
+            redirectTo: (request.type === ApprovalType.DESLIGAMENTO && outcome === "CONCLUIDO")
+                ? "/admin/dismissal-monitor"
+                : undefined
+        };
     } catch (error: any) {
         console.error("[concludeRhExecution] Erro:", error);
         return { success: false, error: error.message || "Erro ao concluir solicitação." };

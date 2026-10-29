@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { 
     Clock, 
     CheckCircle2, 
@@ -31,8 +32,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { processApprovalDecision, deleteApprovalRequests, rejectDeleteRequest, concludeRhExecution } from "@/actions/approvals";
 
-// Tipos aprovados que dependem de execução manual do RH/DP (os demais são auto-efetivados ou têm monitor próprio)
-const RH_MANUAL_TYPES = ["OUTROS", "AJUSTE_SALARIAL"];
+// Tipos aprovados que dependem de execução manual do RH/DP (incluindo desligamento após aprovação N2)
+const RH_MANUAL_TYPES = ["OUTROS", "AJUSTE_SALARIAL", "DESLIGAMENTO"];
 const getRhState = (req: { status: string; type: string; executionPayload?: any }): "NONE" | "WAITING" | "DONE" | "NOT_DONE" => {
     if (req.status !== "APROVADO" || !RH_MANUAL_TYPES.includes(req.type)) return "NONE";
     const c = req.executionPayload?.rhConclusion;
@@ -118,6 +119,7 @@ interface ApprovalsHubProps {
         pendingN2: number;
         approvedTotal: number;
         rejectedTotal: number;
+        waitingRh?: number;
     };
     userRole?: string;
     userName?: string;
@@ -142,9 +144,12 @@ export function ApprovalsHub({
     userName,
     isApproverN2 = false
 }: ApprovalsHubProps) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const initialTab = searchParams.get("tab") || "PENDING_ALL";
     const [requests, setRequests] = useState<ApprovalRequestItem[]>(initialRequests);
     const [metrics, setMetrics] = useState(initialMetrics);
-    const [selectedTab, setSelectedTab] = useState<string>("PENDING_ALL");
+    const [selectedTab, setSelectedTab] = useState<string>(initialTab);
     const [rhNote, setRhNote] = useState("");
     const rhWaitingCount = requests.filter(r => getRhState(r) === "WAITING").length;
     const [searchTerm, setSearchTerm] = useState("");
@@ -291,12 +296,20 @@ export function ApprovalsHub({
         startTransition(async () => {
             const res = await concludeRhExecution(targetRequest.id, outcome, rhNote);
             if (res.success) {
-                toast.success(outcome === "CONCLUIDO" ? "Processo concluído! Saiu da fila do RH." : "Solicitação marcada como não executada.");
+                toast.success(
+                    targetRequest.type === "DESLIGAMENTO" && outcome === "CONCLUIDO"
+                        ? "Desligamento assumido e processado com sucesso! Redirecionando para o Monitor..."
+                        : (outcome === "CONCLUIDO" ? "Processo concluído! Saiu da fila do RH." : "Solicitação marcada como não executada.")
+                );
                 setRequests(prev => prev.map(item => item.id === targetRequest.id
                     ? { ...item, executionPayload: { ...(item.executionPayload || {}), rhConclusion: (res as any).rhConclusion } }
                     : item));
                 setRhNote("");
                 setDetailsModal({ isOpen: false, request: null, decisionFeedback: "" });
+
+                if ((res as any).redirectTo) {
+                    router.push((res as any).redirectTo);
+                }
             } else {
                 toast.error((res as any).error || "Erro ao concluir solicitação.");
             }
@@ -542,10 +555,10 @@ export function ApprovalsHub({
     return (
         <div className="space-y-6">
             {/* KPI Cards Limpos */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div 
                     onClick={() => setSelectedTab("PENDING_ALL")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
                         selectedTab === "PENDING_ALL"
                             ? "border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20" 
                             : "border-slate-200 hover:border-slate-300"
@@ -555,13 +568,13 @@ export function ApprovalsHub({
                         <span className="text-xs font-semibold text-slate-600">Total Pendentes</span>
                         <Clock className="w-4 h-4 text-amber-500" />
                     </div>
-                    <div className="text-2xl font-bold text-slate-800 mt-2">{metrics.totalPending}</div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Aguardando alçada N1/N2</p>
+                    <div className="text-2xl font-bold text-slate-800 mt-1.5">{metrics.totalPending}</div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Aguardando N1/N2</p>
                 </div>
 
                 <div 
                     onClick={() => setSelectedTab("PENDENTE_N1")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
                         selectedTab === "PENDENTE_N1"
                             ? "border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/20" 
                             : "border-slate-200 hover:border-slate-300"
@@ -571,13 +584,13 @@ export function ApprovalsHub({
                         <span className="text-xs font-semibold text-slate-600">Pendentes N1</span>
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
                     </div>
-                    <div className="text-2xl font-bold text-amber-600 mt-2">{metrics.pendingN1}</div>
+                    <div className="text-2xl font-bold text-amber-600 mt-1.5">{metrics.pendingN1}</div>
                     <p className="text-[11px] text-slate-400 mt-0.5">Gestão Operacional</p>
                 </div>
 
                 <div 
                     onClick={() => setSelectedTab("PENDENTE_N2")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
                         selectedTab === "PENDENTE_N2"
                             ? "border-purple-400 ring-2 ring-purple-400/20 bg-purple-50/20" 
                             : "border-slate-200 hover:border-slate-300"
@@ -587,13 +600,42 @@ export function ApprovalsHub({
                         <span className="text-xs font-semibold text-slate-600">Pendentes N2</span>
                         <ShieldCheck className="w-4 h-4 text-purple-600" />
                     </div>
-                    <div className="text-2xl font-bold text-purple-700 mt-2">{metrics.pendingN2}</div>
+                    <div className="text-2xl font-bold text-purple-700 mt-1.5">{metrics.pendingN2}</div>
                     <p className="text-[11px] text-slate-400 mt-0.5">Diretoria Executiva</p>
                 </div>
 
                 <div 
+                    onClick={() => setSelectedTab("RH_WAITING")}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs relative overflow-hidden ${
+                        selectedTab === "RH_WAITING"
+                            ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-50/30" 
+                            : rhWaitingCount > 0
+                            ? "border-amber-300 hover:border-amber-400 bg-amber-50/15"
+                            : "border-slate-200 hover:border-slate-300"
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-900">Execução RH & DP</span>
+                        {rhWaitingCount > 0 ? (
+                            <span className="flex h-2.5 w-2.5 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                            </span>
+                        ) : (
+                            <Clock className="w-4 h-4 text-slate-400" />
+                        )}
+                    </div>
+                    <div className={`text-2xl font-bold mt-1.5 ${rhWaitingCount > 0 ? "text-amber-600 font-extrabold" : "text-slate-800"}`}>
+                        {rhWaitingCount}
+                    </div>
+                    <p className="text-[11px] text-amber-700/80 font-medium mt-0.5">
+                        {rhWaitingCount > 0 ? "Pendente de ação do RH" : "Fila zerada"}
+                    </p>
+                </div>
+
+                <div 
                     onClick={() => setSelectedTab("APROVADO")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
                         selectedTab === "APROVADO"
                             ? "border-emerald-400 ring-2 ring-emerald-400/20 bg-emerald-50/20" 
                             : "border-slate-200 hover:border-slate-300"
@@ -603,13 +645,13 @@ export function ApprovalsHub({
                         <span className="text-xs font-semibold text-slate-600">Aprovados</span>
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     </div>
-                    <div className="text-2xl font-bold text-emerald-600 mt-2">{metrics.approvedTotal}</div>
+                    <div className="text-2xl font-bold text-emerald-600 mt-1.5">{metrics.approvedTotal}</div>
                     <p className="text-[11px] text-slate-400 mt-0.5">Liberados / Efetivados</p>
                 </div>
 
                 <div 
                     onClick={() => setSelectedTab("REPROVADO")}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer bg-white shadow-xs ${
                         selectedTab === "REPROVADO"
                             ? "border-rose-400 ring-2 ring-rose-400/20 bg-rose-50/20" 
                             : "border-slate-200 hover:border-slate-300"
@@ -619,8 +661,8 @@ export function ApprovalsHub({
                         <span className="text-xs font-semibold text-slate-600">Reprovados</span>
                         <XCircle className="w-4 h-4 text-rose-500" />
                     </div>
-                    <div className="text-2xl font-bold text-rose-600 mt-2">{metrics.rejectedTotal}</div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Encerrados com justificativa</p>
+                    <div className="text-2xl font-bold text-rose-600 mt-1.5">{metrics.rejectedTotal}</div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Encerrados c/ motivo</p>
                 </div>
             </div>
 
@@ -682,11 +724,14 @@ export function ApprovalsHub({
                     </button>
                     <button
                         onClick={() => setSelectedTab("RH_WAITING")}
-                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                            selectedTab === "RH_WAITING" ? "bg-amber-500 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+                            selectedTab === "RH_WAITING" ? "bg-amber-500 text-white shadow-xs font-bold" : "text-slate-600 hover:text-slate-900"
                         }`}
                     >
-                        Execução RH ({rhWaitingCount})
+                        {rhWaitingCount > 0 && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        )}
+                        Execução RH & DP ({rhWaitingCount})
                     </button>
                     <button
                         onClick={() => setSelectedTab("APROVADO")}
@@ -1399,7 +1444,7 @@ export function ApprovalsHub({
                                                     4
                                                 </div>
                                                 <div>
-                                                    <span className="font-bold text-slate-800 text-xs block">Execução / RH</span>
+                                                    <span className="font-bold text-slate-800 text-xs block">Execução / RH & DP</span>
                                                     <span className="text-[11px] text-slate-500">
                                                         {detailsModal.request.status === "APROVADO" ? (
                                                             <span className="text-emerald-700 font-bold">
@@ -1407,6 +1452,8 @@ export function ApprovalsHub({
                                                                     ? `Concluído por ${detailsModal.request.executionPayload?.rhConclusion?.by || "RH"}${detailsModal.request.executionPayload?.rhConclusion?.note ? ` ("${detailsModal.request.executionPayload.rhConclusion.note}")` : ""}`
                                                                     : getRhState(detailsModal.request) === "NOT_DONE"
                                                                     ? `Não executado por ${detailsModal.request.executionPayload?.rhConclusion?.by || "RH"}: "${detailsModal.request.executionPayload?.rhConclusion?.note || ""}"`
+                                                                    : detailsModal.request.type === "DESLIGAMENTO"
+                                                                    ? "Aprovado no N2. Aguardando operador do RH/DP assumir e dar sequência no desligamento (gerar comunicado/aviso, colher assinaturas e processar rescisão)."
                                                                     : detailsModal.request.type === "MUDANCA_POSTO" 
                                                                     ? "Fluxo auto-completado e posto atualizado no sistema."
                                                                     : "Liberado para o RH programar e efetivar. Use os botões abaixo para concluir."}
@@ -1435,7 +1482,7 @@ export function ApprovalsHub({
                                         <Textarea
                                             value={rhNote}
                                             onChange={(e) => setRhNote(e.target.value)}
-                                            placeholder="Ex: Adicional incluído na folha de outubro."
+                                            placeholder={detailsModal.request.type === "DESLIGAMENTO" ? "Ex: Comunicado entregue ao colaborador, assinado e homologado no DP." : "Ex: Adicional incluído na folha de pagamento."}
                                             className="text-xs resize-none h-18 border-slate-200"
                                         />
                                     </div>
@@ -1487,15 +1534,20 @@ export function ApprovalsHub({
                                             className="text-xs font-bold text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer"
                                         >
                                             <X className="w-3.5 h-3.5 mr-1" />
-                                            Não executado
+                                            {detailsModal.request.type === "DESLIGAMENTO" ? "Não Executar / Devolver" : "Não executado"}
                                         </Button>
                                         <Button
                                             onClick={() => handleRhConclusion(detailsModal.request!, "CONCLUIDO")}
                                             disabled={isPending}
-                                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                                            className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                                         >
-                                            <Check className="w-3.5 h-3.5 mr-1 stroke-[3]" />
-                                            Concluir Processo
+                                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                            {detailsModal.request.type === "DESLIGAMENTO"
+                                                ? "Assumir e Dar Sequência no Desligamento"
+                                                : "Concluir Processo"}
+                                            {detailsModal.request.type === "DESLIGAMENTO" && (
+                                                <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+                                            )}
                                         </Button>
                                     </div>
                                 )}

@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { DashboardFilters } from "@/components/admin/DashboardFilters";
 import { format, differenceInDays, addDays, startOfDay } from "date-fns";
-import { AlertCircle, Calendar, Clock, UserX, User } from "lucide-react";
+import { AlertCircle, Calendar, Clock, UserX, User, ArrowRight } from "lucide-react";
 import { BackButton } from "@/components/admin/BackButton";
 import { DismissalAlertsDialog } from "@/components/admin/DismissalAlertsDialog";
 import { DPAlertSettingsDialog } from "@/components/admin/DPAlertSettingsDialog";
@@ -538,6 +539,29 @@ export default async function DismissalMonitorPage({
     const user = await getCurrentUser();
     const isAdmin = user?.role === 'ADMIN';
 
+    // Buscar desligamentos aprovados pela Diretoria aguardando ação na Fila de Execução do RH
+    const pendingRhDismissals = await prisma.approvalRequest.findMany({
+        where: {
+            type: 'DESLIGAMENTO',
+            status: 'APROVADO'
+        },
+        select: {
+            id: true,
+            title: true,
+            employeeName: true,
+            clientName: true,
+            requesterName: true,
+            n2ApprovedAt: true,
+            executionPayload: true
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+
+    const waitingRhDismissals = pendingRhDismissals.filter(r => {
+        const payload = (r.executionPayload as any) || {};
+        return !payload.rhConclusion;
+    });
+
     return (
         <div className="space-y-6">
             <div className="flex items-center gap-3">
@@ -563,7 +587,36 @@ export default async function DismissalMonitorPage({
                 </div>
             </div>
 
-
+            {/* Banner de Desligamentos Aprovados Aguardando Execução do RH/DP */}
+            {waitingRhDismissals.length > 0 && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+                            <AlertCircle className="w-5 h-5 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-amber-950 text-sm">
+                                    {waitingRhDismissals.length} Desligamento{waitingRhDismissals.length > 1 ? "s" : ""} Aprovado{waitingRhDismissals.length > 1 ? "s" : ""} pela Diretoria Aguardando Início pelo RH/DP
+                                </h3>
+                                <span className="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-amber-500 text-white tracking-wider">
+                                    Fila RH
+                                </span>
+                            </div>
+                            <p className="text-xs text-amber-800/90 mt-0.5">
+                                Aprovado no N2. O RH precisa assumir formalmente a solicitação para gerar o comunicado/aviso prévio, colher as assinaturas e garantir os prazos legais da rescisão.
+                            </p>
+                        </div>
+                    </div>
+                    <Link 
+                        href="/admin/aprovacoes?tab=RH_WAITING"
+                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm inline-flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+                    >
+                        Assumir na Fila do RH ({waitingRhDismissals.length})
+                        <ArrowRight className="w-4 h-4" />
+                    </Link>
+                </div>
+            )}
 
             {/* Guia de Fluxos Operacionais */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border p-5 rounded-2xl">
