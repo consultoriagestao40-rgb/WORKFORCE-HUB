@@ -1,5 +1,7 @@
 "use server";
 
+export const maxDuration = 60;
+
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -161,57 +163,8 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         whereEmployees.id = targetEmployeeId;
     }
 
-    // Fetch active employees
-    const employees = await prisma.employee.findMany({
-        where: whereEmployees,
-        include: {
-            company: true,
-            role: true,
-            situation: true,
-            assignments: {
-                where: {
-                    OR: [
-                        { endDate: null },
-                        { endDate: { gte: windowStart } }
-                    ]
-                },
-                include: {
-                    posto: {
-                        include: {
-                            client: {
-                                include: { company: true }
-                            },
-                            role: true
-                        }
-                    },
-                    originPosto: {
-                        include: {
-                            client: {
-                                include: { company: true }
-                            },
-                            role: true
-                        }
-                    }
-                },
-                orderBy: { startDate: 'desc' }
-            },
-            occurrences: {
-                where: {
-                    date: {
-                        gte: windowStart,
-                        lte: windowEnd
-                    },
-                    type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
-                },
-                orderBy: { date: "asc" }
-            },
-            vacations: true,
-            monthlyCalculations: {
-                where: { year, month }
-            }
-        },
-        orderBy: { name: "asc" }
-    });
+    const totalDaysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const monthEnd = new Date(Date.UTC(year, month - 1, totalDaysInMonth, 23, 59, 59, 999));
 
     // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
     const quarterlyStart = new Date(year, month - 3, 26, 0, 0, 0, 0);
@@ -223,17 +176,76 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
     if (targetEmployeeId) {
         quarterlyWhere.employeeId = targetEmployeeId;
     }
-    const quarterlyOccurrences = await prisma.occurrence.findMany({
-        where: quarterlyWhere,
-        select: { employeeId: true }
-    });
+
+    // Parallel fetch: Active employees (with filtered vacations) + quarterly occurrences + benefits calculation
+    const [employees, quarterlyOccurrences, benefitsRes] = await Promise.all([
+        prisma.employee.findMany({
+            where: whereEmployees,
+            include: {
+                company: true,
+                role: true,
+                situation: true,
+                assignments: {
+                    where: {
+                        OR: [
+                            { endDate: null },
+                            { endDate: { gte: windowStart } }
+                        ]
+                    },
+                    include: {
+                        posto: {
+                            include: {
+                                client: {
+                                    include: { company: true }
+                                },
+                                role: true
+                            }
+                        },
+                        originPosto: {
+                            include: {
+                                client: {
+                                    include: { company: true }
+                                },
+                                role: true
+                            }
+                        }
+                    },
+                    orderBy: { startDate: 'desc' }
+                },
+                occurrences: {
+                    where: {
+                        date: {
+                            gte: windowStart,
+                            lte: windowEnd
+                        },
+                        type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+                    },
+                    orderBy: { date: "asc" }
+                },
+                vacations: {
+                    where: {
+                        startDate: { lte: monthEnd },
+                        endDate: { gte: windowStart }
+                    }
+                },
+                monthlyCalculations: {
+                    where: { year, month }
+                }
+            },
+            orderBy: { name: "asc" }
+        }),
+        prisma.occurrence.findMany({
+            where: quarterlyWhere,
+            select: { employeeId: true }
+        }),
+        getBenefitsCalculation(year, month, targetEmployeeId).catch(err => {
+            console.error("Erro ao obter cálculo de benefícios para a folha:", err);
+            return { items: [], config: null, currentUserId: null };
+        })
+    ]);
+
     const quarterlyFailsSet = new Set(quarterlyOccurrences.map(o => o.employeeId).filter(Boolean) as string[]);
-
-    // Real VT/VA values for month M to compute CCT cap
-    const benefitsRes = await getBenefitsCalculation(year, month);
-    const benefitsMap = new Map(benefitsRes.items.map(b => [b.employeeId, b]));
-
-    const totalDaysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const benefitsMap = new Map((benefitsRes?.items || []).map(b => [b.employeeId, b]));
 
     const items: PayrollPreviewItem[] = employees.map(emp => {
         const resolvedAssignment = resolveEmployeeAssignment(emp.assignments, windowStart, windowEnd);
@@ -565,12 +577,12 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
 
         // Secullum Calculations (Atrasos, Horas Extras, Adicional Noturno)
         const calc = emp.monthlyCalculations && emp.monthlyCalculations.length > 0 ? emp.monthlyCalculations[0] : null;
-        const atrasosHours = calc?.atrasosHours || 0;
-        const extras50Hours = calc?.extras50Hours || 0;
-        const extras100Hours = calc?.extras100Hours || 0;
-        const adicionalNoturnoHours = calc?.adicionalNoturnoHours || 0;
-        const diversosDescontos = calc?.diversosDescontos || 0;
-        const emprestimos = calc?.emprestimos || 0;
+        const atrasosHours = Math.round((calc?.atrasosHours || 0) * 100) / 100;
+        const extras50Hours = Math.round((calc?.extras50Hours || 0) * 100) / 100;
+        const extras100Hours = Math.round((calc?.extras100Hours || 0) * 100) / 100;
+        const adicionalNoturnoHours = Math.round((calc?.adicionalNoturnoHours || 0) * 100) / 100;
+        const diversosDescontos = Math.round((calc?.diversosDescontos || 0) * 100) / 100;
+        const emprestimos = Math.round((calc?.emprestimos || 0) * 100) / 100;
 
         // Load custom adjustments from extraFields.monthlyAdjustments for this year-month
         const monthlyAdj = extraFields.monthlyAdjustments?.[`${year}-${month}`] || {};
@@ -982,6 +994,12 @@ export async function updateMonthlyDeductions(
     const finalObservacoes = formatCombinedNotes(cleanActiveNotes) || observacoes?.trim() || "";
 
     // 1. Save standard hours fields into EmployeeMonthlyCalculus for current month
+    const roundedExtras50 = Math.round((extras50Hours || 0) * 100) / 100;
+    const roundedExtras100 = Math.round((extras100Hours || 0) * 100) / 100;
+    const roundedNoturno = Math.round((adicionalNoturnoHours || 0) * 100) / 100;
+    const roundedDiversos = Math.round((diversosDescontos || 0) * 100) / 100;
+    const roundedEmprestimos = Math.round((emprestimos || 0) * 100) / 100;
+
     await prisma.employeeMonthlyCalculus.upsert({
         where: {
             employeeId_year_month: { employeeId, year, month }
@@ -990,18 +1008,18 @@ export async function updateMonthlyDeductions(
             employeeId,
             year,
             month,
-            diversosDescontos,
-            emprestimos,
-            extras50Hours,
-            extras100Hours,
-            adicionalNoturnoHours
+            diversosDescontos: roundedDiversos,
+            emprestimos: roundedEmprestimos,
+            extras50Hours: roundedExtras50,
+            extras100Hours: roundedExtras100,
+            adicionalNoturnoHours: roundedNoturno
         },
         update: {
-            diversosDescontos,
-            emprestimos,
-            extras50Hours,
-            extras100Hours,
-            adicionalNoturnoHours
+            diversosDescontos: roundedDiversos,
+            emprestimos: roundedEmprestimos,
+            extras50Hours: roundedExtras50,
+            extras100Hours: roundedExtras100,
+            adicionalNoturnoHours: roundedNoturno
         }
     });
 
@@ -1173,6 +1191,11 @@ export async function importPayrollSecullumCalculations(
         }
 
         if (employee) {
+            const roundedNoturno = Math.round((row.adicionalNoturnoHours || 0) * 100) / 100;
+            const rounded50 = Math.round((row.extras50Hours || 0) * 100) / 100;
+            const rounded100 = Math.round((row.extras100Hours || 0) * 100) / 100;
+            const roundedAtrasos = Math.round((row.atrasosHours || 0) * 100) / 100;
+
             await prisma.employeeMonthlyCalculus.upsert({
                 where: {
                     employeeId_year_month: {
@@ -1182,19 +1205,19 @@ export async function importPayrollSecullumCalculations(
                     }
                 },
                 update: {
-                    adicionalNoturnoHours: row.adicionalNoturnoHours,
-                    extras50Hours: row.extras50Hours,
-                    extras100Hours: row.extras100Hours,
-                    atrasosHours: row.atrasosHours
+                    adicionalNoturnoHours: roundedNoturno,
+                    extras50Hours: rounded50,
+                    extras100Hours: rounded100,
+                    atrasosHours: roundedAtrasos
                 },
                 create: {
                     employeeId: employee.id,
                     year,
                     month,
-                    adicionalNoturnoHours: row.adicionalNoturnoHours,
-                    extras50Hours: row.extras50Hours,
-                    extras100Hours: row.extras100Hours,
-                    atrasosHours: row.atrasosHours
+                    adicionalNoturnoHours: roundedNoturno,
+                    extras50Hours: rounded50,
+                    extras100Hours: rounded100,
+                    atrasosHours: roundedAtrasos
                 }
             });
             updatedCount++;

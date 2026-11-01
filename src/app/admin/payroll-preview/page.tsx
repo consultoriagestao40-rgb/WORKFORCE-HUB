@@ -967,8 +967,9 @@ export default function PayrollPreviewPage() {
     const handleExportToExcel = async () => {
         setIsLoadingExport(true);
         try {
-            const res = await getPayrollPreview(exportSelectedYear, exportSelectedMonth);
-            const rawItems = res.items || [];
+            const rawItems = (exportSelectedYear === selectedYear && exportSelectedMonth === selectedMonth && items.length > 0)
+                ? items
+                : (await getPayrollPreview(exportSelectedYear, exportSelectedMonth))?.items || [];
             
             // Filter by company and client/contract
             let filtered = rawItems;
@@ -1011,11 +1012,11 @@ export default function PayrollPreviewPage() {
                     "Periculosidade (R$)": item.periculosidade || 0,
                     "Gratificação CCT (R$)": item.gratificacao || 0,
                     "Assiduidade Cartão VA (R$)": item.outrosAdicionais || 0,
-                    "H.Extras 50% (H)": item.extras50Hours || 0,
+                    "H.Extras 50% (H)": Math.round((item.extras50Hours || 0) * 100) / 100,
                     "Valor Extras 50% (R$)": item.horasExtras50Value || 0,
-                    "H.Extras 100% (H)": item.extras100Hours || 0,
+                    "H.Extras 100% (H)": Math.round((item.extras100Hours || 0) * 100) / 100,
                     "Valor Extras 100% (R$)": item.horasExtras100Value || 0,
-                    "Adic. Noturno (H)": item.adicionalNoturnoHours || 0,
+                    "Adic. Noturno (H)": Math.round((item.adicionalNoturnoHours || 0) * 100) / 100,
                     "Valor Adic. Noturno (R$)": item.adicionalNoturnoValue || 0,
                     "Dependentes (Qtd)": item.dependentsCount || 0,
                     "Salário-Família (R$)": item.salarioFamilia || 0,
@@ -1028,7 +1029,7 @@ export default function PayrollPreviewPage() {
                     "Desc. Faltas (R$)": item.faltaDeduction || 0,
                     "DSR Perdidos": item.dsrDeductionsCount || 0,
                     "Desc. DSR (R$)": item.dsrDeduction || 0,
-                    "Atrasos (Horas)": item.atrasosHours || 0,
+                    "Atrasos (Horas)": Math.round((item.atrasosHours || 0) * 100) / 100,
                     "Desc. Atrasos (R$)": item.atrasosDeduction || 0,
                     "Atestados (Dias)": item.atestadosCount || 0,
                     "Datas dos Atestados": atestadosDatesStr,
@@ -1093,8 +1094,9 @@ export default function PayrollPreviewPage() {
     const handleExportContabilidade = async () => {
         setIsLoadingContabilidade(true);
         try {
-            const res = await getPayrollPreview(selectedYear, selectedMonth);
-            let filtered = res?.items || [];
+            let filtered = (items.length > 0)
+                ? items
+                : (await getPayrollPreview(selectedYear, selectedMonth))?.items || [];
 
             // Aplica os mesmos filtros ativos na tela
             if (selectedCompany !== "all") filtered = filtered.filter(i => i.companyName === selectedCompany);
@@ -1108,7 +1110,7 @@ export default function PayrollPreviewPage() {
             // Helpers de formatação
             const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
             const pct = (v: number) => `${v.toFixed(2).replace(".", ",")}%`;
-            const num = (v: number) => v;
+            const num = (v: number) => Math.round((v || 0) * 100) / 100;
 
             const contabData = filtered.map(item => {
                 const atestadosList = (item.occurrencesList || []).filter(o => o.rawType === "ATESTADO");

@@ -1,5 +1,7 @@
 "use server";
 
+export const maxDuration = 60;
+
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -391,7 +393,7 @@ export async function markMultipleBenefitsAsPaid(data: {
 }
 
 // 4. Main Benefits Calculation Action
-export async function getBenefitsCalculation(year: number, month: number) {
+export async function getBenefitsCalculation(year: number, month: number, targetEmployeeId?: string) {
     const user = await getCurrentUser();
     if (!user) return { items: [], config: null, currentUserId: null };
 
@@ -418,22 +420,27 @@ export async function getBenefitsCalculation(year: number, month: number) {
 
     const businessDaysInMonth = getBusinessDaysInMonth(year, month);
 
+    const whereEmployees: any = {
+        status: "Ativo",
+        situation: {
+            name: { notIn: ["Desligado", "Demitido"] }
+        },
+        assignments: {
+            some: {
+                OR: [
+                    { endDate: null },
+                    { endDate: { gte: windowStart } }
+                ]
+            }
+        }
+    };
+    if (targetEmployeeId) {
+        whereEmployees.id = targetEmployeeId;
+    }
+
     // Fetch active employees with active assignments (matching Workforce count)
     const employees = await prisma.employee.findMany({
-        where: {
-            status: "Ativo",
-            situation: {
-                name: { notIn: ["Desligado", "Demitido"] }
-            },
-            assignments: {
-                some: {
-                    OR: [
-                        { endDate: null },
-                        { endDate: { gte: windowStart } }
-                    ]
-                }
-            }
-        },
+        where: whereEmployees,
         include: {
             company: true,
             role: true,
@@ -489,12 +496,16 @@ export async function getBenefitsCalculation(year: number, month: number) {
     // Fetch quarterly occurrences for absenteismo evaluation (last 3 months)
     const quarterlyStart = new Date(endYear, endMonth - 3, config.payrollCutoffStartDay);
     const quarterlyEnd = new Date(endYear, endMonth - 1, config.payrollCutoffEndDay);
+    const quarterlyWhere: any = {
+        date: { gte: quarterlyStart, lte: quarterlyEnd },
+        type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
+    };
+    if (targetEmployeeId) {
+        quarterlyWhere.employeeId = targetEmployeeId;
+    }
     const [quarterlyOccurrences, systemUsers] = await Promise.all([
         prisma.occurrence.findMany({
-            where: {
-                date: { gte: quarterlyStart, lte: quarterlyEnd },
-                type: { in: ["FALTA", "FALTA_INJUSTIFICADA", "ATESTADO"] }
-            },
+            where: quarterlyWhere,
             select: { employeeId: true }
         }),
         prisma.user.findMany({
