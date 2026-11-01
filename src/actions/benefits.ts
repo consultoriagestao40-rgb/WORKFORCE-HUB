@@ -1,7 +1,5 @@
 "use server";
 
-export const maxDuration = 60;
-
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
