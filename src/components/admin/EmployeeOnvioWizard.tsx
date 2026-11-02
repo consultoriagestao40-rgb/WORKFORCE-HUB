@@ -144,11 +144,11 @@ export function EmployeeOnvioWizard({
     const [status, setStatus] = useState("Ativo");
     const [situationId, setSituationId] = useState(initialData?.situationId || "");
     const [admissionDate, setAdmissionDate] = useState(initialData?.admissionDate ? new Date(initialData.admissionDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
-    const [salary, setSalary] = useState(initialData?.salary ? String(initialData.salary) : "0");
-    const [insalubridade, setInsalubridade] = useState(initialData?.insalubridade ? String(initialData.insalubridade) : "0");
-    const [periculosidade, setPericulosidade] = useState(initialData?.periculosidade ? String(initialData.periculosidade) : "0");
-    const [gratificacao, setGratificacao] = useState(initialData?.gratificacao ? String(initialData.gratificacao) : "0");
-    const [outrosAdicionais, setOutrosAdicionais] = useState(initialData?.outrosAdicionais ? String(initialData.outrosAdicionais) : "0");
+    const [salary, setSalary] = useState(initialData?.salary !== undefined && initialData?.salary !== null ? String(initialData.salary) : "0");
+    const [insalubridade, setInsalubridade] = useState(initialData?.insalubridade !== undefined && initialData?.insalubridade !== null ? String(initialData.insalubridade) : "0");
+    const [periculosidade, setPericulosidade] = useState(initialData?.periculosidade !== undefined && initialData?.periculosidade !== null ? String(initialData.periculosidade) : "0");
+    const [gratificacao, setGratificacao] = useState(initialData?.gratificacao !== undefined && initialData?.gratificacao !== null ? String(initialData.gratificacao) : "0");
+    const [outrosAdicionais, setOutrosAdicionais] = useState(initialData?.outrosAdicionais !== undefined && initialData?.outrosAdicionais !== null ? String(initialData.outrosAdicionais) : "0");
     const [dependentsCount, setDependentsCount] = useState(initialData?.dependentsCount ? String(initialData.dependentsCount) : "0");
     const [ajudaCusto, setAjudaCusto] = useState(initialData?.ajudaCusto ? String(initialData.ajudaCusto) : "0");
     const [adicionalViagem, setAdicionalViagem] = useState(initialData?.adicionalViagem ? String(initialData.adicionalViagem) : "0");
@@ -379,9 +379,9 @@ export function EmployeeOnvioWizard({
         }
     }, [currentPostoId, postos]);
 
-    // Auto-fill fields from selected Posto when currentPostoId changes (on initial load or conversion)
+    // Auto-fill fields from selected Posto when currentPostoId changes (ONLY for new employees without initialData)
     useEffect(() => {
-        if (currentPostoId && postos && postos.length > 0) {
+        if (!initialData && currentPostoId && postos && postos.length > 0) {
             const selectedPosto = postos.find(p => p.id === currentPostoId);
             if (selectedPosto) {
                 // Sincroniza valores do posto de trabalho
@@ -413,7 +413,7 @@ export function EmployeeOnvioWizard({
                 }
             }
         }
-    }, [currentPostoId, postos]);
+    }, [currentPostoId, postos, initialData]);
 
     // Sync type based on vinculoEmpregaticio (Onvio Vínculo -> legacy Tipo de Contrato)
     useEffect(() => {
@@ -518,18 +518,18 @@ export function EmployeeOnvioWizard({
                 setAdmissionDate(safeFormatDate(initialData.admissionDate));
             }
             
-            // Sincroniza valores do posto se não houver valor salvo ou se for 0
-            setSalary(initialData.salary ? String(initialData.salary) : (selectedPosto ? String(selectedPosto.baseSalary || 0) : "0"));
-            setInsalubridade(initialData.insalubridade ? String(initialData.insalubridade) : (selectedPosto ? String(selectedPosto.insalubridade || 0) : "0"));
-            setPericulosidade(initialData.periculosidade ? String(initialData.periculosidade) : (selectedPosto ? String(selectedPosto.periculosidade || 0) : "0"));
-            setGratificacao(initialData.gratificacao ? String(initialData.gratificacao) : (selectedPosto ? String(selectedPosto.gratificacao || 0) : "0"));
-            setOutrosAdicionais(initialData.outrosAdicionais ? String(initialData.outrosAdicionais) : (selectedPosto ? String(selectedPosto.outrosAdicionais || 0) : "0"));
-            setDependentsCount(initialData.dependentsCount ? String(initialData.dependentsCount) : "0");
-            setAjudaCusto(initialData.ajudaCusto ? String(initialData.ajudaCusto) : "0");
-            setAdicionalViagem(initialData.adicionalViagem ? String(initialData.adicionalViagem) : "0");
-            setValeAlimentacao(initialData.valeAlimentacao ? String(initialData.valeAlimentacao) : (selectedPosto ? String(selectedPosto.valeAlimentacao || 0) : "0"));
-            setValeTransporte(initialData.valeTransporte ? String(initialData.valeTransporte) : (selectedPosto ? String(selectedPosto.valeTransporte || 0) : "0"));
-            setWorkload(initialData.workload ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
+            // Inicializa valores a partir do initialData se existir, respeitando valores 0
+            setSalary(initialData.salary !== undefined && initialData.salary !== null ? String(initialData.salary) : (selectedPosto ? String(selectedPosto.baseSalary || 0) : "0"));
+            setInsalubridade(initialData.insalubridade !== undefined && initialData.insalubridade !== null ? String(initialData.insalubridade) : (selectedPosto ? String(selectedPosto.insalubridade || 0) : "0"));
+            setPericulosidade(initialData.periculosidade !== undefined && initialData.periculosidade !== null ? String(initialData.periculosidade) : (selectedPosto ? String(selectedPosto.periculosidade || 0) : "0"));
+            setGratificacao(initialData.gratificacao !== undefined && initialData.gratificacao !== null ? String(initialData.gratificacao) : (selectedPosto ? String(selectedPosto.gratificacao || 0) : "0"));
+            setOutrosAdicionais(initialData.outrosAdicionais !== undefined && initialData.outrosAdicionais !== null ? String(initialData.outrosAdicionais) : (selectedPosto ? String(selectedPosto.outrosAdicionais || 0) : "0"));
+            setDependentsCount(initialData.dependentsCount !== undefined && initialData.dependentsCount !== null ? String(initialData.dependentsCount) : "0");
+            setAjudaCusto(initialData.ajudaCusto !== undefined && initialData.ajudaCusto !== null ? String(initialData.ajudaCusto) : "0");
+            setAdicionalViagem(initialData.adicionalViagem !== undefined && initialData.adicionalViagem !== null ? String(initialData.adicionalViagem) : "0");
+            setValeAlimentacao(initialData.valeAlimentacao !== undefined && initialData.valeAlimentacao !== null ? String(initialData.valeAlimentacao) : (selectedPosto ? String(selectedPosto.valeAlimentacao || 0) : "0"));
+            setValeTransporte(initialData.valeTransporte !== undefined && initialData.valeTransporte !== null ? String(initialData.valeTransporte) : (selectedPosto ? String(selectedPosto.valeTransporte || 0) : "0"));
+            setWorkload(initialData.workload !== undefined && initialData.workload !== null ? String(initialData.workload) : (selectedPosto ? String(selectedPosto.requiredWorkload || 220) : "220"));
 
             if (initialData.birthDate) {
                 setBirthDate(safeFormatDate(initialData.birthDate));

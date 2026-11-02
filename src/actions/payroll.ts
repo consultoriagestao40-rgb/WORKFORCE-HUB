@@ -427,10 +427,10 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
 
         let daysWorked = totalDaysInMonth;
         const initialSalary = emp.salary > 0 ? emp.salary : (posto?.baseSalary || 0);
-        const initialInsalubridade = emp.insalubridade > 0 ? emp.insalubridade : (posto?.insalubridade || 0);
-        const initialPericulosidade = emp.periculosidade > 0 ? emp.periculosidade : (posto?.periculosidade || 0);
-        const initialGratificacao = emp.gratificacao > 0 ? emp.gratificacao : (posto?.gratificacao || 0);
-        const initialOutrosAdicionais = emp.outrosAdicionais > 0 ? emp.outrosAdicionais : (posto?.outrosAdicionais || 0);
+        const initialInsalubridade = emp.salary > 0 ? (emp.insalubridade || 0) : (posto?.insalubridade || 0);
+        const initialPericulosidade = emp.salary > 0 ? (emp.periculosidade || 0) : (posto?.periculosidade || 0);
+        const initialGratificacao = emp.salary > 0 ? (emp.gratificacao || 0) : (posto?.gratificacao || 0);
+        const initialOutrosAdicionais = emp.salary > 0 ? (emp.outrosAdicionais || 0) : (posto?.outrosAdicionais || 0);
 
         let baseSalary = initialSalary;
         let insalubridade = initialInsalubridade;
