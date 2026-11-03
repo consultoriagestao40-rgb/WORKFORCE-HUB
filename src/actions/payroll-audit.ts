@@ -165,6 +165,8 @@ export type AuditRow = PayrollAuditRow;
 export interface PayrollAuditResult {
     rows: PayrollAuditRow[];
     summary: PayrollAuditSummary;
+    detectedMonth?: number;
+    detectedYear?: number;
 }
 
 function cleanCpfDigits(cpf: string | undefined | null): string {
@@ -269,6 +271,43 @@ export async function runPayrollAudit(params: {
 
     const { year, month, companyId, holeriteItems = [], pointItems = [] } = params;
 
+    let auditYear = year;
+    let auditMonth = month;
+
+    // Detecção e Alinhamento Automático de Competência via Holerites enviados
+    if (holeriteItems && holeriteItems.length > 0) {
+        const compCounts = new Map<string, number>();
+        for (const h of holeriteItems) {
+            if (h.competence) {
+                const c = h.competence.trim();
+                compCounts.set(c, (compCounts.get(c) || 0) + 1);
+            }
+        }
+        let bestComp = "";
+        let maxCount = 0;
+        for (const [c, count] of compCounts.entries()) {
+            if (count > maxCount) {
+                maxCount = count;
+                bestComp = c;
+            }
+        }
+        if (bestComp) {
+            const parts = bestComp.split(/[\/\-]/);
+            if (parts.length === 2) {
+                let m = parseInt(parts[0], 10);
+                let y = parseInt(parts[1], 10);
+                if (y < 100) y += 2000;
+                if (m >= 1 && m <= 12 && y >= 2020 && y <= 2040) {
+                    if (m !== auditMonth || y !== auditYear) {
+                        console.log(`[runPayrollAudit] Auto-alinhando competência de ${auditMonth}/${auditYear} para ${m}/${y} com base nos holerites enviados.`);
+                        auditMonth = m;
+                        auditYear = y;
+                    }
+                }
+            }
+        }
+    }
+
     let targetCompany: { id: string; name: string; cnpj: string | null } | null = null;
     const hasUploadedFiles = holeriteItems.length > 0 || pointItems.length > 0;
     const whereEmployee: any = {};
@@ -285,12 +324,12 @@ export async function runPayrollAudit(params: {
     }
 
     // Cutoff window for occurrences (Day 26 of month-1 to Day 25 of month)
-    let startMonth = month - 1;
-    let startYear = year;
+    let startMonth = auditMonth - 1;
+    let startYear = auditYear;
     if (startMonth <= 0) { startMonth += 12; startYear -= 1; }
 
     const windowStart = new Date(startYear, startMonth - 1, 26, 0, 0, 0, 0);
-    const windowEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
+    const windowEnd = new Date(auditYear, auditMonth - 1, 25, 23, 59, 59, 999);
 
     const wfhEmployees = await prisma.employee.findMany({
         where: whereEmployee,
@@ -310,14 +349,14 @@ export async function runPayrollAudit(params: {
                 }
             },
             monthlyCalculations: {
-                where: { year, month }
+                where: { year: auditYear, month: auditMonth }
             }
         },
         orderBy: { name: "asc" }
     });
 
     // Obter os valores oficiais da folha fechada no WFH para o mês de competência (Planilha Contabilidade)
-    const previewRes = await getPayrollPreview(year, month).catch(err => {
+    const previewRes = await getPayrollPreview(auditYear, auditMonth).catch(err => {
         console.warn("[runPayrollAudit] Aviso ao obter payroll preview:", err);
         return { items: [] };
     });
@@ -762,7 +801,7 @@ export async function runPayrollAudit(params: {
             let expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
             let expFaltasCount = wfhPreview?.faltasCount;
 
-            // Fallback robusto: se wfhPreview não trouxe o valor de faltaDeduction, calcula diretamente
+            // Fallback robusto 1: se wfhPreview não trouxe o valor de faltaDeduction, calcula diretamente
             // das occurrences do colaborador dentro da janela oficial de corte (26 do mês anterior a 25 do mês)
             if (expFaltas === 0 && emp.occurrences && emp.occurrences.length > 0) {
                 const faltasEmp = emp.occurrences.filter(o => o.type === "FALTA" || o.type === "FALTA_INJUSTIFICADA");
@@ -774,6 +813,16 @@ export async function runPayrollAudit(params: {
                     const dRate = fullFixed / 30;
                     expFaltas = Math.round(((dRate * fCount) + (dRate * dsrCount)) * 100) / 100;
                 }
+            }
+
+            // Fallback robusto 2: se ainda for 0, mas o Cartão de Ponto (Secullum) apurou faltas
+            if (expFaltas === 0 && point && (point.faltasCount > 0 || point.faltasHours > 0)) {
+                const fCount = point.faltasCount > 0 ? point.faltasCount : Math.ceil(point.faltasHours / 7.333);
+                expFaltasCount = fCount;
+                const fullFixed = wfhBaseSalary + (emp.insalubridade || 0) + (emp.periculosidade || 0) + (emp.gratificacao || 0);
+                const dRate = fullFixed / 30;
+                const dsrCount = fCount;
+                expFaltas = Math.round(((dRate * fCount) + (dRate * dsrCount)) * 100) / 100;
             }
 
             const matchingFaltaRubrics = hRubrics.filter(r => {
@@ -855,10 +904,10 @@ export async function runPayrollAudit(params: {
 
             // 9. Desconto Vale Alimentação / Refeição (VA/VR)
             let expVa = wfhPreview?.vaPayrollDiscount || 0;
+            const rawBaseVa = (posto?.valeAlimentacao && posto.valeAlimentacao > 0)
+                ? posto.valeAlimentacao
+                : (emp.valeAlimentacao && emp.valeAlimentacao > 0 ? emp.valeAlimentacao : 0);
             if (expVa === 0) {
-                const rawBaseVa = (posto?.valeAlimentacao && posto.valeAlimentacao > 0)
-                    ? posto.valeAlimentacao
-                    : (emp.valeAlimentacao && emp.valeAlimentacao > 0 ? emp.valeAlimentacao : 0);
                 if (rawBaseVa > 0) {
                     const fCount = expFaltasCount !== undefined ? expFaltasCount : (emp.occurrences ? emp.occurrences.filter(o => o.type === "FALTA" || o.type === "FALTA_INJUSTIFICADA").length : 0);
                     const dRate = rawBaseVa > 50 ? (rawBaseVa / 30) : rawBaseVa;
@@ -888,11 +937,14 @@ export async function runPayrollAudit(params: {
             const actVa = Math.round(matchingVaRubrics.reduce((acc, r) => acc + (r.deductions || 0), 0) * 100) / 100;
             const vaRubric = matchingVaRubrics[0];
             const vaRef = vaRubric?.reference ? (vaRubric.reference.includes("%") ? vaRubric.reference : `${vaRubric.reference}`) : "";
+            const pctVa = emp.vaDiscountPercentage ?? posto?.vaDiscountPercentage ?? 20.0;
+            const expVaGross = Math.round(((wfhPreview?.vaBaseValue || rawBaseVa) * (pctVa / 100)) * 100) / 100;
             if (expVa > 0 || actVa > 0) {
                 const diff = Math.round((actVa - expVa) * 100) / 100;
                 const isVaFaltou = expVa > 0 && actVa === 0;
                 const isVaIndevido = expVa === 0 && actVa > 0;
-                const isOk = !isVaFaltou && !isVaIndevido && Math.abs(diff) <= 5;
+                // Tolerância padrão de R$ 5,00 ou quando a contabilidade descontou 20% do VA Bruto integral (sem deduzir dias de faltas da base)
+                const isOk = !isVaFaltou && !isVaIndevido && (Math.abs(diff) <= 5 || Math.abs(actVa - expVaGross) <= 2);
                 rubricComparisons.push({
                     rubric: "420 - Desconto VA / VR",
                     expectedWfh: expVa,
@@ -1369,7 +1421,12 @@ export async function runPayrollAudit(params: {
 
     return { 
         success: true, 
-        data: { rows, summary } 
+        data: { 
+            rows, 
+            summary,
+            detectedMonth: auditMonth,
+            detectedYear: auditYear
+        } 
     };
     } catch (error: any) {
         console.error("Erro no cruzamento de folha:", error);

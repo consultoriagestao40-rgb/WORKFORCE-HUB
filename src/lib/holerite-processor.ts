@@ -772,12 +772,24 @@ export function parseHoleritePdfPageItems(rawPdfItems: any[], pageNumber: number
     // 3. Competence
     const compMatch = fullText.match(/(?:Compet[êe]ncia|Refer[êe]ncia|M[êe]s\/Ano|Per[ií]odo)[:\s]*([0-1]?\d[\/-]20\d{2}|[0-1]?\d[\/-]\d{2})/i);
     if (compMatch) {
-        competence = compMatch[1];
+        let raw = compMatch[1].replace('-', '/');
+        if (raw.length <= 5 && raw.includes('/')) {
+            const parts = raw.split('/');
+            if (parts[0].length === 1) parts[0] = '0' + parts[0];
+            if (parts[1].length === 2) raw = `${parts[0]}/20${parts[1]}`;
+            else raw = `${parts[0]}/${parts[1]}`;
+        }
+        competence = raw;
     } else {
         const mM = fullText.match(/(Janeiro|Fevereiro|Março|Marco|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)[\s\/\-_de]+(20\d{2})/i);
         if (mM) {
             const m = MONTH_NAMES[mM[1].toLowerCase()] || '01';
             competence = `${m}/${mM[2]}`;
+        } else {
+            const genericComp = fullText.match(/\b(0[1-9]|1[0-2])\/(20\d{2})\b/);
+            if (genericComp) {
+                competence = genericComp[0];
+            }
         }
     }
 

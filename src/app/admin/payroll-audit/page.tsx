@@ -74,8 +74,10 @@ import {
 
 export default function PayrollAuditPage() {
     const today = new Date();
-    const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
-    const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1);
+    // No início do mês (até o dia 15), a competência natural de fechamento e auditoria é o mês anterior
+    const defaultAuditDate = today.getDate() <= 15 ? new Date(today.getFullYear(), today.getMonth() - 1, 1) : today;
+    const [selectedYear, setSelectedYear] = useState<number>(defaultAuditDate.getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState<number>(defaultAuditDate.getMonth() + 1);
 
     // Companies Filter
     const [companies, setCompanies] = useState<{ id: string; name: string; cnpj: string | null }[]>([]);
@@ -372,17 +374,58 @@ export default function PayrollAuditPage() {
                 toast.success(`Holerites processados: ${items.length} recibos extraídos com dados financeiros.`);
             }
 
+            // Detectar automaticamente a competência a partir dos holerites extraídos
+            let targetYear = selectedYear;
+            let targetMonth = selectedMonth;
+
+            const compCounts = new Map<string, number>();
+            for (const it of items) {
+                if (it.competence) {
+                    const norm = it.competence.trim();
+                    compCounts.set(norm, (compCounts.get(norm) || 0) + 1);
+                }
+            }
+            let bestComp = "";
+            let maxCount = 0;
+            for (const [c, count] of compCounts.entries()) {
+                if (count > maxCount) {
+                    maxCount = count;
+                    bestComp = c;
+                }
+            }
+            if (bestComp) {
+                const parts = bestComp.split(/[\/\-]/);
+                if (parts.length === 2) {
+                    let m = parseInt(parts[0], 10);
+                    let y = parseInt(parts[1], 10);
+                    if (y < 100) y += 2000;
+                    if (m >= 1 && m <= 12 && y >= 2020 && y <= 2040) {
+                        targetMonth = m;
+                        targetYear = y;
+                        if (m !== selectedMonth || y !== selectedYear) {
+                            setSelectedMonth(m);
+                            setSelectedYear(y);
+                            toast.info(`Competência detectada no PDF: ${String(m).padStart(2, '0')}/${y}. Período atualizado automaticamente!`);
+                        }
+                    }
+                }
+            }
+
             // Executa imediatamente o cruzamento com o banco WFH em segundo plano
             setIsAuditing(true);
             runPayrollAudit({
-                year: selectedYear,
-                month: selectedMonth,
+                year: targetYear,
+                month: targetMonth,
                 companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
                 holeriteItems: items,
                 pointItems: pointItems || []
             }).then(res => {
                 if (res.success && res.data) {
                     setAuditResult(res.data);
+                    if (res.data.detectedMonth && res.data.detectedYear && (res.data.detectedMonth !== selectedMonth || res.data.detectedYear !== selectedYear)) {
+                        setSelectedMonth(res.data.detectedMonth);
+                        setSelectedYear(res.data.detectedYear);
+                    }
                 }
             }).catch(err => {
                 console.error("Erro no auto-cruzamento de folha:", err);
@@ -410,6 +453,10 @@ export default function PayrollAuditPage() {
             }).then(res => {
                 if (res.success && res.data) {
                     setAuditResult(res.data);
+                    if (res.data.detectedMonth && res.data.detectedYear && (res.data.detectedMonth !== selectedMonth || res.data.detectedYear !== selectedYear)) {
+                        setSelectedMonth(res.data.detectedMonth);
+                        setSelectedYear(res.data.detectedYear);
+                    }
                 }
             }).catch(err => {
                 console.error("Erro na atualização da auditoria:", err);
@@ -442,6 +489,10 @@ export default function PayrollAuditPage() {
             }
 
             setAuditResult(res.data);
+            if (res.data.detectedMonth && res.data.detectedYear && (res.data.detectedMonth !== selectedMonth || res.data.detectedYear !== selectedYear)) {
+                setSelectedMonth(res.data.detectedMonth);
+                setSelectedYear(res.data.detectedYear);
+            }
             toast.success("Auditoria concluída com sucesso!");
 
             // If there are critical risks, show warning toast
