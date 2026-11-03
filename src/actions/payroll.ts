@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { getBenefitsCalculation } from "./benefits";
-import { resolveEmployeeAssignment } from "@/lib/payroll";
+import { resolveEmployeeAssignment, getUniqueWeeksCount } from "@/lib/payroll";
 
 export interface PayrollOccurrenceDetail {
     id: string;
@@ -111,18 +111,6 @@ export interface PayrollPreviewItem {
     monthlyAdjustmentsUpdatedAt?: string | null;
 }
 
-function getUniqueWeeksCount(dates: Date[]): number {
-    const uniqueWeeks = new Set<string>();
-    for (const date of dates) {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day;
-        const sunday = new Date(d.setDate(diff));
-        const weekKey = `${sunday.getFullYear()}-${sunday.getMonth() + 1}-${sunday.getDate()}`;
-        uniqueWeeks.add(weekKey);
-    }
-    return uniqueWeeks.size;
-}
 
 export async function getPayrollPreview(year: number, month: number, targetEmployeeId?: string) {
     const user = await getCurrentUser();
@@ -712,40 +700,44 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             const vtDeductionValue = Math.round((totalVtAbsences * vtDailyRate) * 100) / 100;
             vtNetValue = Math.max(0, Math.round((vtBaseValue - vtDeductionValue) * 100) / 100);
 
-            const effectiveSalaryForVt = (isAdmittedThisMonth || daysWorked < totalDaysInMonth) ? baseSalary : (emp.salary || initialSalary);
+            // A base do VT (6%) é o salário bruto base deduzido das faltas e DSR (regra padrão da contabilidade/holerite)
+            const effectiveSalaryForVt = (isAdmittedThisMonth || daysWorked < totalDaysInMonth)
+                ? baseSalary
+                : Math.max(0, (emp.salary || initialSalary) - faltaDeduction - dsrDeduction);
             const rawDiscount = Math.round((effectiveSalaryForVt * (vtDiscountPercentage / 100)) * 100) / 100;
             vtPayrollDiscount = Math.min(rawDiscount, vtNetValue > 0 ? vtNetValue : vtBaseValue);
+        }
 
-            // VA Calculation
-            if (benefitInfo) {
-                vaBaseValue = benefitInfo.vaBaseValue || 0;
-                vaDeductionValue = benefitInfo.vaDeductionValue || 0;
-                vaNetValue = benefitInfo.vaTotalValue || 0;
-                vaPayrollDiscount = benefitInfo.vaPayrollDiscount || 0;
-                vaDiscountPercentage = benefitInfo.vaDiscountPercentage !== undefined && benefitInfo.vaDiscountPercentage !== null ? benefitInfo.vaDiscountPercentage : 20.0;
-            } else {
-                vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
-                    ? emp.vaDiscountPercentage
-                    : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
-                const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
-                    ? emp.valeAlimentacao
-                    : (posto?.valeAlimentacao || 0);
-                const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
-                vaBaseValue = baseVaValue;
-                vaNetValue = baseVaValue;
-                vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
-            }
-        } else {
-            vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
-                ? emp.vaDiscountPercentage
-                : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
-            const rawBaseVaValue = (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0)
+        // VA Calculation: REGRA DE OURO - Atestados NÃO abatem VA, SOMENTE Faltas abatem VA!
+        // Atestados abatem VT, mas o colaborador mantém o benefício de VA nos dias de atestado médico.
+        vaDiscountPercentage = emp.vaDiscountPercentage !== null && emp.vaDiscountPercentage !== undefined
+            ? emp.vaDiscountPercentage
+            : (posto?.vaDiscountPercentage !== null && posto?.vaDiscountPercentage !== undefined ? posto.vaDiscountPercentage : 20.0);
+
+        const rawBaseVaValue = (posto?.valeAlimentacao && posto.valeAlimentacao > 0)
+            ? posto.valeAlimentacao
+            : (emp.valeAlimentacao !== null && emp.valeAlimentacao !== undefined && emp.valeAlimentacao > 0
                 ? emp.valeAlimentacao
-                : (posto?.valeAlimentacao || 0);
-            const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
-            vaBaseValue = baseVaValue;
-            vaNetValue = baseVaValue;
-            vaPayrollDiscount = Math.round((baseVaValue * (vaDiscountPercentage / 100)) * 100) / 100;
+                : (benefitInfo?.vaBaseValue || 0));
+
+        const baseVaValue = (rawBaseVaValue > 0 && posto?.vaMealsProvidedOnSite) ? 494.00 : rawBaseVaValue;
+        vaBaseValue = baseVaValue;
+
+        if (vaBaseValue > 0) {
+            const isVaDiario = posto?.vaType === "diario";
+            const dailyRateVa = isVaDiario
+                ? (emp.valeAlimentacao > 0 && emp.valeAlimentacao <= 50 ? emp.valeAlimentacao : (vaBaseValue / 22))
+                : (vaBaseValue / 30);
+
+            // Somente FALTAS (faltasCount) abatem VA. Atestados (atestadosCount) NÃO abatem VA!
+            vaDeductionValue = Math.round((faltasCount * dailyRateVa) * 100) / 100;
+            vaNetValue = Math.max(0, Math.round((vaBaseValue - vaDeductionValue) * 100) / 100);
+            vaPayrollDiscount = Math.round((vaNetValue * (vaDiscountPercentage / 100)) * 100) / 100;
+        } else {
+            vaBaseValue = 0;
+            vaDeductionValue = 0;
+            vaNetValue = 0;
+            vaPayrollDiscount = 0;
         }
 
         // Garante: não-optante de VT nunca tem desconto de VT na folha e onde tem ajuda de custo o desconto de VT também sai zerado

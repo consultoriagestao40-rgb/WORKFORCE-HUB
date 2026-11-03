@@ -587,7 +587,10 @@ export async function getBenefitsCalculation(year: number, month: number, target
         // VT is deducted for both Faltas and Atestados (employee did not commute)
         const vtOccurrencesCount = occurrencesList.length;
         // VA is strictly NOT deducted for medical certificates (Atestado Médico), only for unexcused/unjustified absences (Faltas)
-        const vaOccurrencesCount = occurrencesList.filter(o => o.type !== "Atestado Médico").length;
+        const vaOccurrencesCount = filteredOccurrences.filter(occ => {
+            const t = (occ.type || "").toUpperCase();
+            return t === "FALTA" || t === "FALTA_INJUSTIFICADA";
+        }).length;
         const occurrencesCount = vtOccurrencesCount;
 
         // Payments Info
@@ -862,9 +865,15 @@ export async function getBenefitsCalculation(year: number, month: number, target
         let absenteismoAward = 0;
         const absenteismoPeriod = posto?.absenteismoAwardPeriod || "mensal";
         
-        // Count faltas and atestados inside occurrencesList
-        const faltasCount = occurrencesList.filter(o => o.type !== "Atestado Médico").length;
-        const atestadosCount = occurrencesList.filter(o => o.type === "Atestado Médico").length;
+        // Count faltas and atestados inside occurrencesList strictly
+        const faltasCount = filteredOccurrences.filter(occ => {
+            const t = (occ.type || "").toUpperCase();
+            return t === "FALTA" || t === "FALTA_INJUSTIFICADA";
+        }).length;
+        const atestadosCount = filteredOccurrences.filter(occ => {
+            const t = (occ.type || "").toUpperCase();
+            return t === "ATESTADO";
+        }).length;
 
         const effectiveAwardValue = (posto && posto.absenteismoAwardValue > 0)
             ? posto.absenteismoAwardValue

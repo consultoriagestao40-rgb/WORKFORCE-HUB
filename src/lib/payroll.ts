@@ -146,3 +146,16 @@ export function resolveEmployeeAssignment(assignments: any[], windowStart: Date,
     };
 }
 
+export function getUniqueWeeksCount(dates: Date[]): number {
+    const uniqueWeeks = new Set<string>();
+    for (const date of dates) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        const sunday = new Date(d.setDate(diff));
+        const weekKey = `${sunday.getFullYear()}-${sunday.getMonth() + 1}-${sunday.getDate()}`;
+        uniqueWeeks.add(weekKey);
+    }
+    return uniqueWeeks.size;
+}
+

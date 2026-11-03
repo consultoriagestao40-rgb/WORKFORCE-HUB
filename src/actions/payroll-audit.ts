@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { ParsedPointEmployee } from "@/lib/point-parser";
 import { getPayrollPreview } from "@/actions/payroll";
+import { getUniqueWeeksCount } from "@/lib/payroll";
 
 export type AuditDiscrepancyType = 
     | "CRITICAL_RISK"       // Pago integralmente mas sem ponto / abandono / afastado
@@ -261,16 +262,13 @@ export async function runPayrollAudit(params: {
         }
     }
 
-    // Cutoff window for occurrences (Day 26 of month-2 to Day 25 of month-1)
-    let startMonth = month - 2;
+    // Cutoff window for occurrences (Day 26 of month-1 to Day 25 of month)
+    let startMonth = month - 1;
     let startYear = year;
     if (startMonth <= 0) { startMonth += 12; startYear -= 1; }
-    let endMonth = month - 1;
-    let endYear = year;
-    if (endMonth <= 0) { endMonth += 12; endYear -= 1; }
 
-    const windowStart = new Date(startYear, startMonth - 1, 26, 0, 0, 0);
-    const windowEnd = new Date(endYear, endMonth - 1, 25, 23, 59, 59);
+    const windowStart = new Date(startYear, startMonth - 1, 26, 0, 0, 0, 0);
+    const windowEnd = new Date(year, month - 1, 25, 23, 59, 59, 999);
 
     const wfhEmployees = await prisma.employee.findMany({
         where: whereEmployee,
@@ -689,7 +687,19 @@ export async function runPayrollAudit(params: {
             const isVtOptante = wfhPreview 
                 ? (wfhPreview.vtOptIn === true && !(wfhPreview.ajudaCusto > 0)) 
                 : (emp.vtOptIn === true && !(emp.ajudaCusto && emp.ajudaCusto > 0));
-            const expVt = isVtOptante ? (wfhPreview?.vtPayrollDiscount || Math.round((expBase * 0.06) * 100) / 100) : 0;
+            // A base de cálculo do VT para desconto (6%) é o salário base efetivo menos faltas e DSR (regra padrão DP/contabilidade)
+            let precalcFaltas = (wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0);
+            if (precalcFaltas === 0 && emp.occurrences && emp.occurrences.length > 0) {
+                const fEmp = emp.occurrences.filter(o => o.type === "FALTA" || o.type === "FALTA_INJUSTIFICADA");
+                if (fEmp.length > 0) {
+                    const fullFixed = wfhBaseSalary + (emp.insalubridade || 0) + (emp.periculosidade || 0) + (emp.gratificacao || 0);
+                    const dRate = fullFixed / 30;
+                    const dsr = getUniqueWeeksCount(fEmp.map(o => new Date(o.date)));
+                    precalcFaltas = (dRate * fEmp.length) + (dRate * dsr);
+                }
+            }
+            const effectiveSalaryVt = Math.max(0, expBase - precalcFaltas);
+            const expVt = isVtOptante ? (wfhPreview?.vtPayrollDiscount || Math.round((effectiveSalaryVt * 0.06) * 100) / 100) : 0;
             const vtRubric = hRubrics.find(r => {
                 const d = normalizeName(r.description).toUpperCase();
                 return (r.deductions || 0) > 0 && (d.includes("VALE TRANS") || d.includes("DESC. VT") || d.includes("DESCONTO VT") || d === "VT" || d.includes(" TRANSPORTE"));
@@ -727,7 +737,22 @@ export async function runPayrollAudit(params: {
             });
 
             // 7. Faltas e DSR (Somatório exato de Faltas + DSR e Detalhamento da Quantidade de Horas)
-            const expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
+            let expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
+            let expFaltasCount = wfhPreview?.faltasCount;
+
+            // Fallback robusto: se wfhPreview não trouxe o valor de faltaDeduction, calcula diretamente
+            // das occurrences do colaborador dentro da janela oficial de corte (26 do mês anterior a 25 do mês)
+            if (expFaltas === 0 && emp.occurrences && emp.occurrences.length > 0) {
+                const faltasEmp = emp.occurrences.filter(o => o.type === "FALTA" || o.type === "FALTA_INJUSTIFICADA");
+                if (faltasEmp.length > 0) {
+                    const fCount = faltasEmp.length;
+                    expFaltasCount = fCount;
+                    const dsrCount = getUniqueWeeksCount(faltasEmp.map(o => new Date(o.date)));
+                    const fullFixed = wfhBaseSalary + (emp.insalubridade || 0) + (emp.periculosidade || 0) + (emp.gratificacao || 0);
+                    const dRate = fullFixed / 30;
+                    expFaltas = Math.round(((dRate * fCount) + (dRate * dsrCount)) * 100) / 100;
+                }
+            }
 
             const matchingFaltaRubrics = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
@@ -763,8 +788,9 @@ export async function runPayrollAudit(params: {
                 const isOk = Math.abs(diffFaltas) <= 10;
 
                 const expHoursStr = wfhPreview?.faltasHours ? `${wfhPreview.faltasHours}h` : "";
+                const countDisplay = expFaltasCount !== undefined ? expFaltasCount : wfhPreview?.faltasCount;
                 const expFaltasDetail = expFaltas > 0 
-                    ? `R$ ${expFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${expHoursStr ? ` (${expHoursStr} faltas)` : wfhPreview?.faltasCount ? ` (${wfhPreview.faltasCount} falta(s))` : ""}`
+                    ? `R$ ${expFaltas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${expHoursStr ? ` (${expHoursStr} faltas)` : countDisplay ? ` (${countDisplay} falta(s))` : ""}`
                     : "R$ 0,00 (Sem faltas)";
 
                 const actFaltasDetail = actFaltas > 0 
@@ -806,7 +832,19 @@ export async function runPayrollAudit(params: {
             }
 
             // 9. Desconto Vale Alimentação / Refeição (VA/VR)
-            const expVa = wfhPreview?.vaPayrollDiscount || 0;
+            let expVa = wfhPreview?.vaPayrollDiscount || 0;
+            if (expVa === 0) {
+                const rawBaseVa = (posto?.valeAlimentacao && posto.valeAlimentacao > 0)
+                    ? posto.valeAlimentacao
+                    : (emp.valeAlimentacao && emp.valeAlimentacao > 0 ? emp.valeAlimentacao : 0);
+                if (rawBaseVa > 0) {
+                    const fCount = expFaltasCount !== undefined ? expFaltasCount : (emp.occurrences ? emp.occurrences.filter(o => o.type === "FALTA" || o.type === "FALTA_INJUSTIFICADA").length : 0);
+                    const dRate = rawBaseVa > 50 ? (rawBaseVa / 30) : rawBaseVa;
+                    const netVa = Math.max(0, rawBaseVa - (fCount * dRate));
+                    const pctVa = emp.vaDiscountPercentage ?? posto?.vaDiscountPercentage ?? 20.0;
+                    expVa = Math.round((netVa * (pctVa / 100)) * 100) / 100;
+                }
+            }
             const matchingVaRubrics = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
                 if ((r.deductions || 0) <= 0) return false;
@@ -847,7 +885,7 @@ export async function runPayrollAudit(params: {
                         ? `EXCLUIR DESCONTO VA: Colaborador não possui previsão de desconto de VA no WFH e veio com desconto de R$ ${actVa.toFixed(2)}.`
                         : isVaFaltou
                         ? `APLICAR DESCONTO VA: Previsto desconto de R$ ${expVa.toFixed(2)} no WFH que não constou no holerite.`
-                        : `CONFERIR DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} vs. R$ ${actVa.toFixed(2)} descontado no holerite.`
+                        : `CONFERIR BASE DE DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} (sobre VA Líquido de R$ ${wfhPreview?.vaNetValue ? wfhPreview.vaNetValue.toFixed(2) : '840.00'}) vs. R$ ${actVa.toFixed(2)} descontado no holerite (sobre VA Bruto de R$ ${wfhPreview?.vaBaseValue ? wfhPreview.vaBaseValue.toFixed(2) : '900.00'}).`
                 });
             }
 
