@@ -499,20 +499,23 @@ export async function processApprovalDecision(
 
         // 2. Processamento NÍVEL 2 (N2)
         if (request.status === ApprovalStatus.PENDENTE_N2) {
+            // Ninguém delibera na própria solicitação (nem ADMIN)
+            if (request.requesterId === user.id) {
+                throw new Error("Você é o solicitante deste pedido e não pode deliberar na sua própria solicitação.");
+            }
+
             let canApproveN2 = false;
             const dbApprover = await prisma.user.findUnique({
                 where: { id: user.id },
                 select: { isApproverN2: true, role: true }
             });
 
-            if (user.role === 'ADMIN' || dbApprover?.isApproverN2) {
+            // N2 = exclusivamente quem tem a flag de aprovador N2 (Diretoria).
+            // Role ADMIN sozinho NÃO basta (ex: Gestor N1 com acesso admin).
+            if (dbApprover?.isApproverN2) {
                 canApproveN2 = true;
             } else if (rule?.n2ApproverType === "SPECIFIC_USER") {
                 if (user.id === rule.n2TargetUserId) {
-                    canApproveN2 = true;
-                }
-            } else if (rule?.n2ApproverType === "ROLE") {
-                if (user.role === (rule.n2TargetRole || 'ADMIN')) {
                     canApproveN2 = true;
                 }
             }
@@ -675,7 +678,11 @@ async function executeApprovedRequest(requestId: string, approverName: string) {
             const { employeeId, postoId, targetPostoId, startDateStr, schedule, createVacancy, reason, horarioSecullumNumero, requesterName, requesterId } = payload;
             const finalPostoId = postoId || targetPostoId;
 
-            if (employeeId && finalPostoId) {
+            if (payload.toRotativo && employeeId) {
+                const { internalMoveEmployeeToRotativo } = await import("@/app/actions");
+                const r: any = await internalMoveEmployeeToRotativo(employeeId, requesterId || request.requesterId || null);
+                if (r?.error) throw new Error(r.error);
+            } else if (employeeId && finalPostoId) {
                 const { internalExecuteAssignment } = await import("@/app/actions");
                 await internalExecuteAssignment({
                     employeeId,

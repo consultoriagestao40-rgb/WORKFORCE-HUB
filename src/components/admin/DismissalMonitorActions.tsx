@@ -52,11 +52,11 @@ export function DismissalMonitorActions({ employeeId, employeeName, situationNam
         if (!confirm(`Deseja mover ${employeeName} para o Rotativo?`)) return;
         setLoading(true);
         try {
-            const res = await moveEmployeeToRotativo(employeeId);
+            const res: any = await moveEmployeeToRotativo(employeeId);
             if (res?.error) {
                 toast.error(res.error);
             } else {
-                toast.success("Colaborador alocado no Rotativo!");
+                toast.success((res as any)?.pendingApproval ? "Solicitação enviada para aprovação!" : "Colaborador alocado no Rotativo!");
                 router.refresh();
             }
         } catch (e: any) {

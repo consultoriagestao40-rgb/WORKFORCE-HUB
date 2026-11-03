@@ -174,11 +174,11 @@ export function DismissalMonitorTable({
         if (!confirm(`Deseja mover ${emp.name} para o Rotativo?`)) return;
         setLoadingAction(true);
         try {
-            const res = await moveEmployeeToRotativo(emp.id);
+            const res: any = await moveEmployeeToRotativo(emp.id);
             if (res?.error) {
                 toast.error(res.error);
             } else {
-                toast.success("Colaborador alocado no Rotativo!");
+                toast.success((res as any)?.pendingApproval ? "Solicitação enviada para aprovação!" : "Colaborador alocado no Rotativo!");
                 setSelectedEmployee(null);
                 router.refresh();
             }

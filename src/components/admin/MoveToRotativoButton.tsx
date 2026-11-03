@@ -15,11 +15,11 @@ export function MoveToRotativoButton({ employeeId }: { employeeId: string }) {
         if (!confirm("Tem certeza que deseja mover este colaborador para o Rotativo?")) return;
         setLoading(true);
         try {
-            const res = await moveEmployeeToRotativo(employeeId);
+            const res: any = await moveEmployeeToRotativo(employeeId);
             if (res?.error) {
                 toast.error(res.error);
             } else {
-                toast.success("Colaborador movido para o Rotativo com sucesso!");
+                toast.success((res as any)?.pendingApproval ? "Solicitação enviada para aprovação!" : "Colaborador movido para o Rotativo com sucesso!");
                 router.refresh();
             }
         } catch (e: any) {

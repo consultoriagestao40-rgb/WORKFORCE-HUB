@@ -4174,10 +4174,79 @@ export async function addJobFunction(name: string) {
     return await prisma.jobFunction.create({ data: { name } });
 }
 
+/**
+ * Envia o colaborador ao Rotativo PASSANDO PELO FLUXO DE APROVAÇÃO (MUDANCA_POSTO).
+ * A efetivação só acontece depois da aprovação (ver executeApprovedRequest).
+ */
 export async function moveEmployeeToRotativo(employeeId: string) {
     try {
         const user = await getCurrentUser();
         if (!user) throw new Error("Unauthorized");
+
+        const emp = await prisma.employee.findUnique({ where: { id: employeeId }, include: { role: true } });
+        if (!emp) throw new Error("Employee not found");
+
+        const rule = await prisma.approvalWorkflowRule.findUnique({
+            where: { type: ApprovalType.MUDANCA_POSTO }
+        });
+        const isApprovalRequired = !!(rule?.n1Enabled || rule?.n2Enabled);
+
+        if (isApprovalRequired) {
+            const active = await prisma.assignment.findFirst({
+                where: { employeeId, endDate: null },
+                include: { posto: { include: { client: true, role: true } } }
+            });
+
+            const appRes = await createApprovalRequest({
+                type: ApprovalType.MUDANCA_POSTO,
+                title: `Alocação de ${emp.name} no ROTATIVO`,
+                description: "Motivo: Envio manual para o Rotativo",
+                employeeId: emp.id,
+                snapshotCurrent: {
+                    clientName: active?.posto?.client?.name || "Rotativo / Sem Posto",
+                    roleName: active?.posto?.role?.name || emp.role?.name || "Sem Função",
+                    schedule: active?.posto?.schedule || "N/A",
+                    baseSalary: active?.posto?.baseSalary ?? emp.salary ?? 0
+                },
+                snapshotProposed: {
+                    clientName: "ROTATIVO",
+                    roleName: emp.role?.name || "Sem Função",
+                    schedule: "Variável",
+                    startDate: new Date().toISOString().split('T')[0],
+                    reason: "Envio manual para o Rotativo"
+                },
+                executionPayload: {
+                    employeeId: emp.id,
+                    toRotativo: true,
+                    reason: "Envio manual para o Rotativo",
+                    requesterName: user.name,
+                    requesterId: user.id
+                }
+            });
+
+            revalidatePath("/admin/aprovacoes");
+            return {
+                success: true,
+                pendingApproval: true,
+                requestId: appRes.request.id,
+                message: "Solicitação enviada para aprovação. O colaborador só vai para o Rotativo após aprovada."
+            };
+        }
+
+        return await internalMoveEmployeeToRotativo(employeeId, user.id);
+    } catch (error: any) {
+        console.error("Error moving to rotativo:", error);
+        return { error: error.message || "Erro ao mover colaborador para o Rotativo." };
+    }
+}
+
+/**
+ * Execução efetiva da movimentação para o Rotativo (sem checar aprovação).
+ * Chamada somente após aprovação ou quando a regra de alçada estiver desligada.
+ */
+export async function internalMoveEmployeeToRotativo(employeeId: string, userId?: string | null) {
+    try {
+        const user = { id: userId ?? undefined };
 
         await prisma.$transaction(async (tx) => {
             // 1. End any active assignments
