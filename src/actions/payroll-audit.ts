@@ -807,15 +807,32 @@ export async function runPayrollAudit(params: {
 
             // 9. Desconto Vale Alimentação / Refeição (VA/VR)
             const expVa = wfhPreview?.vaPayrollDiscount || 0;
-            const vaRubric = hRubrics.find(r => {
+            const matchingVaRubrics = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
-                return (r.deductions || 0) > 0 && (d.includes("ALIMENTACAO") || d.includes("REFEICAO") || d.includes("VALE ALIM") || d.includes("VALE REFE") || d.includes("VA") || d.includes("VR"));
+                if ((r.deductions || 0) <= 0) return false;
+                // JAMAIS considerar Vale Transporte como Alimentação!
+                if (d.includes("TRANS") || d.includes("VT") || d.includes("PASSAGEM")) return false;
+                return (
+                    d.includes("ALIMENTACAO") ||
+                    d.includes("REFEICAO") ||
+                    d.includes("VALE ALIM") ||
+                    d.includes("VALE REFE") ||
+                    d.includes("TICKET") ||
+                    d.includes("SODEXO") ||
+                    d.includes("CAJU") ||
+                    d.includes("CESTA") ||
+                    /\bVA\b/i.test(r.description) ||
+                    /\bVR\b/i.test(r.description)
+                );
             });
-            const actVa = vaRubric?.deductions || sumRubrics(hRubrics, ["VALE ALIM", "VALE REFE", "DESC. VA", "DESC. VR", "TICKET", "ALIMENTACAO"], "deductions");
+            const actVa = Math.round(matchingVaRubrics.reduce((acc, r) => acc + (r.deductions || 0), 0) * 100) / 100;
+            const vaRubric = matchingVaRubrics[0];
             const vaRef = vaRubric?.reference ? (vaRubric.reference.includes("%") ? vaRubric.reference : `${vaRubric.reference}`) : "";
             if (expVa > 0 || actVa > 0) {
                 const diff = Math.round((actVa - expVa) * 100) / 100;
-                const isOk = Math.abs(diff) <= 5;
+                const isVaFaltou = expVa > 0 && actVa === 0;
+                const isVaIndevido = expVa === 0 && actVa > 0;
+                const isOk = !isVaFaltou && !isVaIndevido && Math.abs(diff) <= 5;
                 rubricComparisons.push({
                     rubric: "420 - Desconto VA / VR",
                     expectedWfh: expVa,
@@ -823,10 +840,14 @@ export async function runPayrollAudit(params: {
                     actualHolerite: actVa,
                     actualHoleriteDetail: actVa > 0 
                         ? `R$ ${actVa.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${vaRef ? ` (Ref: ${vaRef})` : " (Descontado)"}` 
-                        : "R$ 0,00 (Sem desconto)",
+                        : "R$ 0,00 (Não descontado)",
                     diff,
-                    status: isOk ? "OK" : "DIVERGENTE",
-                    instruction: isOk ? "" : `CONFERIR DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} vs. R$ ${actVa.toFixed(2)} descontado no holerite.`
+                    status: isOk ? "OK" : isVaIndevido ? "INDEVIDO" : isVaFaltou ? "FALTOU" : "DIVERGENTE",
+                    instruction: isOk ? "" : isVaIndevido
+                        ? `EXCLUIR DESCONTO VA: Colaborador não possui previsão de desconto de VA no WFH e veio com desconto de R$ ${actVa.toFixed(2)}.`
+                        : isVaFaltou
+                        ? `APLICAR DESCONTO VA: Previsto desconto de R$ ${expVa.toFixed(2)} no WFH que não constou no holerite.`
+                        : `CONFERIR DESCONTO VA: Previsto R$ ${expVa.toFixed(2)} vs. R$ ${actVa.toFixed(2)} descontado no holerite.`
                 });
             }
 
