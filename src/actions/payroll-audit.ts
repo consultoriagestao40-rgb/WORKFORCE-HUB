@@ -569,7 +569,7 @@ export async function runPayrollAudit(params: {
             }
 
             // 4. Adicionais / Liderança / Gratificação CCT / Função Gratificada Copa
-            const expAdicionais = Math.round(((wfhPreview?.gratificacao || emp.gratificacao || 0) + (wfhPreview?.outrosAdicionais || emp.outrosAdicionais || 0)) * 100) / 100;
+            const expAdicionais = Math.round((wfhPreview?.gratificacao || emp.gratificacao || 0) * 100) / 100;
             const matchingAdicionais = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
                 return (r.earnings || 0) > 0 && ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "PREMIO", "COPA"].some(k => d.includes(k));
@@ -898,7 +898,7 @@ export async function runPayrollAudit(params: {
         const expBase = wfhBaseSalary;
         const expInsalubridade = wfhPreview?.insalubridade !== undefined ? wfhPreview.insalubridade : (emp.insalubridade || 0);
         const expPericulosidade = wfhPreview?.periculosidade !== undefined ? wfhPreview.periculosidade : (emp.periculosidade || 0);
-        const expAdicionais = Math.round(((wfhPreview?.gratificacao || emp.gratificacao || 0) + (wfhPreview?.outrosAdicionais || emp.outrosAdicionais || 0)) * 100) / 100;
+        const expAdicionais = Math.round((wfhPreview?.gratificacao || emp.gratificacao || 0) * 100) / 100;
         const expAjuda = wfhPreview?.ajudaCusto !== undefined ? wfhPreview.ajudaCusto : (emp.ajudaCusto || 0);
         const expExtras = Math.round(((wfhPreview?.horasExtras50Value || 0) + (wfhPreview?.horasExtras100Value || 0) + (wfhPreview?.adicionalNoturnoValue || 0)) * 100) / 100;
 

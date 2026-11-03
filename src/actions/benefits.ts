@@ -866,24 +866,30 @@ export async function getBenefitsCalculation(year: number, month: number, target
         const faltasCount = occurrencesList.filter(o => o.type !== "Atestado Médico").length;
         const atestadosCount = occurrencesList.filter(o => o.type === "Atestado Médico").length;
 
-        if (posto && posto.absenteismoAwardValue > 0) {
-            const minDays = posto.absenteismoMinDays || 0;
+        const effectiveAwardValue = (posto && posto.absenteismoAwardValue > 0)
+            ? posto.absenteismoAwardValue
+            : ((emp.outrosAdicionais !== null && emp.outrosAdicionais !== undefined && emp.outrosAdicionais > 0)
+                ? emp.outrosAdicionais
+                : (posto?.outrosAdicionais || 0));
+
+        if (effectiveAwardValue > 0) {
+            const minDays = posto?.absenteismoMinDays || 0;
             const daysSinceAdmission = Math.floor((windowEnd.getTime() - admissionDateObj.getTime()) / (1000 * 60 * 60 * 24));
             
             // Check experience period (probation limit)
             const meetsExperience = minDays === 0 || daysSinceAdmission >= minDays;
 
             // Check full month worked
-            const isFullMonth = !isNewHire || posto.absenteismoAwardType === "prorrata";
+            const isFullMonth = !isNewHire || posto?.absenteismoAwardType === "prorrata";
 
             if (meetsExperience && isFullMonth) {
-                let baseValue = posto.absenteismoAwardValue;
+                let baseValue = effectiveAwardValue;
                 
                 // Pro-rata calculation
-                if (isNewHire && posto.absenteismoAwardType === "prorrata") {
+                if (isNewHire && posto?.absenteismoAwardType === "prorrata") {
                     const totalDaysInMonth = new Date(year, month, 0).getDate();
                     const daysWorked = totalDaysInMonth - admissionDateObj.getDate() + 1;
-                    baseValue = Math.round(((posto.absenteismoAwardValue / totalDaysInMonth) * daysWorked) * 100) / 100;
+                    baseValue = Math.round(((effectiveAwardValue / totalDaysInMonth) * daysWorked) * 100) / 100;
                 }
 
                 if (absenteismoPeriod === "mensal") {

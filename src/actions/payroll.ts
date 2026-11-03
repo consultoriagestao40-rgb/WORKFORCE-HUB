@@ -514,7 +514,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             outrosAdicionais = Math.round(((initialOutrosAdicionais / totalDaysInMonth) * daysWorked) * 100) / 100;
         }
 
-        const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao + outrosAdicionais;
+        const totalGrossSalaryBase = baseSalary + insalubridade + periculosidade + gratificacao;
 
         // Filter occurrences to only include dates on or after the employee's admission date (using UTC)
         // and ignore occurrences during vacation periods
@@ -568,7 +568,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
         const dsrDeductionsCount = getUniqueWeeksCount(faltaDates);
 
         // Absence and DSR deductions based on full fixed salary + additionals / 30
-        const fullFixedSalary = initialSalary + initialInsalubridade + initialPericulosidade + initialGratificacao + initialOutrosAdicionais;
+        const fullFixedSalary = initialSalary + initialInsalubridade + initialPericulosidade + initialGratificacao;
         const dailyRate = fullFixedSalary / 30;
         const faltaDeduction = Math.round((dailyRate * faltasCount) * 100) / 100;
         const dsrDeduction = Math.round((dailyRate * dsrDeductionsCount) * 100) / 100;
@@ -677,7 +677,7 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
             }
         }
 
-        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + ajudaCusto + adicionalViagem + absenteismoAward) * 100) / 100;
+        const totalGrossSalary = Math.round((totalGrossSalaryBase + horasExtras50Value + horasExtras100Value + adicionalNoturnoValue + salarioFamilia + ajudaCusto + adicionalViagem) * 100) / 100;
 
         const benefitInfo = benefitsMap.get(emp.id);
 
