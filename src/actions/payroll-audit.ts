@@ -100,6 +100,9 @@ export interface PayrollAuditRow {
         pageNumber?: number;
         companyName?: string;
         role?: string;
+        sourceName?: string;
+        sourceCpf?: string;
+        matchedBy?: "CPF" | "NOME_EXATO" | "MATRICULA" | "SIMILARIDADE";
         rubrics?: Array<{
             code?: string;
             description: string;
@@ -374,20 +377,44 @@ export async function runPayrollAudit(params: {
         if (normName) processedEmpKeys.add(normName);
         if (empCode) processedEmpKeys.add(`code:${empCode}`);
 
-        let holerite = (cpfDigits && cpfDigits.length >= 11 ? holeriteByCpf.get(cpfDigits) : undefined)
-            || (normName && normName.length >= 3 ? holeriteByName.get(normName) : undefined)
-            || (empCode && empCode.length >= 1 ? holeriteByCode.get(empCode) : undefined);
+        const situationName = emp.situation?.name || "Ativo";
+        const isAbandonment = situationName.toLowerCase().includes("abandono");
+        const isAfastado = situationName.toLowerCase().includes("inss") || situationName.toLowerCase().includes("afastad");
+        const isDesligado = situationName.toLowerCase().includes("desligad") || situationName.toLowerCase().includes("demiti") || emp.status === "Desligado";
 
-        // Fallback por similaridade de nome para holerite (ex: pequenas variações na grafia do sobrenome)
-        if (!holerite && normName && normName.length >= 5) {
+        let matchedBy: "CPF" | "NOME_EXATO" | "MATRICULA" | "SIMILARIDADE" | undefined = undefined;
+        let holerite: ExtractedHoleriteItem | undefined = undefined;
+
+        if (cpfDigits && cpfDigits.length >= 11 && holeriteByCpf.has(cpfDigits)) {
+            holerite = holeriteByCpf.get(cpfDigits);
+            matchedBy = "CPF";
+        } else if (normName && normName.length >= 3 && holeriteByName.has(normName)) {
+            holerite = holeriteByName.get(normName);
+            matchedBy = "NOME_EXATO";
+        } else if (empCode && empCode.length >= 1 && holeriteByCode.has(empCode)) {
+            holerite = holeriteByCode.get(empCode);
+            matchedBy = "MATRICULA";
+        }
+
+        // Fallback por similaridade de nome para holerite (ex: pequenas variações na grafia do sobrenome):
+        // REGRA CRÍTICA: Colaboradores DESLIGADOS / DEMITIDOS NUNCA participam de busca por similaridade!
+        // Devem ter CPF idêntico ou Nome idêntico. Jamais semelhança aproximada de nome de outro funcionário.
+        if (!holerite && !isDesligado && normName && normName.length >= 5) {
             let best = 0;
+            const w1 = normName.split(" ").filter(w => w.length > 2);
             for (const [hName, hItem] of holeriteByName.entries()) {
                 if (matchedHoleriteIds.has(hItem.id)) continue;
                 if (hName !== normName && wfhExactNames.has(hName)) continue;
+                const w2 = hName.split(" ").filter(w => w.length > 2);
+                if (w1.length === 0 || w2.length === 0) continue;
+                // Exige que o primeiro nome seja compatível (evita casar Adriane com Luciana)
+                if (!wordsMatch(w1[0], w2[0])) continue;
+
                 const sim = nameSimilarity(normName, hName);
-                if (sim >= 0.75 && sim > best) {
+                if (sim >= 0.85 && sim > best) {
                     best = sim;
                     holerite = hItem;
+                    matchedBy = "SIMILARIDADE";
                 }
             }
         }
@@ -395,6 +422,7 @@ export async function runPayrollAudit(params: {
         // Se este holerite já foi vinculado a outro colaborador, não duplica
         if (holerite && matchedHoleriteIds.has(holerite.id)) {
             holerite = undefined;
+            matchedBy = undefined;
         }
 
         if (holerite) {
@@ -403,19 +431,29 @@ export async function runPayrollAudit(params: {
             if (holerite.employeeName) processedEmpKeys.add(normalizeName(holerite.employeeName));
         }
 
-        let point = (cpfDigits && cpfDigits.length >= 11 ? pointByCpf.get(cpfDigits) : undefined)
-            || (normName && normName.length >= 3 ? pointByName.get(normName) : undefined)
-            || (empCode && empCode.length >= 1 ? pointByCode.get(empCode) : undefined);
+        let point: ParsedPointEmployee | undefined = undefined;
+        if (cpfDigits && cpfDigits.length >= 11 && pointByCpf.has(cpfDigits)) {
+            point = pointByCpf.get(cpfDigits);
+        } else if (normName && normName.length >= 3 && pointByName.has(normName)) {
+            point = pointByName.get(normName);
+        } else if (empCode && empCode.length >= 1 && pointByCode.has(empCode)) {
+            point = pointByCode.get(empCode);
+        }
 
-        // Fallback por similaridade de nome para ponto
-        if (!point && normName && normName.length >= 5) {
+        // Fallback por similaridade de nome para ponto: colaboradores desligados não entram por similaridade
+        if (!point && !isDesligado && normName && normName.length >= 5) {
             let best = 0;
+            const w1 = normName.split(" ").filter(w => w.length > 2);
             for (const [pName, pItem] of pointByName.entries()) {
                 const pk = cleanCpfDigits(pItem.cpf) || normalizeName(pItem.name) || pItem.folha || "";
                 if (matchedPointKeys.has(pk)) continue;
                 if (pName !== normName && wfhExactNames.has(pName)) continue;
+                const w2 = pName.split(" ").filter(w => w.length > 2);
+                if (w1.length === 0 || w2.length === 0) continue;
+                if (!wordsMatch(w1[0], w2[0])) continue;
+
                 const sim = nameSimilarity(normName, pName);
-                if (sim >= 0.75 && sim > best) {
+                if (sim >= 0.85 && sim > best) {
                     best = sim;
                     point = pItem;
                 }
@@ -440,17 +478,12 @@ export async function runPayrollAudit(params: {
         const posto = activeAssignment?.posto;
 
         const wfhBaseSalary = wfhPreview?.baseSalary || ((posto?.baseSalary && posto.baseSalary > 0)
-            ? posto.baseSalary
-            : (emp.salary || 0));
+            ? (isDesligado ? 0 : posto.baseSalary)
+            : (isDesligado ? 0 : (emp.salary || 0)));
 
         const wfhFaltasCount = wfhPreview?.faltasCount !== undefined 
             ? wfhPreview.faltasCount 
             : (emp.occurrences ? emp.occurrences.filter(o => o.type !== "ATESTADO").length : 0);
-
-        const situationName = emp.situation?.name || "Ativo";
-        const isAbandonment = situationName.toLowerCase().includes("abandono");
-        const isAfastado = situationName.toLowerCase().includes("inss") || situationName.toLowerCase().includes("afastad");
-        const isDesligado = situationName.toLowerCase().includes("desligad") || situationName.toLowerCase().includes("demiti") || emp.status === "Desligado";
 
         const hasHolerite = !!holerite;
         const hasPoint = !!point;
@@ -503,18 +536,33 @@ export async function runPayrollAudit(params: {
             const actBase = holeriteBase || sumRubrics(hRubrics, ["SALARIO", "HORAS NORMAIS"], "earnings");
             const diffBase = Math.round((actBase - expBase) * 100) / 100;
             const isBaseOk = Math.abs(diffBase) <= 5;
-            rubricComparisons.push({
-                rubric: "001 - Salário Base",
-                expectedWfh: expBase,
-                expectedWfhDetail: `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                actualHolerite: actBase,
-                actualHoleriteDetail: actBase > 0 
-                    ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${baseRef ? ` (${baseRef})` : ""}` 
-                    : "Não informado",
-                diff: diffBase,
-                status: isBaseOk ? "OK" : "DIVERGENTE",
-                instruction: isBaseOk ? "" : `AJUSTAR SALÁRIO BASE: Fechamento WFH R$ ${expBase.toFixed(2)} vs. R$ ${actBase.toFixed(2)} processado no holerite.`
-            });
+            if (isDesligado && expBase === 0 && actBase > 0) {
+                rubricComparisons.push({
+                    rubric: "001 - Salário Base",
+                    expectedWfh: 0,
+                    expectedWfhDetail: "Desligado(a) no WFH",
+                    actualHolerite: actBase,
+                    actualHoleriteDetail: actBase > 0 
+                        ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${baseRef ? ` (${baseRef})` : ""}` 
+                        : "Não informado",
+                    diff: actBase,
+                    status: "DIVERGENTE",
+                    instruction: `CONFERIR RESCISÃO / SALDO: Colaborador(a) consta como DESLIGADO(A) no WFH. Verificar se o recibo da Pág. ${holerite?.pageNumber ?? "---"} do PDF refere-se a saldo residual da rescisão ou emissão indevida.`
+                });
+            } else {
+                rubricComparisons.push({
+                    rubric: "001 - Salário Base",
+                    expectedWfh: expBase,
+                    expectedWfhDetail: `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    actualHolerite: actBase,
+                    actualHoleriteDetail: actBase > 0 
+                        ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${baseRef ? ` (${baseRef})` : ""}` 
+                        : "Não informado",
+                    diff: diffBase,
+                    status: isBaseOk ? "OK" : "DIVERGENTE",
+                    instruction: isBaseOk ? "" : `AJUSTAR SALÁRIO BASE: Fechamento WFH R$ ${expBase.toFixed(2)} vs. R$ ${actBase.toFixed(2)} processado no holerite.`
+                });
+            }
 
             // 2. Insalubridade
             const expInsalubridade = wfhPreview?.insalubridade !== undefined ? wfhPreview.insalubridade : (emp.insalubridade || 0);
@@ -995,6 +1043,9 @@ export async function runPayrollAudit(params: {
                 pageNumber: holerite?.pageNumber,
                 companyName: holerite?.companyName,
                 role: holerite?.payrollType,
+                sourceName: holerite?.employeeName,
+                sourceCpf: holerite?.cpf,
+                matchedBy,
                 rubrics: holerite?.rubrics
             } : undefined
         });

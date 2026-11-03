@@ -2282,6 +2282,16 @@ export default function PayrollAuditPage() {
                                                 <div>
                                                     <span className="text-zinc-400 font-normal">COLABORADOR: </span>
                                                     <span className="font-bold text-zinc-100 uppercase tracking-wide">{r.name}</span>
+                                                    {r.holerite?.pageNumber && (
+                                                        <span className="ml-2 text-[11px] text-zinc-400 font-normal">
+                                                            (Pág. {r.holerite.pageNumber} do PDF{r.holerite.sourceName && r.holerite.sourceName.trim().toUpperCase() !== r.name.trim().toUpperCase() ? ` - Lido: "${r.holerite.sourceName}"` : ""})
+                                                        </span>
+                                                    )}
+                                                    {(r.wfhSituation === "Desligado" || r.wfhStatus === "Desligado" || r.wfh?.isDismissed) && (
+                                                        <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800">
+                                                            DESLIGADO NO WFH
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <span className="text-zinc-600">|</span>
                                                 <div>
