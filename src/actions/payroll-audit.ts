@@ -679,9 +679,23 @@ export async function runPayrollAudit(params: {
             const expAdicionais = Math.round((wfhPreview?.gratificacao || emp.gratificacao || 0) * 100) / 100;
             const matchingAdicionais = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
-                return (r.earnings || 0) > 0 && ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "PREMIO", "COPA"].some(k => d.includes(k));
+                if ((r.earnings || 0) <= 0) return false;
+                // NUNCA confundir Adicional Noturno, Insalubridade, Periculosidade, Horas Extras, Salário Família, Troco ou Ajuda de Custo com Adicional de Função/Liderança!
+                if (
+                    d.includes("NOTURNO") || 
+                    d.includes("PERICULOS") || 
+                    d.includes("INSALUBR") || 
+                    d.includes("EXTRA") || 
+                    d.includes("DSR") || 
+                    d.includes("FAMILIA") || 
+                    d.includes("TROCO") || 
+                    d.includes("AJUDA")
+                ) {
+                    return false;
+                }
+                return ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "COPA", "PREMIO", "ASSIDUIDADE"].some(k => d.includes(k));
             });
-            const actAdicionais = matchingAdicionais.reduce((acc, r) => acc + (r.earnings || 0), 0) || sumRubrics(hRubrics, ["GRATIF", "LIDERAN", "FUNCAO", "ADICIONAL", "CARGO", "PREMIO", "COPA"], "earnings");
+            const actAdicionais = Math.round(matchingAdicionais.reduce((acc, r) => acc + (r.earnings || 0), 0) * 100) / 100;
             if (expAdicionais > 0 || actAdicionais > 0) {
                 const diff = Math.round((actAdicionais - expAdicionais) * 100) / 100;
                 const isFaltou = expAdicionais > 0 && actAdicionais === 0;
@@ -701,46 +715,26 @@ export async function runPayrollAudit(params: {
                 });
             }
 
-            // 5. Ajuda de Custo / Auxílio Combustível
-            const expAjuda = wfhPreview?.ajudaCusto !== undefined ? wfhPreview.ajudaCusto : (emp.ajudaCusto || 0);
-            const matchingAjuda = hRubrics.filter(r => {
+            // 5. Salário Família (exibe claramente para diferenciar de Adicionais)
+            const sfRubrics = hRubrics.filter(r => {
                 const d = normalizeName(r.description).toUpperCase();
-                const isMatch = ["AJUDA", "CUSTO", "COMBUSTIVEL", "COMBUSTÍVEL", "AUXILIO COMBUSTIVEL", "AUXÍLIO COMBUSTÍVEL", "VALE COMBUSTIVEL"].some(k => d.includes(normalizeName(k).toUpperCase()));
-                return isMatch && ((r.earnings || 0) > 0 || (r.reference && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(r.reference)));
+                return (r.earnings || 0) > 0 && (d.includes("SALARIO FAMILIA") || d.includes("SAL. FAMILIA") || d === "SAL FAM");
             });
-
-            let actAjuda = matchingAjuda.reduce((acc, r) => {
-                if ((r.earnings || 0) > 0) return acc + r.earnings!;
-                if (r.reference && /^[0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}$/.test(r.reference)) {
-                    const clean = r.reference.replace(/[^\d,\.-]/g, '').replace(/\./g, '').replace(',', '.');
-                    return acc + (parseFloat(clean) || 0);
-                }
-                return acc;
-            }, 0) || sumRubrics(hRubrics, ["AJUDA", "CUSTO", "COMBUSTIVEL", "AUXILIO COMBUSTIVEL"], "earnings");
-            actAjuda = Math.round(actAjuda * 100) / 100;
-
-            const ajudaRubric = matchingAjuda[0];
-            const ajudaDesc = ajudaRubric 
-                ? (normalizeName(ajudaRubric.description).toUpperCase().includes("COMBUSTIVEL") ? "Auxílio Combustível" : "Ajuda de Custo")
-                : "";
-
-            if (expAjuda > 0 || actAjuda > 0) {
-                const diff = Math.round((actAjuda - expAjuda) * 100) / 100;
-                const isFaltou = expAjuda > 0 && actAjuda === 0;
-                const isOk = Math.abs(diff) <= 5;
+            const actSalarioFamilia = Math.round(sfRubrics.reduce((acc, r) => acc + (r.earnings || 0), 0) * 100) / 100;
+            const expSalarioFamilia = Math.round((wfhPreview?.salarioFamilia || 0) * 100) / 100;
+            if (actSalarioFamilia > 0 || expSalarioFamilia > 0) {
+                const sfRef = sfRubrics[0]?.reference ? `${sfRubrics[0].reference} cota(s)` : `${emp.dependentsCount || 0} dep.`;
                 rubricComparisons.push({
-                    rubric: "150 - Ajuda de Custo",
-                    expectedWfh: expAjuda,
-                    expectedWfhDetail: expAjuda > 0 ? `R$ ${expAjuda.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Sem ajuda custo",
-                    actualHolerite: actAjuda,
-                    actualHoleriteDetail: actAjuda > 0 
-                        ? `R$ ${actAjuda.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ajudaDesc ? ` (${ajudaDesc})` : ""}` 
-                        : "Não lançado",
-                    diff,
-                    status: isOk ? "OK" : isFaltou ? "FALTOU" : "DIVERGENTE",
-                    instruction: isOk ? "" : isFaltou
-                        ? `LANÇAR AJUDA DE CUSTO / AUXÍLIO COMBUSTÍVEL: Valor previsto de R$ ${expAjuda.toFixed(2)} não constou no recibo.`
-                        : `CORRIGIR AJUDA DE CUSTO: Previsto R$ ${expAjuda.toFixed(2)} vs. R$ ${actAjuda.toFixed(2)} no holerite.`
+                    rubric: "095 - Salário Família",
+                    expectedWfh: expSalarioFamilia,
+                    expectedWfhDetail: expSalarioFamilia > 0 
+                        ? `R$ ${expSalarioFamilia.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                        : `R$ 0,00 (${emp.dependentsCount || 0} dep.)`,
+                    actualHolerite: actSalarioFamilia,
+                    actualHoleriteDetail: actSalarioFamilia > 0 ? `R$ ${actSalarioFamilia.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sfRef})` : "Não lançado",
+                    diff: Math.round((actSalarioFamilia - expSalarioFamilia) * 100) / 100,
+                    status: "OK",
+                    instruction: ""
                 });
             }
 
@@ -1084,8 +1078,8 @@ export async function runPayrollAudit(params: {
         const expExtras = Math.round(((wfhPreview?.horasExtras50Value || 0) + (wfhPreview?.horasExtras100Value || 0) + (wfhPreview?.adicionalNoturnoValue || 0)) * 100) / 100;
 
         const wfhGross = (wfhPreview?.totalGrossSalary && wfhPreview.totalGrossSalary > 0)
-            ? wfhPreview.totalGrossSalary
-            : Math.round((expBase + expInsalubridade + expPericulosidade + expAdicionais + expAjuda + expExtras) * 100) / 100;
+            ? Math.round((wfhPreview.totalGrossSalary - (wfhPreview.ajudaCusto || 0)) * 100) / 100
+            : Math.round((expBase + expInsalubridade + expPericulosidade + expAdicionais + expExtras) * 100) / 100;
 
         const expFaltas = Math.round(((wfhPreview?.faltaDeduction || 0) + (wfhPreview?.dsrDeduction || 0)) * 100) / 100;
         const expVa = wfhPreview?.vaPayrollDiscount || 0;
