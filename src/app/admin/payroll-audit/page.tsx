@@ -29,10 +29,22 @@ import {
     ArrowUpDown,
     TrendingUp,
     Printer,
-    Copy
+    Copy,
+    Save,
+    History,
+    SendHorizontal,
+    CheckCheck,
+    MessageSquare,
+    GitCompare,
+    Trash2,
+    BookmarkCheck,
+    ExternalLink,
+    HelpCircle,
+    RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     Dialog, 
@@ -45,7 +57,20 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { extractDataFromPageText, parseHoleritePdfPageItems, ExtractedHoleriteItem } from "@/lib/holerite-processor";
 import { parsePointExcel, parsePointPdfText, parsePointPdfPage, ParsedPointEmployee } from "@/lib/point-parser";
-import { runPayrollAudit, getPayrollAuditCompanies, PayrollAuditResult, AuditRow, PayrollAuditRow } from "@/actions/payroll-audit";
+import { 
+    runPayrollAudit, 
+    getPayrollAuditCompanies, 
+    PayrollAuditResult, 
+    AuditRow, 
+    PayrollAuditRow,
+    AuditDecisionStatus,
+    AuditDecisionItem,
+    AuditDecisionsMap,
+    savePayrollAuditRound,
+    getSavedPayrollAudits,
+    getSavedPayrollAuditById,
+    deleteSavedPayrollAudit
+} from "@/actions/payroll-audit";
 
 export default function PayrollAuditPage() {
     const today = new Date();
@@ -63,7 +88,32 @@ export default function PayrollAuditPage() {
 
     // Aba Cruzamento WFH x Holerites
     const [crossSearch, setCrossSearch] = useState("");
-    const [crossFilter, setCrossFilter] = useState<"ALL" | "DIVERGENT" | "OK" | "NO_WFH">("ALL");
+    const [crossFilter, setCrossFilter] = useState<"ALL" | "DIVERGENT" | "SENT_ACCOUNTING" | "ACCEPTED" | "RESOLVED" | "OK" | "NO_WFH" | "PREV_SENT">("ALL");
+
+    // Decisões / Tratativas Manuais (por CPF ou Chave)
+    const [decisions, setDecisions] = useState<AuditDecisionsMap>({});
+    const [currentSavedAuditId, setCurrentSavedAuditId] = useState<string | null>(null);
+    const [currentSavedAuditTitle, setCurrentSavedAuditTitle] = useState<string>("");
+
+    // Modal de Decisão Individual
+    const [decisionModalRow, setDecisionModalRow] = useState<PayrollAuditRow | null>(null);
+    const [decisionStatusInput, setDecisionStatusInput] = useState<AuditDecisionStatus>("PENDENTE");
+    const [decisionNotesInput, setDecisionNotesInput] = useState<string>("");
+    const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
+
+    // Modal de Salvar Rodada
+    const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+    const [saveRoundTitle, setSaveRoundTitle] = useState("");
+    const [saveRoundNotes, setSaveRoundNotes] = useState("");
+    const [isSavingRound, setIsSavingRound] = useState(false);
+
+    // Modal de Histórico de Auditorias Salvas
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [savedAuditsList, setSavedAuditsList] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+    // Auditoria para Comparação (Retorno da Contabilidade)
+    const [comparisonAudit, setComparisonAudit] = useState<any | null>(null);
 
     // Upload Slot 1: Cartão de Ponto Secullum
     const [pointFile, setPointFile] = useState<File | null>(null);
@@ -557,6 +607,234 @@ export default function PayrollAuditPage() {
     };
 
     // ==========================================
+    // TRATATIVAS, DECISÕES E HISTÓRICO DE AUDITORIA
+    // ==========================================
+    const getDecisionKey = (r: PayrollAuditRow) => {
+        const clean = (r.cpf || "").replace(/\D/g, "");
+        if (clean.length === 11) return clean;
+        return (r.name || r.employeeName || r.id).trim().toLowerCase();
+    };
+
+    const loadSavedAuditsHistory = async () => {
+        setIsLoadingHistory(true);
+        try {
+            const res = await getSavedPayrollAudits({
+                year: selectedYear,
+                month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined
+            });
+            if (res.success && res.audits) {
+                setSavedAuditsList(res.audits);
+            }
+        } catch (e) {
+            console.error("Erro ao carregar histórico de auditorias:", e);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    useEffect(() => {
+        loadSavedAuditsHistory();
+    }, [selectedYear, selectedMonth, selectedCompanyId]);
+
+    const handleOpenDecisionModal = (row: PayrollAuditRow, initialStatus?: AuditDecisionStatus) => {
+        const key = getDecisionKey(row);
+        const existing = decisions[key];
+        setDecisionModalRow(row);
+        setDecisionStatusInput(initialStatus || existing?.status || "PENDENTE");
+        setDecisionNotesInput(existing?.notes || (
+            initialStatus === "ENVIADO_CONTABILIDADE"
+                ? (row.rubricComparisons?.filter(c => c.status !== "OK").map(c => c.instruction).join(" | ") || "")
+                : initialStatus === "ACEITO"
+                ? "Divergência analisada e aceita pelo gestor (sem alterações no holerite)."
+                : ""
+        ));
+        setIsDecisionModalOpen(true);
+    };
+
+    const handleSaveDecision = () => {
+        if (!decisionModalRow) return;
+        const key = getDecisionKey(decisionModalRow);
+        setDecisions(prev => ({
+            ...prev,
+            [key]: {
+                status: decisionStatusInput,
+                notes: decisionNotesInput.trim(),
+                updatedAt: new Date().toISOString()
+            }
+        }));
+        setIsDecisionModalOpen(false);
+        toast.success(`Tratativa de ${decisionModalRow.name} registrada!`);
+    };
+
+    const handleResetDecision = (row: PayrollAuditRow) => {
+        const key = getDecisionKey(row);
+        setDecisions(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+        toast.info(`Tratativa de ${row.name} redefinida para pendente.`);
+    };
+
+    const handleOpenSaveModal = () => {
+        const companyObj = companies.find(c => c.id === selectedCompanyId);
+        const compName = selectedCompanyId === "all" ? "Geral" : (companyObj?.name || "Empresa");
+        const defaultTitle = currentSavedAuditTitle || `Auditoria ${String(selectedMonth).padStart(2, "0")}/${selectedYear} - ${compName} - Rodada ${savedAuditsList.length + 1}`;
+        setSaveRoundTitle(defaultTitle);
+        setSaveRoundNotes("");
+        setIsSaveModalOpen(true);
+    };
+
+    const handleSaveRound = async () => {
+        if (!auditResult || rowsForCompany.length === 0) {
+            toast.error("Não há dados de auditoria para salvar.");
+            return;
+        }
+        if (!saveRoundTitle.trim()) {
+            toast.error("Informe um título para a rodada de análise.");
+            return;
+        }
+
+        setIsSavingRound(true);
+        try {
+            const companyObj = companies.find(c => c.id === selectedCompanyId);
+            const compName = selectedCompanyId === "all" ? "Todas as Empresas" : (companyObj?.name || "Empresa Selecionada");
+
+            const res = await savePayrollAuditRound({
+                id: currentSavedAuditId || undefined,
+                title: saveRoundTitle.trim(),
+                year: selectedYear,
+                month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
+                companyName: compName,
+                auditData: {
+                    rows: rowsForCompany,
+                    summary: activeSummary || auditResult?.summary || {}
+                },
+                decisions,
+                notes: saveRoundNotes.trim() || undefined
+            });
+
+            if (res.success && res.savedAudit) {
+                setCurrentSavedAuditId(res.savedAudit.id);
+                setCurrentSavedAuditTitle(res.savedAudit.title);
+                toast.success(`Rodada "${res.savedAudit.title}" salva com sucesso!`);
+                setIsSaveModalOpen(false);
+                loadSavedAuditsHistory();
+            } else {
+                toast.error(res.error || "Erro ao salvar rodada.");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Erro inesperado ao salvar rodada.");
+        } finally {
+            setIsSavingRound(false);
+        }
+    };
+
+    const handleLoadSavedAudit = async (auditId: string) => {
+        try {
+            const res = await getSavedPayrollAuditById(auditId);
+            if (res.success && res.audit) {
+                const loaded = res.audit;
+                setAuditResult(loaded.auditData as any);
+                setDecisions((loaded.decisions as any) || {});
+                setCurrentSavedAuditId(loaded.id);
+                setCurrentSavedAuditTitle(loaded.title);
+                setSelectedYear(loaded.year);
+                setSelectedMonth(loaded.month);
+                if (loaded.companyId) {
+                    setSelectedCompanyId(loaded.companyId);
+                } else {
+                    setSelectedCompanyId("all");
+                }
+                setComparisonAudit(null);
+                setIsHistoryModalOpen(false);
+                setActiveTopTab("CROSS");
+                toast.success(`Auditoria "${loaded.title}" carregada com sucesso!`);
+            } else {
+                toast.error(res.error || "Erro ao abrir auditoria salva.");
+            }
+        } catch (err: any) {
+            toast.error("Erro ao carregar auditoria salva.");
+        }
+    };
+
+    const handleStartComparison = async (auditId: string) => {
+        try {
+            const res = await getSavedPayrollAuditById(auditId);
+            if (res.success && res.audit) {
+                setComparisonAudit(res.audit);
+                setIsHistoryModalOpen(false);
+                setActiveTopTab("CROSS");
+                toast.success(`Comparando auditoria atual com a rodada anterior: "${res.audit.title}"!`);
+            } else {
+                toast.error(res.error || "Erro ao carregar auditoria para comparação.");
+            }
+        } catch (err: any) {
+            toast.error("Erro ao iniciar comparação.");
+        }
+    };
+
+    const handleDeleteSavedAudit = async (auditId: string, title: string) => {
+        if (!confirm(`Deseja realmente excluir a rodada "${title}"?`)) return;
+        try {
+            const res = await deleteSavedPayrollAudit(auditId);
+            if (res.success) {
+                toast.success(`Rodada "${title}" excluída.`);
+                if (currentSavedAuditId === auditId) {
+                    setCurrentSavedAuditId(null);
+                    setCurrentSavedAuditTitle("");
+                }
+                if (comparisonAudit?.id === auditId) {
+                    setComparisonAudit(null);
+                }
+                loadSavedAuditsHistory();
+            } else {
+                toast.error(res.error || "Erro ao excluir auditoria salva.");
+            }
+        } catch (err: any) {
+            toast.error("Erro ao excluir rodada salva.");
+        }
+    };
+
+    // Copiar orientações dos colaboradores marcados como Enviados à Contabilidade
+    const copySentDevolutivas = () => {
+        const sentRows = crossBaseRows.filter(r => decisions[getDecisionKey(r)]?.status === "ENVIADO_CONTABILIDADE");
+        if (sentRows.length === 0) {
+            toast.info("Nenhum colaborador está marcado como 'Enviado à Contabilidade'.");
+            return;
+        }
+
+        const lines: string[] = [
+            `📋 *SOLICITAÇÃO DE AJUSTE DE FOLHA - CONTABILIDADE (${sentRows.length} COLABORADORES)*`,
+            `Competência: ${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
+            `Data de Envio: ${new Date().toLocaleDateString("pt-BR")}`,
+            `==================================================\n`
+        ];
+
+        sentRows.forEach((r, idx) => {
+            const dec = decisions[getDecisionKey(r)];
+            lines.push(`${idx + 1}. *${r.name.toUpperCase()}* (CPF: ${fmtCpf(r.cpf)})`);
+            lines.push(`   Empresa: ${r.wfh?.companyName || r.companyName || "---"}`);
+            lines.push(`   Líquido Previsto WFH: ${fmtCurrency(r.wfhNetSalary)} | Líquido Holerite Emitido: ${fmtCurrency(r.holeriteNetSalary)}`);
+            if (dec?.notes) {
+                lines.push(`   📝 *ORIENTAÇÃO/MOTIVO:* ${dec.notes}`);
+            }
+            const divergent = (r.rubricComparisons || []).filter(c => c.status !== "OK");
+            if (divergent.length > 0) {
+                divergent.forEach(d => {
+                    lines.push(`   - ${d.rubric}: ${d.instruction}`);
+                });
+            }
+            lines.push(``);
+        });
+
+        navigator.clipboard.writeText(lines.join("\n"));
+        toast.success(`Devolutiva dos ${sentRows.length} colaboradores enviados à contabilidade copiada!`);
+    };
+
+    // ==========================================
     // ABA CRUZAMENTO WFH x HOLERITES (Espelho por colaborador)
     // ==========================================
     const isNotInWfh = (r: PayrollAuditRow) => r.id.startsWith("holerite-only-");
@@ -567,9 +845,20 @@ export default function PayrollAuditPage() {
     const crossTotalDiff = crossBaseRows.reduce((acc, r) => acc + (r.netDifference || 0), 0);
     const crossRubricErrors = crossBaseRows.reduce((acc, r) => acc + (r.divergentRubricsCount || 0), 0);
 
+    const crossSentCount = crossBaseRows.filter(r => decisions[getDecisionKey(r)]?.status === "ENVIADO_CONTABILIDADE").length;
+    const crossAcceptedCount = crossBaseRows.filter(r => decisions[getDecisionKey(r)]?.status === "ACEITO").length;
+    const crossResolvedCount = crossBaseRows.filter(r => decisions[getDecisionKey(r)]?.status === "RESOLVIDO").length;
+    const crossPrevSentCount = comparisonAudit ? crossBaseRows.filter(r => comparisonAudit.decisions?.[getDecisionKey(r)]?.status === "ENVIADO_CONTABILIDADE").length : 0;
+
     const crossRows = crossBaseRows
         .filter(r => {
+            const key = getDecisionKey(r);
+            const dec = decisions[key];
             if (crossFilter === "DIVERGENT") return !isNotInWfh(r) && (r.divergentRubricsCount || 0) > 0;
+            if (crossFilter === "SENT_ACCOUNTING") return dec?.status === "ENVIADO_CONTABILIDADE";
+            if (crossFilter === "ACCEPTED") return dec?.status === "ACEITO";
+            if (crossFilter === "RESOLVED") return dec?.status === "RESOLVIDO";
+            if (crossFilter === "PREV_SENT") return comparisonAudit?.decisions?.[key]?.status === "ENVIADO_CONTABILIDADE";
             if (crossFilter === "OK") return !isNotInWfh(r) && !(r.divergentRubricsCount || 0);
             if (crossFilter === "NO_WFH") return isNotInWfh(r);
             return true;
@@ -1224,21 +1513,52 @@ export default function PayrollAuditPage() {
                                 </Button>
                             </div>
                         )}
-                        {activeTopTab === "CROSS" && crossBaseRows.length > 0 && (
+                        {activeTopTab === "CROSS" && (
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button 
-                                    onClick={copyAllDevolutivas}
+                                <Button
+                                    onClick={() => setIsHistoryModalOpen(true)}
                                     variant="outline"
-                                    className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 font-bold text-xs gap-1.5 rounded-2xl h-11 px-4 cursor-pointer"
+                                    className="bg-slate-800/90 hover:bg-slate-700 text-white border-slate-700 font-bold text-xs gap-1.5 rounded-2xl h-11 px-3.5 cursor-pointer shadow-sm"
                                 >
-                                    <Copy className="w-4 h-4" /> Copiar Devolutiva WhatsApp
+                                    <History className="w-4 h-4 text-purple-400" />
+                                    <span>Histórico ({savedAuditsList.length})</span>
                                 </Button>
-                                <Button 
-                                    onClick={exportCrossToExcel}
-                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
-                                >
-                                    <FileSpreadsheet className="w-4 h-4" /> Exportar Espelho XLSX
-                                </Button>
+
+                                {crossBaseRows.length > 0 && (
+                                    <>
+                                        <Button
+                                            onClick={handleOpenSaveModal}
+                                            className="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer"
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            <span>{currentSavedAuditId ? "Salvar Atualização" : "Salvar Rodada"}</span>
+                                        </Button>
+
+                                        {crossSentCount > 0 && (
+                                            <Button 
+                                                onClick={copySentDevolutivas}
+                                                className="bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-4 cursor-pointer animate-pulse"
+                                            >
+                                                <SendHorizontal className="w-4 h-4" /> Copiar {crossSentCount} p/ Contabilidade
+                                            </Button>
+                                        )}
+
+                                        <Button 
+                                            onClick={copyAllDevolutivas}
+                                            variant="outline"
+                                            className="bg-slate-800 hover:bg-slate-700 text-white border-slate-700 font-bold text-xs gap-1.5 rounded-2xl h-11 px-3.5 cursor-pointer"
+                                        >
+                                            <Copy className="w-4 h-4" /> Copiar Todas
+                                        </Button>
+
+                                        <Button 
+                                            onClick={exportCrossToExcel}
+                                            className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-lg h-11 px-3.5 cursor-pointer"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" /> XLSX
+                                        </Button>
+                                    </>
+                                )}
                             </div>
                         )}
                         {activeTopTab === "LIQUIDS" && filteredLiquidRows.length > 0 && (
@@ -2145,6 +2465,53 @@ export default function PayrollAuditPage() {
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {/* Banner de Comparação com Rodada Anterior */}
+                    {comparisonAudit && (
+                        <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/50 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white shadow-xl animate-in fade-in">
+                            <div className="flex items-start sm:items-center gap-3.5">
+                                <div className="w-11 h-11 rounded-2xl bg-indigo-600/40 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                                    <GitCompare className="w-6 h-6 text-indigo-300" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-400/30">
+                                            Modo Comparação Ativo
+                                        </span>
+                                        <span className="text-[11px] text-slate-400">
+                                            Salvo em {new Date(comparisonAudit.createdAt).toLocaleDateString("pt-BR")} às {new Date(comparisonAudit.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                    </div>
+                                    <h4 className="text-base font-bold text-white mt-1">
+                                        Comparando retorno com: <span className="text-indigo-300 underline underline-offset-4">{comparisonAudit.title}</span>
+                                    </h4>
+                                    <p className="text-xs text-slate-300/80 mt-0.5 max-w-2xl leading-relaxed">
+                                        O sistema compara os {crossPrevSentCount} colaboradores enviados para ajuste na rodada anterior contra o novo holerite processado pela contabilidade.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                                {crossPrevSentCount > 0 && (
+                                    <Button
+                                        onClick={() => setCrossFilter("PREV_SENT")}
+                                        size="sm"
+                                        className="text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow cursor-pointer gap-1.5 h-9"
+                                    >
+                                        <GitCompare className="w-3.5 h-3.5" />
+                                        Ver os {crossPrevSentCount} da Rodada Anterior
+                                    </Button>
+                                )}
+                                <Button
+                                    onClick={() => setComparisonAudit(null)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl h-9"
+                                >
+                                    <XCircle className="w-4 h-4 mr-1 text-slate-400" /> Sair
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Header Banner com KPIs */}
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div 
@@ -2170,25 +2537,25 @@ export default function PayrollAuditPage() {
                         </div>
 
                         <div 
-                            onClick={() => setCrossFilter("OK")}
+                            onClick={() => setCrossFilter("SENT_ACCOUNTING")}
                             className={`p-4 rounded-3xl border cursor-pointer transition-all ${
-                                crossFilter === "OK" ? "bg-emerald-600 text-white shadow-md" : "bg-white border-emerald-200 hover:shadow-sm"
+                                crossFilter === "SENT_ACCOUNTING" ? "bg-orange-600 text-white shadow-md" : "bg-white border-orange-200 hover:shadow-sm"
                             }`}
                         >
-                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">100% Alinhados</span>
-                            <span className="text-2xl font-black">{crossOkCount}</span>
-                            <span className="text-[10px] block opacity-90 mt-0.5">Nenhum ajuste necessário</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">P/ Contabilidade</span>
+                            <span className="text-2xl font-black">{crossSentCount}</span>
+                            <span className="text-[10px] block opacity-90 mt-0.5">Ajustes solicitados</span>
                         </div>
 
                         <div 
-                            onClick={() => setCrossFilter("NO_WFH")}
+                            onClick={() => setCrossFilter("ACCEPTED")}
                             className={`p-4 rounded-3xl border cursor-pointer transition-all ${
-                                crossFilter === "NO_WFH" ? "bg-red-600 text-white shadow-md" : "bg-white border-red-200 hover:shadow-sm"
+                                crossFilter === "ACCEPTED" ? "bg-emerald-600 text-white shadow-md" : "bg-white border-emerald-200 hover:shadow-sm"
                             }`}
                         >
-                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">Não no WFH</span>
-                            <span className="text-2xl font-black">{crossNoWfhCount}</span>
-                            <span className="text-[10px] block opacity-90 mt-0.5">Pessoas sem cadastro</span>
+                            <span className="text-[10px] font-black uppercase tracking-wider block opacity-90">Aceitos / Justificados</span>
+                            <span className="text-2xl font-black">{crossAcceptedCount}</span>
+                            <span className="text-[10px] block opacity-90 mt-0.5">Sem alteração</span>
                         </div>
 
                         <div className="p-4 rounded-3xl bg-slate-100 border border-slate-200">
@@ -2205,7 +2572,7 @@ export default function PayrollAuditPage() {
                         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                             <button
                                 onClick={() => setCrossFilter("DIVERGENT")}
-                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
                                     crossFilter === "DIVERGENT"
                                         ? "bg-amber-600 text-white shadow-sm"
                                         : "bg-amber-50 text-amber-800 hover:bg-amber-100"
@@ -2214,18 +2581,56 @@ export default function PayrollAuditPage() {
                                 ⚠️ Com Divergência ({crossDivergentCount})
                             </button>
                             <button
-                                onClick={() => setCrossFilter("ALL")}
-                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
-                                    crossFilter === "ALL"
-                                        ? "bg-slate-900 text-white shadow-sm"
-                                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                onClick={() => setCrossFilter("SENT_ACCOUNTING")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    crossFilter === "SENT_ACCOUNTING"
+                                        ? "bg-orange-600 text-white shadow-sm ring-2 ring-orange-300"
+                                        : "bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200"
                                 }`}
                             >
-                                Todos ({crossBaseRows.length})
+                                <SendHorizontal className="w-3.5 h-3.5" />
+                                Enviados Contabilidade ({crossSentCount})
                             </button>
                             <button
+                                onClick={() => setCrossFilter("ACCEPTED")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    crossFilter === "ACCEPTED"
+                                        ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300"
+                                        : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200"
+                                }`}
+                            >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Aceitos / Justificados ({crossAcceptedCount})
+                            </button>
+                            {crossResolvedCount > 0 && (
+                                <button
+                                    onClick={() => setCrossFilter("RESOLVED")}
+                                    className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        crossFilter === "RESOLVED"
+                                            ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-300"
+                                            : "bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200"
+                                    }`}
+                                >
+                                    <CheckCheck className="w-3.5 h-3.5" />
+                                    Resolvidos ({crossResolvedCount})
+                                </button>
+                            )}
+                            {comparisonAudit && crossPrevSentCount > 0 && (
+                                <button
+                                    onClick={() => setCrossFilter("PREV_SENT")}
+                                    className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        crossFilter === "PREV_SENT"
+                                            ? "bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-300"
+                                            : "bg-indigo-50 text-indigo-800 hover:bg-indigo-100 border border-indigo-300"
+                                    }`}
+                                >
+                                    <GitCompare className="w-3.5 h-3.5" />
+                                    Enviados Rodada Anterior ({crossPrevSentCount})
+                                </button>
+                            )}
+                            <button
                                 onClick={() => setCrossFilter("OK")}
-                                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
                                     crossFilter === "OK"
                                         ? "bg-emerald-600 text-white shadow-sm"
                                         : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -2233,10 +2638,20 @@ export default function PayrollAuditPage() {
                             >
                                 ✅ 100% OK ({crossOkCount})
                             </button>
+                            <button
+                                onClick={() => setCrossFilter("ALL")}
+                                className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                    crossFilter === "ALL"
+                                        ? "bg-slate-900 text-white shadow-sm"
+                                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                }`}
+                            >
+                                Todos ({crossBaseRows.length})
+                            </button>
                             {crossNoWfhCount > 0 && (
                                 <button
                                     onClick={() => setCrossFilter("NO_WFH")}
-                                    className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
+                                    className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer ${
                                         crossFilter === "NO_WFH"
                                             ? "bg-red-600 text-white shadow-sm"
                                             : "bg-red-50 text-red-700 hover:bg-red-100"
@@ -2270,6 +2685,7 @@ export default function PayrollAuditPage() {
                                 const divergentCount = r.divergentRubricsCount || 0;
                                 const isMissingWfh = isNotInWfh(r);
                                 const netDiff = r.netDifference || 0;
+                                const decision = decisions[getDecisionKey(r)];
 
                                 return (
                                     <div 
@@ -2320,17 +2736,184 @@ export default function PayrollAuditPage() {
                                                 </div>
                                             </div>
 
-                                            <Button
-                                                onClick={() => copyEmployeeDevolutiva(r)}
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 px-2.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 text-[11px] font-mono gap-1 cursor-pointer border border-zinc-700/60"
-                                                title="Copiar texto da devolutiva"
-                                            >
-                                                <Copy className="w-3.5 h-3.5" />
-                                                <span className="hidden sm:inline">Copiar Devolutiva</span>
-                                            </Button>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    onClick={() => copyEmployeeDevolutiva(r)}
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 px-2.5 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 text-[11px] font-mono gap-1 cursor-pointer border border-zinc-700/60"
+                                                    title="Copiar texto da devolutiva"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                    <span className="hidden sm:inline">Copiar Devolutiva</span>
+                                                </Button>
+                                            </div>
                                         </div>
+
+                                        {/* Barra de Tratativa da Divergência (Decisão & Anotação) */}
+                                        <div className="px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mr-1">
+                                                    Tratativa:
+                                                </span>
+                                                
+                                                {/* Botão Aceitar Divergência */}
+                                                <button
+                                                    onClick={() => handleOpenDecisionModal(r, "ACEITO")}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                        decision?.status === "ACEITO"
+                                                            ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-300"
+                                                            : "bg-zinc-800/90 text-emerald-400 hover:bg-emerald-950/60 border border-emerald-800/40"
+                                                    }`}
+                                                    title="Aceitar a divergência por motivo justificado (não altera holerite)"
+                                                >
+                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                    {decision?.status === "ACEITO" ? "✓ Aceito / Justificado" : "Aceitar Divergência"}
+                                                </button>
+
+                                                {/* Botão Solicitar Revisão Contabilidade */}
+                                                <button
+                                                    onClick={() => handleOpenDecisionModal(r, "ENVIADO_CONTABILIDADE")}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                        decision?.status === "ENVIADO_CONTABILIDADE"
+                                                            ? "bg-orange-600 text-white shadow-sm ring-1 ring-orange-300"
+                                                            : "bg-zinc-800/90 text-orange-400 hover:bg-orange-950/60 border border-orange-800/40"
+                                                    }`}
+                                                    title="Marcar para enviar solicitação de revisão à contabilidade"
+                                                >
+                                                    <SendHorizontal className="w-3.5 h-3.5" />
+                                                    {decision?.status === "ENVIADO_CONTABILIDADE" ? "✓ Enviado Contabilidade" : "Solicitar Revisão Contabilidade"}
+                                                </button>
+
+                                                {/* Botão Resolvido */}
+                                                <button
+                                                    onClick={() => handleOpenDecisionModal(r, "RESOLVIDO")}
+                                                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                                        decision?.status === "RESOLVIDO"
+                                                            ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
+                                                            : "bg-zinc-800/90 text-blue-400 hover:bg-blue-950/60 border border-blue-800/40"
+                                                    }`}
+                                                    title="Marcar como regularizado no retorno da contabilidade"
+                                                >
+                                                    <CheckCheck className="w-3.5 h-3.5" />
+                                                    {decision?.status === "RESOLVIDO" ? "✓ Resolvido" : "Resolvido no Retorno"}
+                                                </button>
+
+                                                {decision?.status && (
+                                                    <button
+                                                        onClick={() => handleResetDecision(r)}
+                                                        className="px-2 py-1 text-[10px] text-zinc-500 hover:text-zinc-300 underline cursor-pointer ml-1"
+                                                        title="Voltar para status pendente"
+                                                    >
+                                                        Limpar
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Botão / Prévia da Anotação */}
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handleOpenDecisionModal(r, decision?.status || "PENDENTE")}
+                                                    className="text-[11px] text-zinc-300 hover:text-zinc-100 flex items-center gap-1.5 bg-zinc-800/80 px-2.5 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-750 transition-colors cursor-pointer"
+                                                    title="Clique para adicionar ou editar anotação"
+                                                >
+                                                    <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+                                                    {decision?.notes ? (
+                                                        <span className="max-w-[280px] truncate text-cyan-300 font-sans font-medium" title={decision.notes}>
+                                                            Nota: "{decision.notes}"
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-zinc-400 font-sans">+ Anotação</span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Banner de Decisão Registrada (se houver nota ou status ativo) */}
+                                        {decision?.status === "ACEITO" && (
+                                            <div className="bg-emerald-950/40 border-b border-emerald-900/60 px-4 py-2 text-xs text-emerald-200 flex items-start gap-2">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <span className="font-bold text-emerald-300">DIVERGÊNCIA ACEITA / JUSTIFICADA:</span>
+                                                    <span className="ml-1.5 text-zinc-200 font-sans">{decision.notes || "Divergência validada e aceita pelo gestor."}</span>
+                                                    {decision.updatedAt && (
+                                                        <span className="block text-[10px] text-emerald-400/70 mt-0.5 font-mono">Registrado em {new Date(decision.updatedAt).toLocaleString("pt-BR")}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {decision?.status === "ENVIADO_CONTABILIDADE" && (
+                                            <div className="bg-orange-950/40 border-b border-orange-900/60 px-4 py-2 text-xs text-orange-200 flex items-start gap-2">
+                                                <SendHorizontal className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <span className="font-bold text-orange-300">SOLICITADA REVISÃO À CONTABILIDADE:</span>
+                                                    <span className="ml-1.5 text-zinc-200 font-sans">{decision.notes || "Enviado para reemissão com correções."}</span>
+                                                    {decision.updatedAt && (
+                                                        <span className="block text-[10px] text-orange-400/70 mt-0.5 font-mono">Registrado em {new Date(decision.updatedAt).toLocaleString("pt-BR")}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {decision?.status === "RESOLVIDO" && (
+                                            <div className="bg-blue-950/40 border-b border-blue-900/60 px-4 py-2 text-xs text-blue-200 flex items-start gap-2">
+                                                <CheckCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <span className="font-bold text-blue-300">RESOLVIDO NO RETORNO DA CONTABILIDADE:</span>
+                                                    <span className="ml-1.5 text-zinc-200 font-sans">{decision.notes || "Valores regularizados no novo holerite emitido."}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Banner de Comparação com Rodada Anterior */}
+                                        {comparisonAudit && (() => {
+                                            const prevDec = comparisonAudit.decisions?.[getDecisionKey(r)];
+                                            if (!prevDec) return null;
+                                            const wasSent = prevDec.status === "ENVIADO_CONTABILIDADE";
+                                            const wasAccepted = prevDec.status === "ACEITO";
+                                            const isNowOk = divergentCount === 0;
+
+                                            return (
+                                                <div className={`px-4 py-2.5 text-xs border-b flex items-start gap-2.5 ${
+                                                    wasSent && isNowOk
+                                                        ? "bg-emerald-950/50 border-emerald-700/60 text-emerald-200"
+                                                        : wasSent && !isNowOk
+                                                        ? "bg-rose-950/50 border-rose-700/60 text-rose-200"
+                                                        : "bg-indigo-950/40 border-indigo-700/60 text-indigo-200"
+                                                }`}>
+                                                    <GitCompare className="w-4 h-4 shrink-0 mt-0.5 text-indigo-300" />
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-bold uppercase tracking-wider text-[10px] px-1.5 py-0.5 rounded bg-zinc-800/80">
+                                                                RODADA ANTERIOR: {comparisonAudit.title}
+                                                            </span>
+                                                            {wasSent && (
+                                                                isNowOk ? (
+                                                                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                                                        <CheckCheck className="w-3.5 h-3.5" /> 🎉 CORRIGIDO PELA CONTABILIDADE!
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-rose-400 font-bold flex items-center gap-1">
+                                                                        <AlertTriangle className="w-3.5 h-3.5" /> ⚠️ AINDA NÃO CORRIGIDO (PERSISTE DIVERGÊNCIA)
+                                                                    </span>
+                                                                )
+                                                            )}
+                                                            {wasAccepted && (
+                                                                <span className="text-emerald-300 font-bold">
+                                                                    ✓ Havia sido Aceito na rodada anterior
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {prevDec.notes && (
+                                                            <div className="text-[11px] text-zinc-300 italic mt-1 font-sans">
+                                                                Orientação enviada anteriormente: "{prevDec.notes}"
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Tabela do Espelho: 4 Colunas idênticas ao modelo anexo */}
                                         <div className="overflow-x-auto">
@@ -3179,6 +3762,399 @@ export default function PayrollAuditPage() {
                             })
                     )}
                 </div>
+            </div>
+        </DialogContent>
+    </Dialog>
+
+    {/* MODAL 1: REGISTRAR TRATATIVA / ANOTAÇÃO INDIVIDUAL */}
+    <Dialog open={isDecisionModalOpen} onOpenChange={setIsDecisionModalOpen}>
+        <DialogContent className="max-w-xl p-6 rounded-3xl">
+            <DialogHeader>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <BookmarkCheck className="w-4 h-4 text-purple-600" />
+                    Tratativa & Anotação da Divergência
+                </div>
+                <DialogTitle className="text-xl font-black text-slate-900 mt-1">
+                    {decisionModalRow?.name}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-medium">
+                    CPF: {fmtCpf(decisionModalRow?.cpf)} • Empresa: {decisionModalRow?.wfh?.companyName || decisionModalRow?.companyName || "---"}
+                </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-2">
+                {/* Seleção do Status da Tratativa */}
+                <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-2">
+                        Status da Decisão:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setDecisionStatusInput("ACEITO")}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                decisionStatusInput === "ACEITO"
+                                    ? "bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-400"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                Aceitar Divergência
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-1 leading-tight">
+                                Justificado logicamente. Não requer alteração no holerite.
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setDecisionStatusInput("ENVIADO_CONTABILIDADE")}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                decisionStatusInput === "ENVIADO_CONTABILIDADE"
+                                    ? "bg-orange-50 border-orange-500 text-orange-900 ring-2 ring-orange-400"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 font-bold text-xs text-orange-800">
+                                <SendHorizontal className="w-4 h-4 text-orange-600 shrink-0" />
+                                Solicitar Revisão
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-1 leading-tight">
+                                Enviar à contabilidade para retificação e reemissão.
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setDecisionStatusInput("RESOLVIDO")}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                decisionStatusInput === "RESOLVIDO"
+                                    ? "bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-400"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 font-bold text-xs text-blue-800">
+                                <CheckCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                                Resolvido no Retorno
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-1 leading-tight">
+                                Holerite retificado conferido e validado com sucesso.
+                            </span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setDecisionStatusInput("PENDENTE")}
+                            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                decisionStatusInput === "PENDENTE"
+                                    ? "bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400"
+                                    : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 font-bold text-xs text-amber-800">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                Pendente de Análise
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-1 leading-tight">
+                                Ainda aguarda decisão ou validação do gestor.
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Campo de Anotações */}
+                <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold text-slate-700">
+                            Anotação / Justificativa:
+                        </label>
+                        {decisionModalRow?.rubricComparisons && decisionModalRow.rubricComparisons.some(c => c.status !== "OK") && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const instructions = (decisionModalRow.rubricComparisons || [])
+                                        .filter(c => c.status !== "OK")
+                                        .map(c => c.instruction)
+                                        .join(" | ");
+                                    setDecisionNotesInput(instructions);
+                                }}
+                                className="text-[10px] text-purple-600 hover:underline font-bold"
+                            >
+                                Puxar instruções do sistema
+                            </button>
+                        )}
+                    </div>
+                    <Textarea
+                        rows={4}
+                        placeholder={
+                            decisionStatusInput === "ACEITO"
+                                ? "Ex: Divergência aceita porque o colaborador teve acerto autorizado em ata..."
+                                : decisionStatusInput === "ENVIADO_CONTABILIDADE"
+                                ? "Ex: Ajustar desconto de VT para 6% sobre o salário líquido e abater as 2 faltas..."
+                                : "Insira uma anotação explicativa..."
+                        }
+                        value={decisionNotesInput}
+                        onChange={e => setDecisionNotesInput(e.target.value)}
+                        className="rounded-2xl border-slate-200 text-xs p-3"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                        Esta anotação ficará registrada no card do colaborador e será salva na rodada de auditoria.
+                    </p>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button
+                    variant="outline"
+                    onClick={() => setIsDecisionModalOpen(false)}
+                    className="rounded-xl text-xs h-9"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    onClick={handleSaveDecision}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs h-9 px-4 cursor-pointer"
+                >
+                    Salvar Decisão
+                </Button>
+            </div>
+        </DialogContent>
+    </Dialog>
+
+    {/* MODAL 2: SALVAR RODADA DE ANÁLISE */}
+    <Dialog open={isSaveModalOpen} onOpenChange={setIsSaveModalOpen}>
+        <DialogContent className="max-w-xl p-6 rounded-3xl">
+            <DialogHeader>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <Save className="w-4 h-4 text-purple-600" />
+                    Salvar Rodada de Auditoria
+                </div>
+                <DialogTitle className="text-xl font-black text-slate-900 mt-1">
+                    Guardar Versão para Futuras Consultas
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-medium">
+                    Salve esta rodada com todas as decisões, marcações para contabilidade e anotações para comparar com o arquivo retificado no futuro.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-2">
+                <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Título da Rodada / Análise:
+                    </label>
+                    <Input
+                        value={saveRoundTitle}
+                        onChange={e => setSaveRoundTitle(e.target.value)}
+                        placeholder="Ex: Auditoria 10/2026 - 1ª Rodada (10 ajustes à contabilidade)"
+                        className="rounded-2xl border-slate-200 text-xs h-10"
+                    />
+                </div>
+
+                {/* Resumo da Rodada */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                    <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-black block">Total</span>
+                        <span className="text-base font-black text-slate-800">{crossBaseRows.length}</span>
+                    </div>
+                    <div>
+                        <span className="text-[10px] text-amber-600 uppercase font-black block">Divergências</span>
+                        <span className="text-base font-black text-amber-700">{crossDivergentCount}</span>
+                    </div>
+                    <div>
+                        <span className="text-[10px] text-orange-600 uppercase font-black block">P/ Contabilidade</span>
+                        <span className="text-base font-black text-orange-700">{crossSentCount}</span>
+                    </div>
+                    <div>
+                        <span className="text-[10px] text-emerald-600 uppercase font-black block">Aceitos</span>
+                        <span className="text-base font-black text-emerald-700">{crossAcceptedCount}</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Anotações Gerais da Rodada (Opcional):
+                    </label>
+                    <Textarea
+                        rows={3}
+                        value={saveRoundNotes}
+                        onChange={e => setSaveRoundNotes(e.target.value)}
+                        placeholder="Ex: Enviado lote de 10 ajustes para o setor de folha da contabilidade às 11:00..."
+                        className="rounded-2xl border-slate-200 text-xs p-3"
+                    />
+                </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button
+                    variant="outline"
+                    onClick={() => setIsSaveModalOpen(false)}
+                    disabled={isSavingRound}
+                    className="rounded-xl text-xs h-9"
+                >
+                    Cancelar
+                </Button>
+                <Button
+                    onClick={handleSaveRound}
+                    disabled={isSavingRound}
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs h-9 px-5 cursor-pointer shadow-md"
+                >
+                    {isSavingRound ? (
+                        <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                            Salvando Rodada...
+                        </>
+                    ) : (
+                        <>
+                            <Save className="w-3.5 h-3.5 mr-1.5" />
+                            Salvar Rodada no Histórico
+                        </>
+                    )}
+                </Button>
+            </div>
+        </DialogContent>
+    </Dialog>
+
+    {/* MODAL 3: HISTÓRICO DE AUDITORIAS SALVAS & COMPARAÇÃO */}
+    <Dialog open={isHistoryModalOpen} onOpenChange={setIsHistoryModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto p-6 rounded-3xl">
+            <DialogHeader>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <History className="w-4 h-4 text-purple-600" />
+                    Histórico de Auditorias Salvas
+                </div>
+                <DialogTitle className="text-xl font-black text-slate-900 mt-1">
+                    Rodadas Salvas & Comparações de Retorno
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 font-medium">
+                    Consulte rodadas anteriores, carregue análises passadas ou compare com o novo arquivo de retorno da contabilidade.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 my-3">
+                {isLoadingHistory ? (
+                    <div className="py-12 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                        <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+                        Carregando histórico de auditorias...
+                    </div>
+                ) : savedAuditsList.length === 0 ? (
+                    <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-8 space-y-2">
+                        <History className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="font-bold text-slate-700 text-sm">Nenhuma auditoria salva encontrada para esta competência.</p>
+                        <p className="text-xs text-slate-400">Após carregar o PDF de holerites e definir as tratativas, clique em "Salvar Rodada".</p>
+                    </div>
+                ) : (
+                    savedAuditsList.map(audit => {
+                        const isCurrentActive = currentSavedAuditId === audit.id;
+                        const isCurrentComparison = comparisonAudit?.id === audit.id;
+
+                        return (
+                            <div 
+                                key={audit.id}
+                                className={`p-4 rounded-2xl border transition-all ${
+                                    isCurrentActive
+                                        ? "bg-purple-50/70 border-purple-300 shadow-sm"
+                                        : isCurrentComparison
+                                        ? "bg-indigo-50/70 border-indigo-300 shadow-sm"
+                                        : "bg-white border-slate-200 hover:border-slate-300"
+                                }`}
+                            >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h4 className="font-black text-slate-900 text-sm">
+                                                {audit.title}
+                                            </h4>
+                                            {isCurrentActive && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-600 text-white">
+                                                    Ativa na Tela
+                                                </span>
+                                            )}
+                                            {isCurrentComparison && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-600 text-white">
+                                                    Em Comparação
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                                            <span>Competência: <strong>{String(audit.month).padStart(2, "0")}/{audit.year}</strong></span>
+                                            <span>•</span>
+                                            <span>Empresa: <strong>{audit.companyName || "Geral"}</strong></span>
+                                            <span>•</span>
+                                            <span>Por: <strong>{audit.createdByName || "Sistema"}</strong> em {new Date(audit.createdAt).toLocaleDateString("pt-BR")} às {new Date(audit.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Botões de Ação */}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            onClick={() => handleLoadSavedAudit(audit.id)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-xs h-8 rounded-xl border-slate-200 hover:bg-slate-100"
+                                        >
+                                            Carregar
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleStartComparison(audit.id)}
+                                            size="sm"
+                                            className="text-xs h-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1 cursor-pointer"
+                                            title="Comparar os colaboradores desta rodada com o holerite aberto na tela"
+                                        >
+                                            <GitCompare className="w-3.5 h-3.5" /> Comparar Retorno
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleDeleteSavedAudit(audit.id, audit.title)}
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-xs h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                                            title="Excluir rodada"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Badges de Métricas da Rodada Salva */}
+                                <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100 text-[11px]">
+                                    <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold">
+                                        Total: {audit.totalEmployees}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold">
+                                        Divergências: {audit.divergentCount}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-orange-50 text-orange-800 border border-orange-200 font-bold">
+                                        🟠 Enviados Contabilidade: {audit.sentCount}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                                        🟢 Aceitos: {audit.acceptedCount}
+                                    </span>
+                                    {audit.resolvedCount > 0 && (
+                                        <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-bold">
+                                            🔵 Resolvidos: {audit.resolvedCount}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {audit.notes && (
+                                    <p className="text-[11px] text-slate-500 mt-2 italic bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                        "{audit.notes}"
+                                    </p>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+                <Button
+                    variant="outline"
+                    onClick={() => setIsHistoryModalOpen(false)}
+                    className="rounded-xl text-xs h-9"
+                >
+                    Fechar
+                </Button>
             </div>
         </DialogContent>
     </Dialog>

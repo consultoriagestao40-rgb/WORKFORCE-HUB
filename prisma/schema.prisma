@@ -1692,3 +1692,32 @@ model BillingExtraItem {
 
   @@index([clientId, year, month])
 }
+
+// Auditorias de Folha Salvas (Histórico, Versões e Devolutivas à Contabilidade)
+model SavedPayrollAudit {
+  id               String   @id @default(uuid())
+  title            String   // Ex: "Auditoria 10/2026 - 1ª Rodada" ou "Retorno Contabilidade"
+  year             Int
+  month            Int
+  companyId        String?
+  companyName      String?
+  status           String   @default("EM_ANALISE") // EM_ANALISE | ENVIADO_CONTABILIDADE | RETORNO_VALIDADO | CONCLUIDO
+  totalEmployees   Int      @default(0)
+  divergentCount   Int      @default(0)
+  pendingCount     Int      @default(0)
+  sentCount        Int      @default(0)
+  acceptedCount    Int      @default(0)
+  resolvedCount    Int      @default(0)
+  totalHoleriteNet Float    @default(0)
+  totalExpectedNet Float    @default(0)
+  auditData        Json     // Snapshot completo de PayrollAuditResult
+  decisions        Json     // Mapa de decisões por CPF/chave: { [key: string]: { status, notes, updatedAt, updatedBy } }
+  notes            String?  // Anotações gerais da rodada
+  createdById      String?
+  createdByName    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([year, month])
+  @@index([companyId])
+}

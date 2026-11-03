@@ -120,7 +120,24 @@ export interface PayrollAuditRow {
     wfhGrossSalary?: number;
     wfhTotalDeductions?: number;
     netDifference?: number;
+
+    // Decisão / Tratativa Manual
+    decisionStatus?: AuditDecisionStatus;
+    decisionNotes?: string;
+    decisionUpdatedAt?: string;
+    decisionUpdatedBy?: string;
 }
+
+export type AuditDecisionStatus = "PENDENTE" | "ACEITO" | "ENVIADO_CONTABILIDADE" | "RESOLVIDO";
+
+export interface AuditDecisionItem {
+    status: AuditDecisionStatus;
+    notes?: string;
+    updatedAt: string;
+    updatedBy?: string;
+}
+
+export type AuditDecisionsMap = Record<string, AuditDecisionItem>;
 
 export interface PayrollAuditSummary {
     totalEvaluated: number;
@@ -136,6 +153,11 @@ export interface PayrollAuditSummary {
     totalHoleriteNet: number;
     totalSuspectedOverpayment: number;
     totalOverpaymentSuspected: number;
+    // Decisões
+    pendingCount?: number;
+    sentCount?: number;
+    acceptedCount?: number;
+    resolvedCount?: number;
 }
 
 export type AuditRow = PayrollAuditRow;
@@ -1357,3 +1379,182 @@ export async function runPayrollAudit(params: {
         };
     }
 }
+
+/**
+ * Salva uma rodada completa de auditoria com dados processados e decisões do usuário.
+ */
+export async function savePayrollAuditRound(params: {
+    id?: string;
+    title: string;
+    year: number;
+    month: number;
+    companyId?: string;
+    companyName?: string;
+    status?: string;
+    auditData: any;
+    decisions: AuditDecisionsMap;
+    notes?: string;
+}) {
+    try {
+        const user = await getCurrentUser();
+        const userName = user?.name || "Usuário do Sistema";
+        const userId = user?.id || null;
+
+        const rows: PayrollAuditRow[] = params.auditData?.rows || [];
+        const decisions = params.decisions || {};
+
+        let divergentCount = 0;
+        let pendingCount = 0;
+        let sentCount = 0;
+        let acceptedCount = 0;
+        let resolvedCount = 0;
+
+        for (const row of rows) {
+            const isDivergent = row.status !== "ALIGNED" || (row.divergentRubricsCount && row.divergentRubricsCount > 0);
+            if (isDivergent) {
+                divergentCount++;
+            }
+            const key = cleanCpfDigits(row.cpf) || row.employeeName || row.id;
+            const dec = decisions[key];
+            if (dec) {
+                if (dec.status === "ACEITO") acceptedCount++;
+                else if (dec.status === "ENVIADO_CONTABILIDADE") sentCount++;
+                else if (dec.status === "RESOLVIDO") resolvedCount++;
+                else if (isDivergent) pendingCount++;
+            } else if (isDivergent) {
+                pendingCount++;
+            }
+        }
+
+        const totalEmployees = rows.length;
+        const totalHoleriteNet = params.auditData?.summary?.totalHoleriteNet || 0;
+        const totalExpectedNet = rows.reduce((acc, r) => acc + (r.wfhNetSalary || 0), 0);
+
+        if (params.id) {
+            const updated = await prisma.savedPayrollAudit.update({
+                where: { id: params.id },
+                data: {
+                    title: params.title,
+                    status: params.status || (sentCount > 0 ? "ENVIADO_CONTABILIDADE" : "EM_ANALISE"),
+                    totalEmployees,
+                    divergentCount,
+                    pendingCount,
+                    sentCount,
+                    acceptedCount,
+                    resolvedCount,
+                    totalHoleriteNet,
+                    totalExpectedNet,
+                    auditData: params.auditData,
+                    decisions: params.decisions as any,
+                    notes: params.notes,
+                    updatedAt: new Date(),
+                }
+            });
+            return { success: true, savedAudit: updated };
+        } else {
+            const created = await prisma.savedPayrollAudit.create({
+                data: {
+                    title: params.title,
+                    year: params.year,
+                    month: params.month,
+                    companyId: params.companyId || null,
+                    companyName: params.companyName || null,
+                    status: params.status || (sentCount > 0 ? "ENVIADO_CONTABILIDADE" : "EM_ANALISE"),
+                    totalEmployees,
+                    divergentCount,
+                    pendingCount,
+                    sentCount,
+                    acceptedCount,
+                    resolvedCount,
+                    totalHoleriteNet,
+                    totalExpectedNet,
+                    auditData: params.auditData,
+                    decisions: params.decisions as any,
+                    notes: params.notes || null,
+                    createdById: userId,
+                    createdByName: userName,
+                }
+            });
+            return { success: true, savedAudit: created };
+        }
+    } catch (error: any) {
+        console.error("Erro ao salvar auditoria de folha:", error);
+        return { success: false, error: error.message || "Erro ao salvar auditoria." };
+    }
+}
+
+/**
+ * Lista auditorias salvas para histórico e comparações.
+ */
+export async function getSavedPayrollAudits(params?: { year?: number; month?: number; companyId?: string }) {
+    try {
+        const where: any = {};
+        if (params?.year) where.year = params.year;
+        if (params?.month) where.month = params.month;
+        if (params?.companyId && params.companyId !== "ALL") where.companyId = params.companyId;
+
+        const audits = await prisma.savedPayrollAudit.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            select: {
+                id: true,
+                title: true,
+                year: true,
+                month: true,
+                companyId: true,
+                companyName: true,
+                status: true,
+                totalEmployees: true,
+                divergentCount: true,
+                pendingCount: true,
+                sentCount: true,
+                acceptedCount: true,
+                resolvedCount: true,
+                totalHoleriteNet: true,
+                totalExpectedNet: true,
+                notes: true,
+                createdByName: true,
+                createdAt: true,
+                updatedAt: true,
+            }
+        });
+        return { success: true, audits };
+    } catch (error: any) {
+        console.error("Erro ao buscar histórico de auditorias:", error);
+        return { success: false, error: error.message, audits: [] };
+    }
+}
+
+/**
+ * Obtém uma auditoria salva completa com dados de linhas e decisões.
+ */
+export async function getSavedPayrollAuditById(id: string) {
+    try {
+        const audit = await prisma.savedPayrollAudit.findUnique({
+            where: { id }
+        });
+        if (!audit) {
+            return { success: false, error: "Auditoria salva não encontrada." };
+        }
+        return { success: true, audit };
+    } catch (error: any) {
+        console.error("Erro ao buscar auditoria por ID:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Exclui uma rodada de auditoria salva.
+ */
+export async function deleteSavedPayrollAudit(id: string) {
+    try {
+        await prisma.savedPayrollAudit.delete({
+            where: { id }
+        });
+        return { success: true };
+    } catch (error: any) {
+        console.error("Erro ao excluir auditoria salva:", error);
+        return { success: false, error: error.message };
+    }
+}
+
