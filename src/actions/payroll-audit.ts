@@ -1535,6 +1535,45 @@ export async function savePayrollAuditRound(params: {
 }
 
 /**
+ * Salva AUTOMATICAMENTE uma nova versão da análise (competência + empresa).
+ * Nunca sobrescreve versões anteriores: cada análise executada vira "Versão N".
+ */
+export async function autoSavePayrollAuditVersion(params: {
+    year: number;
+    month: number;
+    companyId?: string;
+    companyName?: string;
+    auditData: any;
+    decisions: AuditDecisionsMap;
+}) {
+    try {
+        const existing = await prisma.savedPayrollAudit.count({
+            where: {
+                year: params.year,
+                month: params.month,
+                companyId: params.companyId || null
+            }
+        });
+        const version = existing + 1;
+        const comp = params.companyName || "Geral";
+        const title = `Auditoria ${String(params.month).padStart(2, "0")}/${params.year} - ${comp} - Versão ${version}`;
+        return await savePayrollAuditRound({
+            title,
+            year: params.year,
+            month: params.month,
+            companyId: params.companyId,
+            companyName: comp,
+            auditData: params.auditData,
+            decisions: params.decisions || {},
+            notes: "Salva automaticamente ao executar a análise."
+        });
+    } catch (error: any) {
+        console.error("Erro ao salvar versão automática da auditoria:", error);
+        return { success: false, error: error.message || "Erro ao salvar versão automática." };
+    }
+}
+
+/**
  * Lista auditorias salvas para histórico e comparações.
  */
 export async function getSavedPayrollAudits(params?: { year?: number; month?: number; companyId?: string }) {

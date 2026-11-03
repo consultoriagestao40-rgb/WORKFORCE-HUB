@@ -69,7 +69,8 @@ import {
     savePayrollAuditRound,
     getSavedPayrollAudits,
     getSavedPayrollAuditById,
-    deleteSavedPayrollAudit
+    deleteSavedPayrollAudit,
+    autoSavePayrollAuditVersion
 } from "@/actions/payroll-audit";
 
 export default function PayrollAuditPage() {
@@ -422,6 +423,7 @@ export default function PayrollAuditPage() {
             }).then(res => {
                 if (res.success && res.data) {
                     setAuditResult(res.data);
+                    autoSaveVersion(res.data, targetYear, targetMonth);
                     if (res.data.detectedMonth && res.data.detectedYear && (res.data.detectedMonth !== selectedMonth || res.data.detectedYear !== selectedYear)) {
                         setSelectedMonth(res.data.detectedMonth);
                         setSelectedYear(res.data.detectedYear);
@@ -466,6 +468,69 @@ export default function PayrollAuditPage() {
         }
     }, [selectedYear, selectedMonth, selectedCompanyId]);
 
+    // --- Salvamento automático: cada análise executada vira uma nova VERSÃO (não sobrescreve) ---
+    const autoSaveVersion = async (data: PayrollAuditResult, year: number, month: number) => {
+        try {
+            const companyObj = companies.find(c => c.id === selectedCompanyId);
+            const compName = selectedCompanyId === "all" ? "Todas as Empresas" : (companyObj?.name || "Empresa Selecionada");
+            const res: any = await autoSavePayrollAuditVersion({
+                year,
+                month,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined,
+                companyName: compName,
+                auditData: { rows: data.rows || [], summary: data.summary || {} },
+                decisions: {}
+            });
+            if (res?.success && res.savedAudit) {
+                setCurrentSavedAuditId(res.savedAudit.id);
+                setCurrentSavedAuditTitle(res.savedAudit.title);
+                setDecisions({});
+                toast.success(`Análise salva automaticamente: ${res.savedAudit.title}`);
+                loadSavedAuditsHistory();
+            }
+        } catch (e) {
+            console.error("Falha no salvamento automático da análise:", e);
+        }
+    };
+
+    // Ao entrar na competência sem análise em tela, reabre a ÚLTIMA versão salva
+    useEffect(() => {
+        if (auditResult || holeriteItems.length > 0) return;
+        let cancelled = false;
+        (async () => {
+            const list = await getSavedPayrollAudits({
+                year: selectedYear,
+                month: selectedMonth,
+                companyId: selectedCompanyId !== "all" ? selectedCompanyId : undefined
+            });
+            const latest = list?.audits?.[0];
+            if (!latest || cancelled) return;
+            const full = await getSavedPayrollAuditById(latest.id);
+            if (!full.success || !full.audit || cancelled) return;
+            setAuditResult(full.audit.auditData as any);
+            setDecisions((full.audit.decisions as any) || {});
+            setCurrentSavedAuditId(full.audit.id);
+            setCurrentSavedAuditTitle(full.audit.title);
+        })();
+        return () => { cancelled = true; };
+    }, [selectedYear, selectedMonth, selectedCompanyId]);
+
+    // Tratativas feitas na versão aberta são gravadas automaticamente nela
+    useEffect(() => {
+        if (!currentSavedAuditId || !auditResult) return;
+        const t = setTimeout(() => {
+            savePayrollAuditRound({
+                id: currentSavedAuditId,
+                title: currentSavedAuditTitle || "Auditoria",
+                year: selectedYear,
+                month: selectedMonth,
+                auditData: { rows: auditResult.rows || [], summary: auditResult.summary || {} },
+                decisions
+            }).catch(() => {});
+        }, 1500);
+        return () => clearTimeout(t);
+    }, [decisions]);
+
     // --- Run Triple Audit Action ---
     const handleRunAudit = async () => {
         if (holeriteItems.length === 0 && pointItems.length === 0) {
@@ -489,6 +554,7 @@ export default function PayrollAuditPage() {
             }
 
             setAuditResult(res.data);
+            autoSaveVersion(res.data, res.data.detectedYear || selectedYear, res.data.detectedMonth || selectedMonth);
             if (res.data.detectedMonth && res.data.detectedYear && (res.data.detectedMonth !== selectedMonth || res.data.detectedYear !== selectedYear)) {
                 setSelectedMonth(res.data.detectedMonth);
                 setSelectedYear(res.data.detectedYear);
