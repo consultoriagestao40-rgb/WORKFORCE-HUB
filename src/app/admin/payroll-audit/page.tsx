@@ -511,6 +511,7 @@ export default function PayrollAuditPage() {
             setDecisions((full.audit.decisions as any) || {});
             setCurrentSavedAuditId(full.audit.id);
             setCurrentSavedAuditTitle(full.audit.title);
+            setActiveTopTab("CROSS");
         })();
         return () => { cancelled = true; };
     }, [selectedYear, selectedMonth, selectedCompanyId]);
@@ -1613,6 +1614,18 @@ export default function PayrollAuditPage() {
                             </Select>
                         </div>
 
+                        {/* Histórico de versões salvas: sempre acessível em qualquer aba */}
+                        {activeTopTab !== "CROSS" && (
+                            <Button
+                                onClick={() => setIsHistoryModalOpen(true)}
+                                variant="outline"
+                                className="bg-slate-800/90 hover:bg-slate-700 text-white border-slate-700 font-bold text-xs gap-1.5 rounded-2xl h-11 px-3.5 cursor-pointer shadow-sm"
+                            >
+                                <History className="w-4 h-4 text-purple-400" />
+                                <span>Histórico ({savedAuditsList.length})</span>
+                            </Button>
+                        )}
+
                         {/* Botões de Ação para Auditoria */}
                         {activeTopTab === "AUDIT" && auditResult && (
                             <div className="flex flex-wrap items-center gap-2">
@@ -2349,7 +2362,12 @@ export default function PayrollAuditPage() {
                                                                         <span className="text-base font-black text-slate-800">
                                                                             {fmtCurrency(row.wfhNetSalary || row.wfhBaseSalary)}
                                                                         </span>
-                                                                        <span className="text-[10px] text-slate-400 block">Base: {fmtCurrency(row.wfhBaseSalary)}</span>
+                                                                        <span className="text-[10px] text-slate-400 block">
+                                                                            Base: {fmtCurrency(row.wfhFullSalary || row.wfhBaseSalary)}
+                                                                            {row.wfhFullSalary && row.wfhDaysWorked !== undefined && row.wfhTotalDays && row.wfhDaysWorked < row.wfhTotalDays
+                                                                                ? ` • proporcional ${row.wfhDaysWorked}/${row.wfhTotalDays} dias = ${fmtCurrency(row.wfhBaseSalary)}`
+                                                                                : ""}
+                                                                        </span>
                                                                     </div>
 
                                                                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">

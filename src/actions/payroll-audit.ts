@@ -40,6 +40,9 @@ export interface PayrollAuditRow {
     wfhSituation: string;
     wfhStatus: string;
     wfhBaseSalary: number;
+    wfhFullSalary?: number;   // Salário base cheio do cadastro (sem proporcionalidade)
+    wfhDaysWorked?: number;   // Dias trabalhados na competência (proporcional)
+    wfhTotalDays?: number;    // Dias do mês
     wfhFaltasCount: number;
 
     // Dados do Ponto
@@ -595,6 +598,10 @@ export async function runPayrollAudit(params: {
             const actBase = holeriteBase || sumRubrics(hRubrics, ["SALARIO", "HORAS NORMAIS"], "earnings");
             const diffBase = Math.round((actBase - expBase) * 100) / 100;
             const isBaseOk = Math.abs(diffBase) <= 5;
+            const fullSalaryWfh = wfhPreview?.originalSalary || expBase;
+            const prDays = wfhPreview?.daysWorked;
+            const prTotal = wfhPreview?.totalDaysInMonth;
+            const isProrata = !!(prDays !== undefined && prTotal && prDays < prTotal && fullSalaryWfh > expBase);
             if (isDesligado && expBase === 0 && actBase > 0) {
                 rubricComparisons.push({
                     rubric: "001 - Salário Base",
@@ -612,7 +619,9 @@ export async function runPayrollAudit(params: {
                 rubricComparisons.push({
                     rubric: "001 - Salário Base",
                     expectedWfh: expBase,
-                    expectedWfhDetail: `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    expectedWfhDetail: isProrata
+                        ? `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (proporcional: ${prDays}/${prTotal} dias de R$ ${fullSalaryWfh.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+                        : `R$ ${expBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                     actualHolerite: actBase,
                     actualHoleriteDetail: actBase > 0 
                         ? `R$ ${actBase.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${baseRef ? ` (${baseRef})` : ""}` 
@@ -1111,6 +1120,9 @@ export async function runPayrollAudit(params: {
             wfhSituation: situationName,
             wfhStatus: emp.status,
             wfhBaseSalary,
+            wfhFullSalary: wfhPreview?.originalSalary || wfhBaseSalary,
+            wfhDaysWorked: wfhPreview?.daysWorked,
+            wfhTotalDays: wfhPreview?.totalDaysInMonth,
             wfhFaltasCount,
             hasPoint,
             pointWorkedHours,
