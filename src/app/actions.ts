@@ -569,8 +569,8 @@ export async function createEmployee(formData: FormData) {
 
         await prisma.$transaction(async (tx) => {
             // Check if CPF already exists
-            const existingCpf = await tx.employee.findUnique({
-                where: { cpf },
+            const existingCpf = await tx.employee.findFirst({
+                where: { cpf: { in: Array.from(new Set([cpf, String(cpf).replace(/\D/g, ""), String(cpf).replace(/\D/g, "").replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4")])) } },
                 include: { situation: true }
             });
 
