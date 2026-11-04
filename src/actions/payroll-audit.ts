@@ -364,9 +364,11 @@ export async function runPayrollAudit(params: {
         return { items: [] };
     });
     const previewItems = previewRes?.items || [];
+    const previewById = new Map<string, any>();
     const previewByCpf = new Map<string, any>();
     const previewByName = new Map<string, any>();
     for (const pi of previewItems) {
+        if (pi.employeeId) previewById.set(pi.employeeId, pi);
         const cpfDigits = cleanCpfDigits(pi.employeeCpf);
         if (cpfDigits) previewByCpf.set(cpfDigits, pi);
         const norm = normalizeName(pi.employeeName);
@@ -425,17 +427,26 @@ export async function runPayrollAudit(params: {
     // Nomes que batem EXATAMENTE com algum colaborador do WFH ficam reservados para ele (não entram no fallback por similaridade)
     const wfhExactNames = new Set(wfhEmployees.map(e => normalizeName(e.name)).filter(Boolean));
 
+    // CPFs que aparecem em MAIS DE UM cadastro do WFH (erro de cadastro): não são chave confiável de cruzamento
+    const cpfCountWfh = new Map<string, number>();
+    for (const e of wfhEmployees) {
+        const c = cleanCpfDigits(e.cpf);
+        if (c && c.length >= 11) cpfCountWfh.set(c, (cpfCountWfh.get(c) || 0) + 1);
+    }
+
     // 3. Process each WFH Employee
     for (const emp of wfhEmployees) {
         const cpfDigits = cleanCpfDigits(emp.cpf);
+        const isDupCpf = !!(cpfDigits && (cpfCountWfh.get(cpfDigits) || 0) > 1);
+        if (isDupCpf) console.warn(`[runPayrollAudit] CPF duplicado no cadastro WFH (${emp.cpf}) - ${emp.name}. Cruzamento por nome/ID.`);
         const normName = normalizeName(emp.name);
         const empExtra = emp.extraFields as Record<string, any> | null;
         const empCode = empExtra?.matricula?.toString().trim() || empExtra?.codigo?.toString().trim() || "";
 
-        if (cpfDigits && processedEmpKeys.has(cpfDigits)) continue;
+        if (cpfDigits && !isDupCpf && processedEmpKeys.has(cpfDigits)) continue;
         if (normName && processedEmpKeys.has(normName)) continue;
 
-        if (cpfDigits) processedEmpKeys.add(cpfDigits);
+        if (cpfDigits && !isDupCpf) processedEmpKeys.add(cpfDigits);
         if (normName) processedEmpKeys.add(normName);
         if (empCode) processedEmpKeys.add(`code:${empCode}`);
 
@@ -447,7 +458,7 @@ export async function runPayrollAudit(params: {
         let matchedBy: "CPF" | "NOME_EXATO" | "MATRICULA" | "SIMILARIDADE" | undefined = undefined;
         let holerite: ExtractedHoleriteItem | undefined = undefined;
 
-        if (cpfDigits && cpfDigits.length >= 11 && holeriteByCpf.has(cpfDigits)) {
+        if (!isDupCpf && cpfDigits && cpfDigits.length >= 11 && holeriteByCpf.has(cpfDigits)) {
             holerite = holeriteByCpf.get(cpfDigits);
             matchedBy = "CPF";
         } else if (normName && normName.length >= 3 && holeriteByName.has(normName)) {
@@ -494,7 +505,7 @@ export async function runPayrollAudit(params: {
         }
 
         let point: ParsedPointEmployee | undefined = undefined;
-        if (cpfDigits && cpfDigits.length >= 11 && pointByCpf.has(cpfDigits)) {
+        if (!isDupCpf && cpfDigits && cpfDigits.length >= 11 && pointByCpf.has(cpfDigits)) {
             point = pointByCpf.get(cpfDigits);
         } else if (normName && normName.length >= 3 && pointByName.has(normName)) {
             point = pointByName.get(normName);
@@ -533,7 +544,8 @@ export async function runPayrollAudit(params: {
             if (point.name) processedEmpKeys.add(normalizeName(point.name));
         }
 
-        const wfhPreview = (cpfDigits ? previewByCpf.get(cpfDigits) : null)
+        const wfhPreview = previewById.get(emp.id)
+            || (!isDupCpf && cpfDigits ? previewByCpf.get(cpfDigits) : null)
             || (normName ? previewByName.get(normName) : null);
 
         const activeAssignment = emp.assignments && emp.assignments.length > 0 ? emp.assignments[0] : null;
@@ -702,7 +714,7 @@ export async function runPayrollAudit(params: {
                 ) {
                     return false;
                 }
-                return ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "COPA", "PREMIO", "ASSIDUIDADE"].some(k => d.includes(k));
+                return ["GRATIF", "LIDERAN", "FUNCAO", "CARGO", "COPA", "PREMIO", "ASSIDUIDADE", "RISCO", "ADICIONAL"].some(k => d.includes(k));
             });
             const actAdicionais = Math.round(matchingAdicionais.reduce((acc, r) => acc + (r.earnings || 0), 0) * 100) / 100;
             if (expAdicionais > 0 || actAdicionais > 0) {
