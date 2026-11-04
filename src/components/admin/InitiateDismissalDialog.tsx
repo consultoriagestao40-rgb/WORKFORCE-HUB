@@ -43,7 +43,7 @@ export function InitiateDismissalDialog({
     
     // Process parameters
     const [initiative, setInitiative] = useState<'EMPRESA' | 'COLABORADOR' | 'ABANDONO'>('EMPRESA');
-    const [noticeType, setNoticeType] = useState<'TRABALHADO' | 'INDENIZADO'>('TRABALHADO');
+    const [noticeType, setNoticeType] = useState<'TRABALHADO' | 'INDENIZADO' | 'DESCONTADO'>('TRABALHADO');
     const [dismissalCategory, setDismissalCategory] = useState<'AVISO' | 'EXP_ANTECIPADO' | 'EXP_PRAZO'>('AVISO');
     
     // Dates
@@ -144,12 +144,19 @@ export function InitiateDismissalDialog({
             setUnassignImmediately(true);
         } else if (dismissalCategory !== 'AVISO') {
             setUnassignImmediately(true);
-        } else if (noticeType === 'INDENIZADO') {
+        } else if (noticeType !== 'TRABALHADO') {
             setUnassignImmediately(true);
         } else {
             setUnassignImmediately(false);
         }
     }, [initiative, noticeType, dismissalCategory]);
+
+    // "Não cumprido (descontado)" só existe quando a iniciativa é do colaborador
+    useEffect(() => {
+        if (initiative !== 'COLABORADOR' && noticeType === 'DESCONTADO') {
+            setNoticeType('TRABALHADO');
+        }
+    }, [initiative, noticeType]);
 
     // SIMULAÇÃO RESCISÓRIA EM TEMPO REAL (CLT)
     const simulationResult: TerminationResult | null = useMemo(() => {
@@ -180,7 +187,8 @@ export function InitiateDismissalDialog({
         } else if (initiative === 'COLABORADOR') {
             if (dismissalCategory === 'AVISO') {
                 dismissalReason = 'PEDIDO_DEMISSAO';
-                termNoticeType = noticeType === 'TRABALHADO' ? 'TRABALHADO' : 'DESCONTADO';
+                // Cumprido -> TRABALHADO | Dispensado pelo gestor -> sem desconto | Não cumprido por opção do colaborador -> aviso DESCONTADO
+                termNoticeType = noticeType === 'TRABALHADO' ? 'TRABALHADO' : (noticeType === 'DESCONTADO' ? 'DESCONTADO' : 'DISPENSADO');
             } else if (dismissalCategory === 'EXP_ANTECIPADO') {
                 dismissalReason = 'EXP_ANTECIPADO_EMPREGADO';
                 termNoticeType = 'ART_480_CLT';
@@ -463,7 +471,7 @@ export function InitiateDismissalDialog({
                                 <RadioGroup 
                                     value={noticeType} 
                                     onValueChange={(val: any) => setNoticeType(val)}
-                                    className="grid grid-cols-2 gap-2"
+                                    className={initiative === 'COLABORADOR' ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}
                                 >
                                     <div className="flex items-center space-x-1.5 border p-2.5 rounded-xl bg-slate-50 cursor-pointer hover:bg-slate-100/60 transition-colors">
                                         <RadioGroupItem value="TRABALHADO" id="notice_trabalhado" />
@@ -477,6 +485,14 @@ export function InitiateDismissalDialog({
                                             {initiative === 'EMPRESA' ? 'Indenizado' : 'Dispensado pelo Gestor'}
                                         </Label>
                                     </div>
+                                    {initiative === 'COLABORADOR' && (
+                                        <div className="flex items-center space-x-1.5 border p-2.5 rounded-xl bg-slate-50 cursor-pointer hover:bg-slate-100/60 transition-colors">
+                                            <RadioGroupItem value="DESCONTADO" id="notice_descontado" />
+                                            <Label htmlFor="notice_descontado" className="text-xs cursor-pointer font-bold">
+                                                Não cumprido (opção do colaborador)
+                                            </Label>
+                                        </div>
+                                    )}
                                 </RadioGroup>
                             </div>
                         )}
@@ -567,7 +583,7 @@ export function InitiateDismissalDialog({
                             </div>
                         )}
 
-                        {initiative !== 'ABANDONO' && (noticeType === 'INDENIZADO' || dismissalCategory !== 'AVISO') && (
+                        {initiative !== 'ABANDONO' && (noticeType !== 'TRABALHADO' || dismissalCategory !== 'AVISO') && (
                             <div className="space-y-2 border border-slate-150 p-4 rounded-2xl bg-slate-50/50">
                                 <Label htmlFor="proc_terminationDate" className="text-xs font-semibold">Data do Desligamento</Label>
                                 <Input
