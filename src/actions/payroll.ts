@@ -128,9 +128,10 @@ export async function getPayrollPreview(year: number, month: number, targetEmplo
 
     const whereEmployees: any = {
         status: "Ativo",
-        situation: {
-            name: { notIn: ["Desligado", "Demitido"] }
-        },
+        OR: [
+            { situationId: null },
+            { situation: { name: { notIn: ["Desligado", "Demitido"] } } }
+        ],
         assignments: {
             some: {
                 OR: [

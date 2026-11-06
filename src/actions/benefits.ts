@@ -420,9 +420,10 @@ export async function getBenefitsCalculation(year: number, month: number, target
 
     const whereEmployees: any = {
         status: "Ativo",
-        situation: {
-            name: { notIn: ["Desligado", "Demitido"] }
-        },
+        OR: [
+            { situationId: null },
+            { situation: { name: { notIn: ["Desligado", "Demitido"] } } }
+        ],
         assignments: {
             some: {
                 OR: [
