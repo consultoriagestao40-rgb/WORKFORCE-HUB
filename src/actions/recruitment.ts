@@ -2475,14 +2475,38 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         roleId = foundRole?.id || "";
     }
 
-    // 4. Resolve Company
+    // 4. Resolve Posto first so we can reliably bind Company
+    let targetPostoId = overrides?.postoId || mergedExtra.postoId || candidate.vacancy?.postoId || null;
+    if (!targetPostoId && candidate.vacancy?.posto?.id) {
+        targetPostoId = candidate.vacancy.posto.id;
+    }
+
+    // 4.1 Resolve Company directly from Posto/Client if not explicit, NEVER falling back to arbitrary company
     let companyId = overrides?.companyId || mergedExtra.companyId || candidate.vacancy?.companyId || candidate.vacancy?.posto?.client?.companyId;
+
+    if (!companyId && targetPostoId) {
+        try {
+            const postoDb = await prisma.posto.findUnique({
+                where: { id: targetPostoId },
+                include: { client: true }
+            });
+            if (postoDb?.client?.companyId) {
+                companyId = postoDb.client.companyId;
+            }
+        } catch (err) {
+            console.error("[syncCandidateToEmployeeAndPosto] Erro ao buscar empresa do posto:", err);
+        }
+    }
+
     if (companyId) {
         const compExists = await prisma.company.findUnique({ where: { id: companyId } });
         if (!compExists) companyId = null;
     }
     if (!companyId) {
-        const defaultCompany = await prisma.company.findFirst();
+        // Se ainda assim não encontrar, tenta pelo primeiro cliente ativo ou mantém nulo em vez de forçar Clean Tech
+        const defaultCompany = await prisma.company.findFirst({
+            where: { name: { contains: "SPOT", mode: "insensitive" } }
+        }) || await prisma.company.findFirst();
         companyId = defaultCompany?.id || null;
     }
 
@@ -2493,12 +2517,6 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         || await prisma.situation.findFirst({ where: { name: { contains: "Ativo", mode: "insensitive" } } })
         || await prisma.situation.findFirst();
     if (defaultSit) situationId = defaultSit.id;
-
-    // 5. Resolve Posto
-    let targetPostoId = overrides?.postoId || mergedExtra.postoId || candidate.vacancy?.postoId || null;
-    if (!targetPostoId && candidate.vacancy?.posto?.id) {
-        targetPostoId = candidate.vacancy.posto.id;
-    }
 
     // 6. Resolve Salary & Financials
     const salary = parseFloat(
