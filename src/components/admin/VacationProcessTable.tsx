@@ -43,6 +43,7 @@ import {
     updateVacationWorkflowStep,
     saveAccountingReturnAction
 } from "@/actions/vacation-workflow";
+import { getRhNotificationConfig } from "@/actions/rh-notifications";
 import { VacationNoticePrintDialog } from "@/components/admin/VacationNoticePrintDialog";
 
 interface VacationProcessTableProps {
@@ -64,6 +65,17 @@ export function VacationProcessTable({
     const [printModalId, setPrintModalId] = useState<string | null>(null);
 
     // Modal E-mail Contabilidade
+    const [defaultAccountingEmail, setDefaultAccountingEmail] = useState("contabilidade@grupojvsserv.com.br");
+
+    React.useEffect(() => {
+        getRhNotificationConfig().then((cfg: any) => {
+            if (cfg?.accountingEmails) {
+                const firstEmail = cfg.accountingEmails.split(",")[0]?.trim();
+                if (firstEmail) setDefaultAccountingEmail(firstEmail);
+            }
+        }).catch(() => {});
+    }, []);
+
     const [emailModal, setEmailModal] = useState<{
         isOpen: boolean;
         vacation: VacationProcessItem | null;
@@ -778,7 +790,7 @@ export function VacationProcessTable({
                                                                 onClick={() => setEmailModal({
                                                                     isOpen: true,
                                                                     vacation: proc,
-                                                                    recipientEmail: "contabilidade@grupojvsserv.com.br",
+                                                                    recipientEmail: defaultAccountingEmail,
                                                                     customNotes: ""
                                                                 })}
                                                                 title="Enviar dados para contabilidade via e-mail"

@@ -1262,6 +1262,10 @@ model DismissalTemplate {
 // Configurações Globais das Automações e Notificações de RH via WhatsApp
 model RhNotificationConfig {
   id                               String   @id @default(uuid())
+  // Configurações de E-mail da Contabilidade / DP
+  accountingEmails                 String?  // E-mails destinatários da contabilidade (separados por vírgula)
+  accountingEmailCc                String?  // E-mails em cópia (CC) para a contabilidade
+
   // Grupos WhatsApp (Z-API phone/JID)
   operationsGroupJid               String?  // Ex: 120363xxx@g.us ou 120363xxx-group
   operationsGroupName              String?  // Nome de exibição do grupo

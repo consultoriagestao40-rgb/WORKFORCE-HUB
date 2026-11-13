@@ -66,6 +66,8 @@ export async function getRhNotificationConfig() {
 
 export async function saveRhNotificationConfig(data: {
     isActive: boolean;
+    accountingEmails?: string | null;
+    accountingEmailCc?: string | null;
     operationsGroupJid?: string | null;
     operationsGroupName?: string | null;
     adminGroupJid?: string | null;

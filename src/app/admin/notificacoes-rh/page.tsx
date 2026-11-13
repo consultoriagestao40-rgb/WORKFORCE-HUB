@@ -50,6 +50,8 @@ export default function RhNotificationsPage() {
 
     // Config state
     const [isActive, setIsActive] = useState(true);
+    const [accountingEmails, setAccountingEmails] = useState("");
+    const [accountingEmailCc, setAccountingEmailCc] = useState("");
     const [operationsGroupJid, setOperationsGroupJid] = useState("");
     const [operationsGroupName, setOperationsGroupName] = useState("");
     const [adminGroupJid, setAdminGroupJid] = useState("");
@@ -125,6 +127,8 @@ export default function RhNotificationsPage() {
             const config = await getRhNotificationConfig();
             if (config) {
                 setIsActive(config.isActive);
+                setAccountingEmails((config as any).accountingEmails || "");
+                setAccountingEmailCc((config as any).accountingEmailCc || "");
                 setOperationsGroupJid(config.operationsGroupJid || "");
                 setOperationsGroupName(config.operationsGroupName || "");
                 setAdminGroupJid(config.adminGroupJid || "");
@@ -213,6 +217,8 @@ export default function RhNotificationsPage() {
 
         return await saveRhNotificationConfig({
             isActive,
+            accountingEmails: accountingEmails || null,
+            accountingEmailCc: accountingEmailCc || null,
             operationsGroupJid: operationsGroupJid || null,
             operationsGroupName: operationsGroupName || null,
             adminGroupJid: adminGroupJid || null,
@@ -501,6 +507,54 @@ export default function RhNotificationsPage() {
 
             {activeTab === "config" ? (
                 <div className="space-y-6">
+                    {/* Seção 0: Comunicação com a Contabilidade / DP (E-mails Oficiais) */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Mail className="w-5 h-5 text-blue-600" />
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-sm font-black text-slate-800">E-mails da Contabilidade / DP</h2>
+                                        <Badge className="bg-blue-600 text-white text-[9px] font-bold">Oficial</Badge>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">Defina os endereços eletrônicos da contabilidade para onde o sistema enviará férias, relatórios e processos.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl space-y-2">
+                                <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    <span>E-mails Principais (Destinatários)</span>
+                                </Label>
+                                <p className="text-[10px] text-slate-500 leading-tight">
+                                    E-mails que recebem as solicitações de cálculo de férias e relatórios de folha. Separe múltiplos e-mails por vírgula.
+                                </p>
+                                <Input
+                                    placeholder="Ex: contabilidade@grupojvsserv.com.br, dp@escritorio.com.br"
+                                    value={accountingEmails}
+                                    onChange={(e) => setAccountingEmails(e.target.value)}
+                                    className="h-9 text-xs bg-white rounded-xl border-slate-200 font-mono text-[11px]"
+                                />
+                            </div>
+
+                            <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-2">
+                                <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                    <span>E-mails em Cópia (CC)</span>
+                                </Label>
+                                <p className="text-[10px] text-slate-500 leading-tight">
+                                    Recebem uma cópia oculta/visível de acompanhamento de todas as transmissões efetuadas pelo sistema.
+                                </p>
+                                <Input
+                                    placeholder="Ex: dp@grupojvsserv.com.br, diretoria@grupojvsserv.com.br"
+                                    value={accountingEmailCc}
+                                    onChange={(e) => setAccountingEmailCc(e.target.value)}
+                                    className="h-9 text-xs bg-white rounded-xl border-slate-200 font-mono text-[11px]"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Seção 1: Grupos Principais do WhatsApp */}
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
                         <div className="flex items-center justify-between">

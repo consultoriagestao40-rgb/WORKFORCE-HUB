@@ -333,6 +333,10 @@ export async function sendVacationAccountingEmail(params: {
     const smtpUser = process.env.SMTP_USER || "dp@grupojvsserv.com.br";
     const smtpPass = process.env.SMTP_PASS;
 
+    // Buscar e-mails CC da contabilidade configurados no RH
+    const rhConfig = await prisma.rhNotificationConfig.findFirst();
+    const configuredCc = (rhConfig as any)?.accountingEmailCc?.trim();
+
     if (smtpHost && smtpPass) {
         try {
             const transporter = nodemailer.createTransport({
@@ -345,6 +349,7 @@ export async function sendVacationAccountingEmail(params: {
             await transporter.sendMail({
                 from: `"Departamento Pessoal" <${smtpUser}>`,
                 to: params.recipientEmail,
+                cc: configuredCc || undefined,
                 subject,
                 html: htmlBody
             });
