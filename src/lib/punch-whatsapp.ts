@@ -8,23 +8,30 @@ const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F5c1b8f27f6b049c98c4
 
 export const DEFAULT_OPERATIONS_GROUP = "120363412937009664-group";
 
-let lastZapiCallTimestamp = 0;
+let zapiCallChain: Promise<any> = Promise.resolve();
 
 /**
- * Throttle inteligente anti-bloqueio entre chamadas da Z-API.
- * Aguarda entre minMs e maxMs (padrão 5 a 10s) para simular ritmo humano.
+ * Fila com Throttle inteligente anti-bloqueio entre chamadas da Z-API.
+ * Enfileira e aguarda estritamente entre minMs e maxMs (5 a 10 segundos)
+ * garantindo que MESMO chamadas concorrentes/simultâneas de rotinas diferentes
+ * ou envios para múltiplos grupos e privados respeitem o intervalo humano.
  */
-export async function enforceZapiDelay(minMs: number = 5000, maxMs: number = 9000): Promise<void> {
-    const now = Date.now();
-    const elapsed = now - lastZapiCallTimestamp;
-    const targetDelay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+export async function enforceZapiDelay(minMs: number = 5000, maxMs: number = 10000): Promise<void> {
+    const nextCall = zapiCallChain.then(async () => {
+        const now = Date.now();
+        const elapsed = now - lastZapiCallTimestamp;
+        const targetDelay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
-    if (elapsed < targetDelay) {
-        const wait = targetDelay - elapsed;
-        console.log(`[Anti-Spam Z-API] 🛡️ Aguardando ${Math.round(wait / 1000)}s antes do próximo envio...`);
-        await new Promise(resolve => setTimeout(resolve, wait));
-    }
-    lastZapiCallTimestamp = Date.now();
+        if (elapsed < targetDelay && lastZapiCallTimestamp > 0) {
+            const wait = targetDelay - elapsed;
+            console.log(`[Anti-Spam Z-API] 🛡️ Retardo humano ativo: aguardando ${(wait / 1000).toFixed(1)}s antes do próximo envio...`);
+            await new Promise(resolve => setTimeout(resolve, wait));
+        }
+        lastZapiCallTimestamp = Date.now();
+    });
+
+    zapiCallChain = nextCall.catch(() => {});
+    return nextCall;
 }
 
 function normalizePhone(target: string): string {
