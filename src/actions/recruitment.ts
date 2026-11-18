@@ -2554,7 +2554,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
     const gender = (overrides?.gender || mergedExtra.gender || mergedExtra.genero || null)?.trim() || null;
     const address = (overrides?.address || mergedExtra.address || mergedExtra.endereco || null)?.trim() || null;
 
-    // 8. Find existing employee by linked id, formatted CPF, digits-only CPF, raw CPF, or Name (case-insensitive)
+    // 8. Find existing employee by linked id, formatted CPF, digits-only CPF, raw CPF, or Name (case-insensitive & accent-insensitive)
     const linkedEmployeeId = candExtra.allocatedEmployeeId || overrideExtra.allocatedEmployeeId;
     let existingEmployee = linkedEmployeeId
         ? await prisma.employee.findUnique({ where: { id: linkedEmployeeId } })
@@ -2566,11 +2566,29 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
                 OR: [
                     ...(formattedCpf ? [{ cpf: formattedCpf }] : []),
                     ...(digitsOnlyCpf ? [{ cpf: digitsOnlyCpf }] : []),
-                    ...(rawCpf && !rawCpf.startsWith('TEMP-') ? [{ cpf: rawCpf }] : []),
+                    ...(rawCpf && !rawCpf.startsWith('TEMP-') && !rawCpf.startsWith('PENDENTE-') ? [{ cpf: rawCpf }] : []),
                     { name: { equals: name, mode: "insensitive" } }
                 ]
             }
         });
+    }
+
+    // Se ainda não encontrou e o nome pode ter diferença de acentuação (ex: "Joseli de Fatima" vs "Joseli de Fátima")
+    if (!existingEmployee && name) {
+        const cleanTargetName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+        const candidateMatches = await prisma.employee.findMany({
+            where: {
+                status: { notIn: ["Desligado", "Inativo"] }
+            },
+            select: { id: true, name: true, cpf: true, roleId: true, companyId: true, situationId: true, birthDate: true, gender: true, address: true, phone: true, email: true, dismissalReason: true, dismissalNotes: true }
+        });
+        const matched = candidateMatches.find(e => {
+            const cleanDbName = e.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+            return cleanDbName === cleanTargetName;
+        });
+        if (matched) {
+            existingEmployee = matched as any;
+        }
     }
 
     let employeeId: string;
@@ -2628,7 +2646,8 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
             return { success: false, employeeId: existingEmployee.id, name, cpf: existingEmployee.cpf || rawCpf, postoId: null, blocked: true, reason: 'EMPLOYEE_DISMISSED' };
         }
 
-        // Se o existente tem TEMP- e agora temos o CPF real, substitui o TEMP- pelo CPF real!
+        // Se o existente tem TEMP- ou PENDENTE- e agora temos o CPF real, substitui o provisório pelo CPF real!
+        const isExistingCpfPending = existingEmployee.cpf?.startsWith('PENDENTE-') || existingEmployee.cpf?.startsWith('TEMP-');
         const resolvedCpf = (formattedCpf || digitsOnlyCpf || rawCpf)
             ? (formattedCpf || digitsOnlyCpf || rawCpf)
             : existingEmployee.cpf;
@@ -2637,7 +2656,7 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
             where: { id: existingEmployee.id },
             data: {
                 ...employeePayload,
-                cpf: resolvedCpf,
+                cpf: (isExistingCpfPending && (formattedCpf || digitsOnlyCpf || rawCpf)) ? resolvedCpf : existingEmployee.cpf,
                 // NUNCA sobrescrever situação de desligamento com status Ativo
                 situationId: existingEmployee.situationId,
                 dismissalReason: existingEmployee.dismissalReason,
@@ -2646,14 +2665,47 @@ export async function syncCandidateToEmployeeAndPosto(candidateId: string, overr
         });
         employeeId = updated.id;
     } else {
-        const effectiveCpf = formattedCpf || digitsOnlyCpf || rawCpf || `PENDENTE-${Date.now()}`;
-        const created = await prisma.employee.create({
-            data: {
-                ...employeePayload,
-                cpf: effectiveCpf
+        // Se já existe um colaborador no banco com este mesmo CPF real, NUNCA criar outro com PENDENTE-
+        const effectiveCpf = formattedCpf || digitsOnlyCpf || rawCpf;
+        if (!effectiveCpf) {
+            // Se não tem CPF ainda, verifica novamente se já existe alguém com esse nome antes de gerar PENDENTE-
+            const cleanTargetName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+            const anyActive = await prisma.employee.findMany({
+                where: { status: { notIn: ["Desligado", "Inativo"] } },
+                select: { id: true, name: true, cpf: true }
+            });
+            const dup = anyActive.find(e => {
+                const clean = e.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+                return clean === cleanTargetName;
+            });
+            if (dup) {
+                console.log(`[syncCandidateToEmployeeAndPosto] EVITANDO DUPLICATA: Colaborador ${dup.name} (${dup.id}) já existe no banco. Vinculando em vez de criar PENDENTE.`);
+                const updated = await prisma.employee.update({
+                    where: { id: dup.id },
+                    data: {
+                        ...employeePayload,
+                        cpf: dup.cpf
+                    }
+                });
+                employeeId = updated.id;
+            } else {
+                const created = await prisma.employee.create({
+                    data: {
+                        ...employeePayload,
+                        cpf: `PENDENTE-${Date.now()}`
+                    }
+                });
+                employeeId = created.id;
             }
-        });
-        employeeId = created.id;
+        } else {
+            const created = await prisma.employee.create({
+                data: {
+                    ...employeePayload,
+                    cpf: effectiveCpf
+                }
+            });
+            employeeId = created.id;
+        }
     }
 
     // Salvar o vínculo explícito no candidato para nunca mais duplicar
