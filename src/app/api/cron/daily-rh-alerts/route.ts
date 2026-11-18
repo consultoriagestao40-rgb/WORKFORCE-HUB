@@ -289,7 +289,33 @@ export async function GET(request: Request) {
                 const startVac = startOfDay(new Date(vac.startDate));
                 const endVac = startOfDay(new Date(vac.endDate));
 
-                // A. 1 DIA ANTES DO INÍCIO DAS FÉRIAS
+                // ── AVISO FINANCEIRO: PRAZO DE PAGAMENTO DAS FÉRIAS (Art. 145 CLT: 2 dias antes do início) ──
+                // Envia para o PV da Diretoria (Cristiano) e Coordenação RH/DP (Késia)
+                const daysToStart = differenceInDays(startVac, todayStart);
+                if (daysToStart === 2 || daysToStart === 0) {
+                    const payMsg = daysToStart === 2
+                        ? `💰 *[FINANCEIRO / DP - PRAZO LIMITE DE PAGAMENTO DE FÉRIAS]*\n\n` +
+                          `👤 *Colaborador:* ${emp.name}\n` +
+                          `📍 *Contrato:* ${clientName}\n` +
+                          `🏖️ *Início das Férias:* ${format(vac.startDate, 'dd/MM/yyyy')} (em 2 dias)\n` +
+                          `📅 *Dias de Férias:* ${vac.daysTaken} dias\n` +
+                          `⚠️ *Artigo 145 da CLT:* O pagamento da remuneração das férias e 1/3 constitucional deve ser efetuado até 2 dias antes do início do respectivo período!`
+                        : `🚨 *[FINANCEIRO / DP - FÉRIAS INICIAM HOJE / VERIFICAR QUITAÇÃO]*\n\n` +
+                          `👤 *Colaborador:* ${emp.name}\n` +
+                          `📍 *Contrato:* ${clientName}\n` +
+                          `🏖️ *Início:* HOJE (${format(vac.startDate, 'dd/MM/yyyy')})\n` +
+                          `⚠️ *Atenção:* Certifique-se de que o recibo e o pagamento foram devidamente compensados para evitar a dobra judicial do Art. 137 da CLT.`;
+
+                    await dispatchRhNotification({
+                        event: 'PRAZO_RESCISAO', // Usa o canal restrito financeiro (PV Cristiano + PV Késia)
+                        title: `Pagamento de Férias: ${emp.name}`,
+                        message: payMsg,
+                        metadata: { employeeId: emp.id, type: 'VACATION_PAYMENT' }
+                    });
+                    alertsSent++;
+                }
+
+                // A. 1 DIA ANTES DO INÍCIO DAS FÉRIAS (Aviso Operacional para o Grupo)
                 if (config.notifyVacationEveStart) {
                     const daysToStart = differenceInDays(startVac, todayStart);
                     if (daysToStart === 1) {
