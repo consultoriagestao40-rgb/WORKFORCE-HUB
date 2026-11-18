@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { enforceZapiDelay } from "@/lib/punch-whatsapp";
 
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3F1993DFB59E83474F059E648AE68DF9";
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "81087A6B5C1CAB8AAAC801C4";
@@ -47,6 +48,7 @@ export interface DispatchNotificationPayload {
  */
 export async function sendZapiRaw(target: string, message: string): Promise<{ success: boolean; zapiId?: string; error?: string }> {
     try {
+        await enforceZapiDelay(5000, 9000);
         if (!target) return { success: false, error: "Destinatário vazio" };
 
         let finalPhone = target.trim();
