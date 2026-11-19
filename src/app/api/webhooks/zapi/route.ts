@@ -168,6 +168,40 @@ export async function POST(req: Request) {
                 }
             }
 
+            // 1.1 GRUPO DE BENEFÍCIOS JVS: Abertura automática de Tickets e SLA
+            const rawGroupNameCheck = (body.groupName || body.chatName || "").toString().toUpperCase();
+            const isBenefitsGroup = groupPhone.includes("120363432997278870") || 
+                                    rawGroupNameCheck.includes("BENEFÍCIOS") || 
+                                    rawGroupNameCheck.includes("BENEFICIOS");
+
+            if (!isFromMe && isBenefitsGroup && !!content) {
+                try {
+                    const { tryProcessBenefitGroupMessage } = await import("@/lib/benefit-tickets-parser");
+                    const { sendZapiWithMentions } = await import("@/lib/punch-whatsapp");
+
+                    const ticketRes = await tryProcessBenefitGroupMessage({
+                        messageText: content,
+                        senderPhone: participantPhone,
+                        senderName: participantName,
+                        groupPhone,
+                        groupName: body.groupName || body.chatName || "GRUPO DE BENEFÍCIOS JVS",
+                        messageId: msgId || undefined
+                    });
+
+                    if (ticketRes.handled && ticketRes.replyText) {
+                        await sendZapiWithMentions({
+                            target: groupPhone,
+                            message: ticketRes.replyText,
+                            mentionedPhones: participantPhone ? [participantPhone] : []
+                        });
+                        console.log(`[Z-API] 🎫 Mensagem do Grupo de Benefícios processada e respondida!`);
+                        return NextResponse.json({ status: "benefit_ticket_created_and_answered" });
+                    }
+                } catch (bTicketErr) {
+                    console.error("[Z-API] Erro ao processar mensagem do Grupo de Benefícios:", bTicketErr);
+                }
+            }
+
             // 2. VERIFICAÇÃO RIGOROSA DE ATESTADOS: Apenas captura se for estritamente o grupo de ATESTADOS & FALTAS
             const rawGroupName = (body.groupName || body.chatName || "").toString().toUpperCase();
             const isAtestadoGroup = rawGroupName.includes("ATESTADO") || rawGroupName.includes("FALTA");

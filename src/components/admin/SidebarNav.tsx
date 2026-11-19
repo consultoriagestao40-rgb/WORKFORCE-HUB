@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse, CheckSquare } from "lucide-react";
+import { Users, Building, ClipboardList, LayoutDashboard, History, Clock, Calendar, Building2, ShieldAlert, Briefcase, DollarSign, LogOut, Inbox, AlertCircle, BarChart, UserPlus, Landmark, CreditCard, Calculator, Scale, Shirt, Headphones, FileText, Scissors, BellRing, HeartPulse, CheckSquare, Ticket } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -146,6 +146,7 @@ export function SidebarNav({ user, isCollapsed = false }: SidebarNavProps) {
                 <NavLink href="/admin/payroll-preview" icon={Calculator} label="Prévia de Folha" colorClass="text-sky-400" />
                 <NavLink href="/admin/payroll-audit" icon={ShieldAlert} label="Auditoria de Folha" colorClass="text-purple-400 font-bold" />
                 <NavLink href="/admin/benefits" icon={CreditCard} label="Compra de Benefícios" colorClass="text-orange-400" />
+                <NavLink href="/admin/tickets-beneficios" icon={Ticket} label="Chamados de Benefícios" colorClass="text-indigo-400 font-bold" />
                 <NavLink href="/admin/holerites" icon={Scissors} label="Separador de Holerites" colorClass="text-teal-400 font-bold" />
 
                 {!isCollapsed && <div className="h-px bg-white/5 my-6 mx-3" />}

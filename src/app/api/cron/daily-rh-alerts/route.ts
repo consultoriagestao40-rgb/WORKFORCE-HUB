@@ -440,6 +440,54 @@ export async function GET(request: Request) {
             }
         }
 
+        // 5. MONITOR DE SLA DE TICKETS DE BENEFÍCIOS (Avisos para Cristiano & Késia)
+        const pendingBenefitTickets = await (prisma as any).benefitTicket.findMany({
+            where: {
+                status: { in: ["OPEN", "IN_PROGRESS"] }
+            },
+            include: { type: true }
+        });
+
+        const now = new Date();
+        for (const ticket of pendingBenefitTickets) {
+            const dueDate = new Date(ticket.dueAt);
+            const remainingHours = Math.round((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+            const isOverdue = dueDate < now;
+
+            // Alerta se estiver vencido OU com menos de 4 horas para vencer
+            if (isOverdue || (remainingHours <= 4 && remainingHours >= 0)) {
+                const dueStr = format(dueDate, "dd/MM/yyyy HH:mm");
+                const alertTitle = isOverdue 
+                    ? `🚨 SLA ESTOURADO: Ticket #${ticket.ticketNumber} (${ticket.category})`
+                    : `⚠️ SLA PRÓXIMO DO FIM: Ticket #${ticket.ticketNumber}`;
+
+                const alertMsg = isOverdue
+                    ? `🚨 *[URGENTE - SLA DE BENEFÍCIOS ESTOURADO]* 🚨\n\n` +
+                      `O chamado abaixo atingiu o limite de SLA sem resolução:\n\n` +
+                      `🎫 *Ticket:* #${ticket.ticketNumber}\n` +
+                      `👤 *Colaborador:* ${ticket.employeeName}\n` +
+                      `🏢 *Posto/Cliente:* ${ticket.postoName || ticket.clientName || "Geral"}\n` +
+                      `🏷️ *Assunto:* ${ticket.title}\n` +
+                      `⏱️ *Prazo Limite:* ${dueStr} (VENCIDO!)\n\n` +
+                      `👉 *Ação:* Acesse a tela de Chamados de Benefícios e finalize a tratativa com a devolutiva!`
+                    : `⚠️ *[ALERTA - SLA DE BENEFÍCIOS EXPIRANDO]* ⚠️\n\n` +
+                      `O chamado abaixo tem menos de 4 horas restantes de SLA:\n\n` +
+                      `🎫 *Ticket:* #${ticket.ticketNumber}\n` +
+                      `👤 *Colaborador:* ${ticket.employeeName}\n` +
+                      `🏷️ *Assunto:* ${ticket.title}\n` +
+                      `⏱️ *Prazo Limite:* ${dueStr} (Resta aprox. ${remainingHours}h)\n\n` +
+                      `👉 *Ação:* Verificar com o DP o andamento da recarga/solicitação.`;
+
+                await dispatchRhNotification({
+                    event: 'PRAZO_RESCISAO', // Canal financeiro/diretoria (PV Cristiano + PV Késia)
+                    title: alertTitle,
+                    message: alertMsg,
+                    metadata: { benefitTicketId: ticket.id, isOverdue }
+                });
+                alertsSent++;
+            }
+        }
+
         return NextResponse.json({
             success: true,
             alertsSent,
