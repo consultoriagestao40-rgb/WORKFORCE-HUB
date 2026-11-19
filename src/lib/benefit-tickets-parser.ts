@@ -11,6 +11,11 @@ export interface ParsedBenefitRequest {
     slaHours: number;
 }
 
+/** Formata CPF com máscara 000.000.000-00 a partir de 11 dígitos */
+function formatCpfMask(clean: string): string {
+    return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
 /** Extrai CPF de 11 dígitos com ou sem pontuação */
 function extractCpf(text: string): string | null {
     // 1. Formato 000.000.000-00
@@ -26,15 +31,56 @@ function extractCpf(text: string): string | null {
     return null;
 }
 
+/** Limpa prefixos comuns antes do nome (saudações, pedidos de recarga, etc) */
+function cleanExtractedName(raw: string): string {
+    let name = raw.trim();
+    const patterns = [
+        /^(bom\s+dia|boa\s+tarde|boa\s+noite|ol[aá])\s*[,-]?\s*/i,
+        /^(favor\s+verificar|verificar|solicito|solicita[cç][aã]o|ajuda|aten[cç][aã]o)\s*(?:com\s+|sobre\s+|o\s+|a\s+|recarga\s+d[oa]\s+|pagamento\s+d[oa]\s+)?/i,
+        /^(?:da|do|colaborador[a]?|funcion[aá]rio[a]?|nome|posto)\s*[:=-]?\s*/i,
+        /^(?:da|do)\s+/i
+    ];
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const p of patterns) {
+            const nextVal = name.replace(p, "").trim();
+            if (nextVal !== name) {
+                name = nextVal;
+                changed = true;
+            }
+        }
+    }
+    return name.replace(/^[\s,.:-]+|[\s,.:-]+$/g, "").trim();
+}
+
 /** Tenta extrair nome do funcionário */
 function extractName(text: string, foundCpf: string | null): string | null {
-    // Padrão comum: "Nome, CPF ..." ou "o Fulano de Tal, CPF..." ou "Colaborador: Fulano"
-    const regex1 = /(?:o|a|colaborador|funcionário|funcionario)?\s*([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)+)/;
+    // 1. Se tem CPF, o texto que antecede "CPF" costuma ser o Nome (ex: "CELINA PEREIRA DA SILVA CPF: 056.212.559-09")
+    const cpfIndexMatch = text.match(/\bcpf\b/i);
+    if (cpfIndexMatch && cpfIndexMatch.index !== undefined && cpfIndexMatch.index > 3) {
+        let beforeCpf = text.substring(0, cpfIndexMatch.index);
+        const cleaned = cleanExtractedName(beforeCpf);
+        if (cleaned.length >= 4 && cleaned.includes(" ")) {
+            return cleaned;
+        }
+    }
+
+    // 2. Padrão "Colaborador: Fulano de Tal" ou "Nome: Fulano"
+    const matchLabeled = text.match(/(?:colaborador[a]?|funcion[aá]rio[a]?|nome)\s*[:=-]\s*([A-Za-zÀ-ÖØ-öø-ÿ\s]{4,60})/i);
+    if (matchLabeled && matchLabeled[1]) {
+        const candidate = matchLabeled[1].split(/[\n,;]|cpf/i)[0];
+        const cleaned = cleanExtractedName(candidate);
+        if (cleaned.length >= 4) return cleaned;
+    }
+
+    // 3. Padrão Nome Capitalizado ou Caixa Alta com múltiplas palavras
+    const regex1 = /(?:o|a)?\s*([A-Za-zÀ-ÖØ-öø-ÿ]{2,}(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ]{2,})+)/;
     const match = text.match(regex1);
     if (match && match[1]) {
-        const candidate = match[1].trim();
-        // Evitar pegar palavras como "Bom Dia", "Grupo De Beneficios"
-        if (!/^(bom dia|boa tarde|boa noite|grupo de|prezados)/i.test(candidate)) {
+        const candidate = cleanExtractedName(match[1]);
+        if (candidate.length >= 5 && candidate.includes(" ")) {
             return candidate;
         }
     }
@@ -160,11 +206,18 @@ export async function tryProcessBenefitGroupMessage(params: {
         return { handled: false };
     }
 
-    // 2. Localizar funcionário no banco de dados
+    // 2. Localizar funcionário no banco de dados (por CPF com ou sem máscara, ou por nome)
     let employee: any = null;
     if (cleanCpf) {
-        employee = await (prisma as any).employee.findUnique({
-            where: { cpf: cleanCpf },
+        const maskedCpf = formatCpfMask(cleanCpf);
+        employee = await (prisma as any).employee.findFirst({
+            where: {
+                OR: [
+                    { cpf: cleanCpf },
+                    { cpf: maskedCpf },
+                    { cpf: { contains: cleanCpf } }
+                ]
+            },
             include: {
                 assignments: {
                     where: { endDate: null },
