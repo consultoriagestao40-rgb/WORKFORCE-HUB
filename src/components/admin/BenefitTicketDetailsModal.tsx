@@ -14,13 +14,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     getBenefitTicketDetails, 
     addBenefitTicketNote, 
     addBenefitTicketAttachment, 
     sendBenefitTicketChatMessage, 
     resolveBenefitTicket,
-    updateBenefitTicketStatus
+    updateBenefitTicketStatus,
+    updateBenefitTicketTypeAndSla,
+    getBenefitTicketTypes,
+    getBenefitTicketStatusList,
+    transferBenefitTicket,
+    getBenefitAssignableUsers
 } from "@/actions/benefit-tickets";
 import { toast } from "sonner";
 import { 
@@ -38,7 +44,10 @@ import {
     ExternalLink,
     RefreshCw,
     Check,
-    MessageCircle
+    MessageCircle,
+    ArrowRightLeft,
+    DollarSign,
+    Users
 } from "lucide-react";
 
 interface Props {
@@ -71,12 +80,39 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
     // Upload de Arquivo / Comprovante
     const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
+    // Modal de Transferência / Delegação para Financeiro
+    const [transferModalOpen, setTransferModalOpen] = useState(false);
+    const [assignableUsers, setAssignableUsers] = useState<any[]>([]);
+    const [selectedUserId, setSelectedUserId] = useState("");
+    const [transferReason, setTransferReason] = useState("");
+    const [transferStage, setTransferStage] = useState<"AGUARDANDO_FINANCEIRO" | "TRIAGEM_DP">("AGUARDANDO_FINANCEIRO");
+    const [submittingTransfer, setSubmittingTransfer] = useState(false);
+
+    // Tipos e Status Disponíveis para o Operador Alterar
+    const [availableTypes, setAvailableTypes] = useState<any[]>([]);
+    const [availableStatuses, setAvailableStatuses] = useState<any[]>([]);
+    const [changingType, setChangingType] = useState(false);
+    const [changingStatus, setChangingStatus] = useState(false);
+
     const loadData = async () => {
         if (!ticketId) return;
         setLoading(true);
         try {
-            const data = await getBenefitTicketDetails(ticketId);
+            const [data, users, typesList, statusList] = await Promise.all([
+                getBenefitTicketDetails(ticketId),
+                getBenefitAssignableUsers(),
+                getBenefitTicketTypes(),
+                getBenefitTicketStatusList()
+            ]);
             setTicket(data);
+            setAssignableUsers(users);
+            setAvailableTypes(typesList);
+            setAvailableStatuses(statusList);
+            if (users.length > 0 && !selectedUserId) {
+                // Seleciona Cristiano ou primeiro usuário da lista
+                const defaultUser = users.find((u: any) => u.name.toLowerCase().includes("cristiano")) || users[0];
+                setSelectedUserId(defaultUser.id);
+            }
         } catch (err: any) {
             toast.error(err.message || "Erro ao carregar detalhes do chamado");
         } finally {
@@ -185,15 +221,63 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
         }
     };
 
-    const handleStatusChange = async (newStatus: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED") => {
+    const handleStatusChange = async (newStatus: string) => {
         if (!ticketId) return;
+        setChangingStatus(true);
         try {
             await updateBenefitTicketStatus(ticketId, newStatus);
-            toast.success(`Status alterado para ${newStatus}`);
+            toast.success("Status atualizado com sucesso!");
             loadData();
             if (onUpdated) onUpdated();
         } catch (err: any) {
             toast.error(err.message || "Erro ao alterar status");
+        } finally {
+            setChangingStatus(false);
+        }
+    };
+
+    const handleTypeChange = async (newTypeId: string) => {
+        if (!ticketId) return;
+        setChangingType(true);
+        try {
+            await updateBenefitTicketTypeAndSla({
+                ticketId,
+                typeId: newTypeId
+            });
+            toast.success("Tipo de chamado e SLA reclassificados com sucesso!");
+            loadData();
+            if (onUpdated) onUpdated();
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao reclassificar chamado");
+        } finally {
+            setChangingType(false);
+        }
+    };
+
+    const handleTransferSubmit = async () => {
+        if (!ticketId || !selectedUserId) {
+            toast.error("Selecione o usuário responsável.");
+            return;
+        }
+
+        setSubmittingTransfer(true);
+        try {
+            await transferBenefitTicket({
+                ticketId,
+                targetUserId: selectedUserId,
+                transferReason,
+                targetStage: transferStage
+            });
+
+            toast.success("Chamado transferido e notificação enviada no WhatsApp particular do responsável!");
+            setTransferModalOpen(false);
+            setTransferReason("");
+            loadData();
+            if (onUpdated) onUpdated();
+        } catch (err: any) {
+            toast.error(err.message || "Erro ao transferir chamado");
+        } finally {
+            setSubmittingTransfer(false);
         }
     };
 
@@ -208,29 +292,80 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                     {/* HEADER DO TICKET */}
                     <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-slate-50/80">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <Badge className="text-sm font-black px-3 py-1 bg-indigo-600 text-white rounded-xl">
                                     #{ticket?.ticketNumber || "TK-..."}
                                 </Badge>
-                                <span 
-                                    className="px-2.5 py-0.5 rounded-lg text-xs font-bold text-white shadow-xs"
-                                    style={{ backgroundColor: ticket?.type?.color || "#3b82f6" }}
-                                >
-                                    {ticket?.type?.name || ticket?.category}
-                                </span>
-                                {ticket?.status === "RESOLVED" ? (
-                                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold">
-                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" /> CONCLUÍDO
-                                    </Badge>
-                                ) : ticket?.status === "IN_PROGRESS" ? (
-                                    <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-bold">
-                                        <Clock className="w-3.5 h-3.5 mr-1 text-amber-600" /> EM ANDAMENTO
-                                    </Badge>
-                                ) : (
-                                    <Badge className="bg-blue-100 text-blue-800 border-blue-300 font-bold">
-                                        ABERTO
-                                    </Badge>
-                                )}
+
+                                {/* Dropdown / Seletor de Tipo / Motivo */}
+                                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1.5 py-0.5 shadow-2xs">
+                                    <span className="text-[10px] font-bold text-slate-400 pl-1">Tipo:</span>
+                                    <Select 
+                                        value={ticket?.typeId || ""} 
+                                        onValueChange={handleTypeChange}
+                                        disabled={changingType || ticket?.status === "RESOLVED"}
+                                    >
+                                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent font-bold focus:ring-0 px-1 gap-1 text-slate-800">
+                                            <SelectValue placeholder="Selecione o Tipo">
+                                                <span 
+                                                    className="px-2 py-0.5 rounded-md text-[11px] font-bold text-white shadow-2xs"
+                                                    style={{ backgroundColor: ticket?.type?.color || "#3b82f6" }}
+                                                >
+                                                    {ticket?.type?.name || ticket?.category}
+                                                </span>
+                                            </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableTypes.map((t: any) => (
+                                                <SelectItem key={t.id} value={t.id} className="text-xs font-semibold">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />
+                                                        <span>{t.name}</span>
+                                                        <span className="text-[10px] text-slate-400 font-normal">({t.slaHours}h SLA)</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Dropdown / Seletor de Status */}
+                                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-1.5 py-0.5 shadow-2xs">
+                                    <span className="text-[10px] font-bold text-slate-400 pl-1">Status:</span>
+                                    <Select 
+                                        value={ticket?.status || "OPEN"} 
+                                        onValueChange={handleStatusChange}
+                                        disabled={changingStatus}
+                                    >
+                                        <SelectTrigger className="h-7 text-xs border-0 bg-transparent font-bold focus:ring-0 px-1 gap-1 text-slate-800">
+                                            <SelectValue placeholder="Status">
+                                                {(() => {
+                                                    const cur = availableStatuses.find((s: any) => s.code === ticket?.status);
+                                                    const bg = cur?.color || (ticket?.status === "RESOLVED" ? "#10b981" : "#3b82f6");
+                                                    return (
+                                                        <span 
+                                                            className="px-2 py-0.5 rounded-md text-[11px] font-black text-white"
+                                                            style={{ backgroundColor: bg }}
+                                                        >
+                                                            {cur?.name || ticket?.status}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableStatuses.map((s: any) => (
+                                                <SelectItem key={s.id || s.code} value={s.code} className="text-xs font-semibold">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                                                        <span>{s.name}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 {isOverdue && (
                                     <Badge className="bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse">
                                         <AlertTriangle className="w-3.5 h-3.5 mr-1 text-red-600" /> SLA VENCIDO
@@ -242,6 +377,15 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                             <div className="flex items-center gap-2">
                                 {ticket?.status !== "RESOLVED" && (
                                     <>
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline"
+                                            onClick={() => setTransferModalOpen(true)}
+                                            className="h-8 text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5"
+                                        >
+                                            <ArrowRightLeft className="w-3.5 h-3.5" /> Transferir / Financeiro
+                                        </Button>
+
                                         {ticket?.status === "OPEN" && (
                                             <Button 
                                                 size="sm" 
@@ -249,7 +393,7 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                                                 onClick={() => handleStatusChange("IN_PROGRESS")}
                                                 className="h-8 text-xs font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
                                             >
-                                                Assumir (Em Andamento)
+                                                Assumir
                                             </Button>
                                         )}
                                         <Button 
@@ -302,8 +446,11 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                                     </div>
 
                                     <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1">
-                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                                            <Building className="w-3.5 h-3.5 text-slate-400" /> Posto & Contrato
+                                        <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                                            <span className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-slate-400" /> Posto & Contrato</span>
+                                            <Badge variant="outline" className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-50 border-indigo-200">
+                                                {ticket?.stage === "AGUARDANDO_FINANCEIRO" ? "Financeiro" : "Triagem DP"}
+                                            </Badge>
                                         </div>
                                         <p className="text-sm font-extrabold text-slate-900 leading-tight">
                                             {ticket?.postoName || "Posto não identificado"}
@@ -312,7 +459,7 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                                             Cliente: <span className="font-semibold text-slate-700">{ticket?.clientName || "Geral"}</span>
                                         </p>
                                         <p className="text-xs text-slate-500 font-medium">
-                                            Solicitante: <span className="font-semibold text-slate-700">{ticket?.requestedByName}</span>
+                                            Responsável Atual: <span className="font-bold text-indigo-700">{ticket?.assignee?.name || "Késia Miranda (Coord. DP)"}</span>
                                         </p>
                                     </div>
 

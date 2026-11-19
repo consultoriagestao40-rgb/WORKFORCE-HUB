@@ -41,14 +41,19 @@ function extractName(text: string, foundCpf: string | null): string | null {
     return null;
 }
 
-/** Identifica a categoria do chamado com base no texto */
+/** Normaliza texto removendo acentos para casamentos robustos */
+function normalizeText(text: string): string {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/** Identifica a categoria do chamado com base no texto tolerando erros de digitação */
 async function detectCategoryAndType(text: string): Promise<{
     category: "VT" | "VA" | "ASSIDUIDADE" | "AJUDA_CUSTO" | "OUTROS";
     typeId: string | null;
     typeName: string;
     slaHours: number;
 }> {
-    const lower = text.toLowerCase();
+    const norm = normalizeText(text);
     const types = await (prisma as any).benefitTicketType.findMany({
         where: { isActive: true }
     });
@@ -57,8 +62,8 @@ async function detectCategoryAndType(text: string): Promise<{
     for (const t of types) {
         const kws = t.keywords || [];
         for (const kw of kws) {
-            const regex = new RegExp(`\\b${kw.toLowerCase()}\\b`, "i");
-            if (regex.test(lower)) {
+            const cleanKw = normalizeText(kw);
+            if (cleanKw && norm.includes(cleanKw)) {
                 return {
                     category: t.category as any,
                     typeId: t.id,
@@ -69,8 +74,9 @@ async function detectCategoryAndType(text: string): Promise<{
         }
     }
 
-    // 2. Fallbacks diretos
-    if (/\b(vt|transporte|urbs|metrocard|passagem)\b/i.test(lower)) {
+    // 2. Fallbacks diretos com alta tolerância a digitação (ex: 'transpote', 'tranporte', 'recarga', etc)
+    // Vale Transporte (VT)
+    if (/\b(vt)\b/i.test(norm) || /transp\w*|passag\w*|urbs|metrocard|metro card|recarga|onibus|linha\b/i.test(norm)) {
         const vtType = types.find((t: any) => t.category === "VT");
         return {
             category: "VT",
@@ -80,7 +86,8 @@ async function detectCategoryAndType(text: string): Promise<{
         };
     }
 
-    if (/\b(va|vr|caju|alimenta[cç][aã]o|refei[cç][aã]o|saldo caju)\b/i.test(lower)) {
+    // Vale Alimentação / Refeição (VA/VR/Caju)
+    if (/\b(va|vr)\b/i.test(norm) || /alimenta\w*|refei\w*|caju|ticket refeicao|vale aliment\w*/i.test(norm)) {
         const vaType = types.find((t: any) => t.category === "VA");
         return {
             category: "VA",
@@ -90,7 +97,8 @@ async function detectCategoryAndType(text: string): Promise<{
         };
     }
 
-    if (/\b(assiduidade|premio|b[oô]nus)\b/i.test(lower)) {
+    // Assiduidade
+    if (/assidu\w*|premio\w*|bonus\w*/i.test(norm)) {
         const assType = types.find((t: any) => t.category === "ASSIDUIDADE");
         return {
             category: "ASSIDUIDADE",
@@ -100,7 +108,8 @@ async function detectCategoryAndType(text: string): Promise<{
         };
     }
 
-    if (/\b(ajuda de custo|combustivel|km|reembolso)\b/i.test(lower)) {
+    // Ajuda de Custo
+    if (/ajuda\s+de\s+custo|combustivel|km|reembolso/i.test(norm)) {
         const ajType = types.find((t: any) => t.category === "AJUDA_CUSTO");
         return {
             category: "AJUDA_CUSTO",
@@ -235,6 +244,18 @@ export async function tryProcessBenefitGroupMessage(params: {
     const nextCode = (lastTicket?.code || 1000) + 1;
     const ticketNumber = `TK-${nextCode}`;
 
+    // 6.5. Obter Usuário Padrão Responsável (Késia Miranda / DP)
+    const defaultAssignee = await (prisma as any).user.findFirst({
+        where: {
+            OR: [
+                { email: "dp@grupojvsserv.com.br" },
+                { role: "COORD_RH" },
+                { name: { contains: "Kesia", mode: "insensitive" } }
+            ],
+            isActive: true
+        }
+    });
+
     // 7. Criar Ticket no Banco de Dados
     const createdTicket = await (prisma as any).benefitTicket.create({
         data: {
@@ -254,6 +275,8 @@ export async function tryProcessBenefitGroupMessage(params: {
             requestedByPhone: params.senderPhone,
             requestedByName: params.senderName,
             sourceMessageId: params.messageId || null,
+            assigneeId: defaultAssignee?.id || null,
+            stage: "TRIAGEM_DP",
             status: "OPEN",
             priority: "MEDIUM",
             slaHours: detection.slaHours,
@@ -266,9 +289,29 @@ export async function tryProcessBenefitGroupMessage(params: {
         data: {
             ticketId: createdTicket.id,
             userName: "Robô de Atendimento WhatsApp",
-            content: `Ticket aberto automaticamente via mensagem no grupo "${params.groupName || 'GRUPO DE BENEFÍCIOS JVS'}" enviada por ${params.senderName} (${params.senderPhone}).\nMensagem original: "${text}"`
+            content: `Ticket aberto automaticamente via mensagem no grupo "${params.groupName || 'GRUPO DE BENEFÍCIOS JVS'}" enviada por ${params.senderName} (${params.senderPhone}).\nResponsável Inicial: ${defaultAssignee?.name || 'Coordenação DP (Késia)'}.\nMensagem original: "${text}"`
         }
     });
+
+    // 8.5. Notificar Késia no WhatsApp Particular sobre o novo chamado
+    if (defaultAssignee?.phone) {
+        const cleanKesiaPhone = defaultAssignee.phone.replace(/\D/g, "");
+        const kesiaNotifyMsg = `🎫 *[NOVO CHAMADO DE BENEFÍCIOS ATRIBUÍDO A VOCÊ]* 🎫\n\n` +
+            `Olá, *${defaultAssignee.name}*!\nUm novo chamado foi aberto no grupo e atribuído a você:\n\n` +
+            `🔖 *Ticket:* #${ticketNumber}\n` +
+            `👤 *Colaborador:* ${finalEmployeeName} ${maskedCpfStr ? `(CPF: ${maskedCpfStr})` : ""}\n` +
+            `🏢 *Posto/Cliente:* ${postoName || clientName || "Geral"}\n` +
+            `🏷️ *Tipo:* ${detection.typeName}\n` +
+            `⏱️ *SLA:* até ${dueStr}\n` +
+            `💬 *Solicitado por:* ${params.senderName}\n\n` +
+            `👉 *Acesse o portal para tratar:* https://workforce-hub-henna.vercel.app/admin/tickets-beneficios`;
+
+        try {
+            await sendZapiRaw(cleanKesiaPhone, kesiaNotifyMsg);
+        } catch (kErr) {
+            console.error("[benefit-tickets] Erro ao avisar Késia no privado:", kErr);
+        }
+    }
 
     // 9. Resposta Oficial e Instantânea no Grupo
     const dueStr = formatDueEstimate(dueAt);
@@ -282,7 +325,7 @@ export async function tryProcessBenefitGroupMessage(params: {
         (postoName ? `📍 *Posto:* ${postoName}\n` : "") +
         `📌 *Assunto:* ${detection.typeName}\n` +
         `⏱️ *Previsão de Retorno (SLA):* até ${dueStr} (${detection.slaHours}h úteis)\n` +
-        `👨‍💻 *Responsável:* Departamento Pessoal / Benefícios\n\n` +
+        `👩‍💼 *Responsável:* ${defaultAssignee?.name || "Késia Miranda (Coord. DP)"}\n\n` +
         `_Assim que a verificação ou recarga for efetuada, o encerramento com o comprovante será notificado aqui no grupo._ ✅`;
 
     return { handled: true, replyText };

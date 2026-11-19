@@ -63,6 +63,7 @@ model User {
   isApproverN2               Boolean                     @default(false)
 
   // Tickets de Benefícios
+  assignedBenefitTickets     BenefitTicket[]             @relation("BenefitTicketAssignee")
   resolvedBenefitTickets     BenefitTicket[]             @relation("BenefitTicketResolver")
   benefitTicketNotes         BenefitTicketNote[]
   benefitTicketAttachments   BenefitTicketAttachment[]
@@ -1750,6 +1751,18 @@ model BenefitTicketType {
   updatedAt DateTime        @updatedAt
 }
 
+model BenefitTicketStatusConfig {
+  id        String          @id @default(uuid())
+  code      String          @unique // ex: 'OPEN', 'IN_PROGRESS', 'WAITING_PAYMENT', 'RESOLVED', 'CANCELLED'
+  name      String          // ex: 'Aberto', 'Em Atendimento (DP)', 'Aguardando Pagamento (Financeiro)', 'Concluído'
+  color     String          @default("#64748b")
+  order     Int             @default(0)
+  isDefault Boolean         @default(false)
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
 model BenefitTicket {
   id                    String                    @id @default(uuid())
   code                  Int                       @unique @default(autoincrement())
@@ -1775,6 +1788,11 @@ model BenefitTicket {
   requestedByPhone      String?
   requestedByName       String?
   sourceMessageId       String?
+
+  // Responsável Atual & Etapa do Fluxo
+  assigneeId            String?
+  assignee              User?                     @relation("BenefitTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  stage                 String                    @default("TRIAGEM_DP") // 'TRIAGEM_DP' | 'AGUARDANDO_FINANCEIRO' | 'CONCLUIDO'
 
   // Status e Prazos (SLA)
   status                String                    @default("OPEN") // 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CANCELLED'

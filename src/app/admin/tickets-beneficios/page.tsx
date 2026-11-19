@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
     getBenefitTickets, 
     getBenefitTicketTypes, 
+    getBenefitTicketStatusList,
     BenefitTicketItem, 
     BenefitTicketTypeItem 
 } from "@/actions/benefit-tickets";
@@ -40,6 +41,7 @@ import { toast } from "sonner";
 export default function BenefitTicketsPage() {
     const [tickets, setTickets] = useState<BenefitTicketItem[]>([]);
     const [types, setTypes] = useState<BenefitTicketTypeItem[]>([]);
+    const [statusList, setStatusList] = useState<any[]>([]);
     const [kpis, setKpis] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -56,18 +58,20 @@ export default function BenefitTicketsPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [ticketsRes, typesRes] = await Promise.all([
+            const [ticketsRes, typesRes, statusesRes] = await Promise.all([
                 getBenefitTickets({
                     status: statusFilter,
                     category: categoryFilter,
                     search: search.trim() || undefined
                 }),
-                getBenefitTicketTypes()
+                getBenefitTicketTypes(),
+                getBenefitTicketStatusList()
             ]);
 
             setTickets(ticketsRes.tickets);
             setKpis(ticketsRes.kpis);
             setTypes(typesRes);
+            setStatusList(statusesRes);
         } catch (err: any) {
             toast.error(err.message || "Erro ao carregar chamados de benefícios");
         } finally {
@@ -244,14 +248,16 @@ export default function BenefitTicketsPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                     {/* Filtro Status */}
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="text-xs rounded-xl h-9 w-36">
+                        <SelectTrigger className="text-xs rounded-xl h-9 w-44">
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">Todos os Status</SelectItem>
-                            <SelectItem value="OPEN">Abertos</SelectItem>
-                            <SelectItem value="IN_PROGRESS">Em Andamento</SelectItem>
-                            <SelectItem value="RESOLVED">Concluídos</SelectItem>
+                            {statusList.map((s: any) => (
+                                <SelectItem key={s.id || s.code} value={s.code}>
+                                    {s.name}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
 
@@ -345,19 +351,27 @@ export default function BenefitTicketsPage() {
 
                                     {/* Status */}
                                     <td className="py-3.5 px-4 text-center">
-                                        {t.status === "RESOLVED" ? (
-                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold text-[10px]">
-                                                <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" /> CONCLUÍDO
-                                            </Badge>
-                                        ) : t.status === "IN_PROGRESS" ? (
-                                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 font-bold text-[10px]">
-                                                <Clock className="w-3 h-3 mr-1 text-amber-600" /> EM ANDAMENTO
-                                            </Badge>
-                                        ) : (
-                                            <Badge className="bg-blue-100 text-blue-800 border-blue-300 font-bold text-[10px]">
-                                                ABERTO
-                                            </Badge>
-                                        )}
+                                        {(() => {
+                                            const stConfig = statusList.find(s => s.code === t.status);
+                                            const color = stConfig?.color || (
+                                                t.status === "RESOLVED" ? "#10b981" :
+                                                t.status === "WAITING_PAYMENT" ? "#8b5cf6" :
+                                                t.status === "IN_PROGRESS" ? "#f59e0b" : "#3b82f6"
+                                            );
+                                            const label = stConfig?.name || (
+                                                t.status === "RESOLVED" ? "CONCLUÍDO" :
+                                                t.status === "WAITING_PAYMENT" ? "AGUARDANDO PAGAMENTO" :
+                                                t.status === "IN_PROGRESS" ? "EM ANDAMENTO" : "ABERTO"
+                                            );
+                                            return (
+                                                <span 
+                                                    className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-black text-white"
+                                                    style={{ backgroundColor: color }}
+                                                >
+                                                    {label}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
 
                                     {/* SLA / Vencimento */}

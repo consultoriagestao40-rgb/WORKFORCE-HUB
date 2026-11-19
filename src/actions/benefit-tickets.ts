@@ -36,7 +36,10 @@ export interface BenefitTicketItem {
     requestedByPhone: string | null;
     requestedByName: string | null;
     sourceMessageId: string | null;
-    status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED";
+    assigneeId: string | null;
+    assigneeName?: string | null;
+    stage: string;
+    status: string;
     priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
     slaHours: number;
     dueAt: string;
@@ -145,6 +148,7 @@ export async function getBenefitTickets(params?: {
             where,
             include: {
                 type: true,
+                assignee: { select: { id: true, name: true, phone: true } },
                 resolvedByUser: { select: { name: true } },
                 _count: { select: { notes: true, attachments: true } }
             },
@@ -241,6 +245,9 @@ export async function getBenefitTickets(params?: {
             requestedByPhone: t.requestedByPhone,
             requestedByName: t.requestedByName,
             sourceMessageId: t.sourceMessageId,
+            assigneeId: t.assigneeId,
+            assigneeName: t.assignee?.name || "Késia Miranda (Coord. DP)",
+            stage: t.stage || "TRIAGEM_DP",
             status: t.status,
             priority: t.priority,
             slaHours: t.slaHours,
@@ -284,6 +291,7 @@ export async function getBenefitTicketDetails(ticketId: string) {
         where: { id: ticketId },
         include: {
             type: true,
+            assignee: { select: { id: true, name: true, phone: true, role: true } },
             resolvedByUser: { select: { id: true, name: true, email: true } },
             notes: {
                 orderBy: { createdAt: "desc" },
@@ -523,10 +531,15 @@ export async function resolveBenefitTicket(data: {
     return { success: true };
 }
 
-/** 9. Alterar Status de Ticket (Ex: Em Andamento / Aberto / Cancelado) */
-export async function updateBenefitTicketStatus(ticketId: string, status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CANCELLED") {
+/** 9. Alterar Status de Ticket Manualmente pelo Operador */
+export async function updateBenefitTicketStatus(ticketId: string, status: string) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Não autorizado");
+
+    const ticket = await (prisma as any).benefitTicket.findUnique({
+        where: { id: ticketId }
+    });
+    if (!ticket) throw new Error("Ticket não encontrado");
 
     await (prisma as any).benefitTicket.update({
         where: { id: ticketId },
@@ -536,6 +549,223 @@ export async function updateBenefitTicketStatus(ticketId: string, status: "OPEN"
         }
     });
 
+    await (prisma as any).benefitTicketNote.create({
+        data: {
+            ticketId,
+            userId: user.id,
+            userName: user.name || "Sistema",
+            content: `🔄 Status do chamado alterado para "${status}" por ${user.name}.`
+        }
+    });
+
     revalidatePath(`/admin/tickets-beneficios`);
     return { success: true };
+}
+
+/** 9.1. Alterar Tipo/Motivo e SLA de Ticket Manualmente pelo Operador */
+export async function updateBenefitTicketTypeAndSla(data: {
+    ticketId: string;
+    typeId: string;
+    slaHours?: number;
+    reason?: string;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const [ticket, typeObj] = await Promise.all([
+        (prisma as any).benefitTicket.findUnique({ where: { id: data.ticketId } }),
+        (prisma as any).benefitTicketType.findUnique({ where: { id: data.typeId } })
+    ]);
+
+    if (!ticket) throw new Error("Ticket não encontrado");
+    if (!typeObj) throw new Error("Tipo de benefício não encontrado");
+
+    const slaHours = data.slaHours && data.slaHours > 0 ? Number(data.slaHours) : typeObj.slaHours || 24;
+    const createdAt = new Date(ticket.createdAt);
+    const newDueAt = new Date(createdAt.getTime() + slaHours * 60 * 60 * 1000);
+
+    await (prisma as any).benefitTicket.update({
+        where: { id: data.ticketId },
+        data: {
+            typeId: typeObj.id,
+            category: typeObj.category,
+            title: `Pendência: ${typeObj.name} - ${ticket.employeeName}`,
+            slaHours,
+            dueAt: newDueAt,
+            updatedAt: new Date()
+        }
+    });
+
+    await (prisma as any).benefitTicketNote.create({
+        data: {
+            ticketId: data.ticketId,
+            userId: user.id,
+            userName: user.name || "Sistema",
+            content: `✏️ Tipo/Motivo do chamado reclassificado para "${typeObj.name}" (SLA ajustado para ${slaHours}h) por ${user.name}.${data.reason ? `\nMotivo: ${data.reason}` : ""}`
+        }
+    });
+
+    revalidatePath(`/admin/tickets-beneficios`);
+    return { success: true };
+}
+
+/** 9.2. Obter Status Configuráveis */
+export async function getBenefitTicketStatusList() {
+    try {
+        const statuses = await (prisma as any).benefitTicketStatusConfig.findMany({
+            where: { isActive: true },
+            orderBy: { order: "asc" }
+        });
+
+        if (statuses.length > 0) return statuses;
+    } catch (e) {
+        // Tabela ainda criando ou primeira migração
+    }
+
+    // Default Fallbacks
+    return [
+        { id: "s1", code: "OPEN", name: "Aberto", color: "#3b82f6", order: 1, isDefault: true },
+        { id: "s2", code: "IN_PROGRESS", name: "Em Atendimento (DP)", color: "#f59e0b", order: 2, isDefault: false },
+        { id: "s3", code: "WAITING_PAYMENT", name: "Aguardando Pagamento (Financeiro)", color: "#8b5cf6", order: 3, isDefault: false },
+        { id: "s4", code: "RESOLVED", name: "Concluído", color: "#10b981", order: 4, isDefault: false },
+        { id: "s5", code: "CANCELLED", name: "Cancelado", color: "#ef4444", order: 5, isDefault: false }
+    ];
+}
+
+/** 9.3. Salvar ou Criar Novo Status Configurável */
+export async function saveBenefitTicketStatusConfig(data: {
+    id?: string;
+    code: string;
+    name: string;
+    color: string;
+    order: number;
+    isActive?: boolean;
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    if (data.id) {
+        await (prisma as any).benefitTicketStatusConfig.update({
+            where: { id: data.id },
+            data: {
+                name: data.name,
+                color: data.color,
+                order: Number(data.order),
+                isActive: data.isActive ?? true,
+                updatedAt: new Date()
+            }
+        });
+    } else {
+        await (prisma as any).benefitTicketStatusConfig.create({
+            data: {
+                code: data.code.toUpperCase().trim().replace(/\s+/g, "_"),
+                name: data.name,
+                color: data.color,
+                order: Number(data.order),
+                isActive: data.isActive ?? true
+            }
+        });
+    }
+
+    revalidatePath("/admin/tickets-beneficios");
+    return { success: true };
+}
+
+/** 10. Transferir Ticket para o Financeiro ou Outro Responsável com Notificação no WhatsApp Particular */
+export async function transferBenefitTicket(data: {
+    ticketId: string;
+    targetUserId: string;
+    transferReason?: string;
+    targetStage?: "TRIAGEM_DP" | "AGUARDANDO_FINANCEIRO";
+}) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Não autorizado");
+
+    const [ticket, targetUser] = await Promise.all([
+        (prisma as any).benefitTicket.findUnique({
+            where: { id: data.ticketId }
+        }),
+        (prisma as any).user.findUnique({
+            where: { id: data.targetUserId }
+        })
+    ]);
+
+    if (!ticket) throw new Error("Ticket não encontrado");
+    if (!targetUser) throw new Error("Usuário de destino não encontrado");
+
+    const stage = data.targetStage || "AGUARDANDO_FINANCEIRO";
+    const reasonText = data.transferReason?.trim() || "Solicitação de pagamento / recarga financeira";
+
+    // 1. Atualizar Ticket no banco
+    await (prisma as any).benefitTicket.update({
+        where: { id: data.ticketId },
+        data: {
+            assigneeId: targetUser.id,
+            stage,
+            status: "IN_PROGRESS",
+            updatedAt: new Date()
+        }
+    });
+
+    // 2. Registrar Anotação Interna
+    await (prisma as any).benefitTicketNote.create({
+        data: {
+            ticketId: data.ticketId,
+            userId: user.id,
+            userName: user.name || "Sistema",
+            content: `🔀 Chamado transferido por ${user.name} para ${targetUser.name} (${stage === "AGUARDANDO_FINANCEIRO" ? "Financeiro" : "DP"}).\nMotivo: ${reasonText}`
+        }
+    });
+
+    // 3. Notificar o Responsável no WhatsApp Particular
+    if (targetUser.phone) {
+        const cleanPhone = targetUser.phone.replace(/\D/g, "");
+        if (cleanPhone.length >= 10) {
+            const maskCpf = ticket.employeeCpf ? ticket.employeeCpf.replace(/(\d{3})\.(\d{3})\.(\d{3})-(\d{2})/, "$1.***.***-$4") : "";
+            const msg = `🔔 *[WORKFORCE HUB - CHAMADO DE BENEFÍCIOS TRANSFERIDO]* 🔔\n\n` +
+                `Olá, *${targetUser.name}*!\n` +
+                `*${user.name}* transferiu um chamado de benefícios para sua responsabilidade:\n\n` +
+                `🎫 *Ticket:* #${ticket.ticketNumber}\n` +
+                `👤 *Colaborador:* ${ticket.employeeName} ${maskCpf ? `(${maskCpf})` : ""}\n` +
+                `🏢 *Posto/Cliente:* ${ticket.postoName || ticket.clientName || "Geral"}\n` +
+                `🏷️ *Tipo:* ${ticket.title}\n` +
+                `📌 *Etapa:* ${stage === "AGUARDANDO_FINANCEIRO" ? "Aguardando Pagamento Financeiro" : "Análise DP"}\n` +
+                `💬 *Instrução / Recarga:* ${reasonText}\n\n` +
+                `👉 *Acesse para baixar e anexar o comprovante:* https://workforce-hub-henna.vercel.app/admin/tickets-beneficios`;
+
+            try {
+                await sendZapiRaw(cleanPhone, msg);
+            } catch (pErr) {
+                console.error("[transferBenefitTicket] Erro ao enviar WhatsApp particular:", pErr);
+            }
+        }
+    }
+
+    revalidatePath(`/admin/tickets-beneficios`);
+    return { success: true };
+}
+
+/** 11. Buscar Lista de Usuários Habilitados para Atribuição / Financeiro */
+export async function getBenefitAssignableUsers() {
+    const users = await (prisma as any).user.findMany({
+        where: {
+            isActive: true,
+            OR: [
+                { role: "ADMIN" },
+                { role: "COORD_RH" },
+                { role: "ASSIST_RH" },
+                { role: "FINANCEIRO" }
+            ]
+        },
+        select: {
+            id: true,
+            name: true,
+            phone: true,
+            role: true,
+            email: true
+        },
+        orderBy: { name: "asc" }
+    });
+
+    return users;
 }
