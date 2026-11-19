@@ -27,7 +27,8 @@ import {
     Square,
     Edit,
     X,
-    UploadCloud
+    UploadCloud,
+    Ticket
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1314,6 +1315,15 @@ export default function BenefitsPage() {
                     >
                         <RefreshCw className={`w-4 h-4 ${isSyncingSecullum ? "animate-spin" : "text-indigo-200"}`} />
                     </Button>
+
+                    <Link href="/admin/tickets-beneficios">
+                        <Button 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 rounded-2xl shadow-md h-9 px-3.5"
+                            title="Acessar Central de Chamados de Benefícios (Help Desk)"
+                        >
+                            <Ticket className="w-4 h-4" /> Chamados de Benefícios
+                        </Button>
+                    </Link>
 
                     <Button 
                         onClick={() => setExportCajuModalOpen(true)}
