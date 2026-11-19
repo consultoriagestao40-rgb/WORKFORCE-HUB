@@ -346,6 +346,9 @@ export async function tryProcessBenefitGroupMessage(params: {
         }
     });
 
+    const dueStr = formatDueEstimate(dueAt);
+    const maskedCpfStr = finalCpf ? finalCpf.replace(/(\d{3})\.(\d{3})\.(\d{3})-(\d{2})/, "$1.***.***-$4") : "Não informado";
+
     // 8.5. Notificar Késia no WhatsApp Particular sobre o novo chamado
     if (defaultAssignee?.phone) {
         const cleanKesiaPhone = defaultAssignee.phone.replace(/\D/g, "");
@@ -367,9 +370,6 @@ export async function tryProcessBenefitGroupMessage(params: {
     }
 
     // 9. Resposta Oficial e Instantânea no Grupo
-    const dueStr = formatDueEstimate(dueAt);
-    const maskedCpfStr = finalCpf ? finalCpf.replace(/(\d{3})\.(\d{3})\.(\d{3})-(\d{2})/, "$1.***.***-$4") : "Não informado";
-
     const replyText = `🎫 *[CHAMADO REGISTRADO COM SUCESSO]* 🎫\n\n` +
         `Olá, *${params.senderName}*! Sua solicitação foi recebida e registrada em nosso sistema:\n\n` +
         `🔖 *Número do Ticket:* #${ticketNumber}\n` +
