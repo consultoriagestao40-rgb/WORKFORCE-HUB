@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { sendZapiRaw } from "@/lib/rh-notifications";
+import { calculateBusinessDueAt } from "@/lib/business-days";
 
 export interface BenefitTicketTypeItem {
     id: string;
@@ -582,7 +583,8 @@ export async function updateBenefitTicketTypeAndSla(data: {
 
     const slaHours = data.slaHours && data.slaHours > 0 ? Number(data.slaHours) : typeObj.slaHours || 24;
     const createdAt = new Date(ticket.createdAt);
-    const newDueAt = new Date(createdAt.getTime() + slaHours * 60 * 60 * 1000);
+    const cityGuess = ticket.clientName || ticket.postoName || "Curitiba";
+    const newDueAt = await calculateBusinessDueAt(createdAt, slaHours, cityGuess);
 
     await (prisma as any).benefitTicket.update({
         where: { id: data.ticketId },
@@ -747,25 +749,25 @@ export async function transferBenefitTicket(data: {
 
 /** 11. Buscar Lista de Usuários Habilitados para Atribuição / Financeiro */
 export async function getBenefitAssignableUsers() {
-    const users = await (prisma as any).user.findMany({
-        where: {
-            isActive: true,
-            OR: [
-                { role: "ADMIN" },
-                { role: "COORD_RH" },
-                { role: "ASSIST_RH" },
-                { role: "FINANCEIRO" }
-            ]
-        },
-        select: {
-            id: true,
-            name: true,
-            phone: true,
-            role: true,
-            email: true
-        },
-        orderBy: { name: "asc" }
-    });
+    try {
+        const users = await (prisma as any).user.findMany({
+            where: {
+                isActive: true,
+                role: { in: ["ADMIN", "COORD_RH", "ASSIST_RH"] }
+            },
+            select: {
+                id: true,
+                name: true,
+                phone: true,
+                role: true,
+                email: true
+            },
+            orderBy: { name: "asc" }
+        });
 
-    return users;
+        return users || [];
+    } catch (err) {
+        console.error("[getBenefitAssignableUsers] Erro ao buscar usuários:", err);
+        return [];
+    }
 }

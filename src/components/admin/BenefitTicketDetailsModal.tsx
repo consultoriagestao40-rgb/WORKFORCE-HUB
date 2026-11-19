@@ -673,6 +673,85 @@ export function BenefitTicketDetailsModal({ ticketId, open, onClose, onUpdated }
                 </DialogContent>
             </Dialog>
 
+            {/* MODAL DE TRANSFERÊNCIA / FINANCEIRO */}
+            <Dialog open={transferModalOpen} onOpenChange={setTransferModalOpen}>
+                <DialogContent className="sm:max-w-md rounded-3xl p-6 space-y-4">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-base font-extrabold text-slate-900">
+                            <ArrowRightLeft className="w-5 h-5 text-indigo-600" /> Transferir Chamado / Delegar
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            Transfira a responsabilidade para o Financeiro ou outro coordenador. O sistema avisará o responsável diretamente pelo WhatsApp privado.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Selecionar Novo Responsável:
+                            </label>
+                            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                                <SelectTrigger className="text-xs rounded-xl h-9">
+                                    <SelectValue placeholder="Selecione o usuário" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {assignableUsers.map(u => (
+                                        <SelectItem key={u.id} value={u.id} className="text-xs font-semibold">
+                                            {u.name} {u.phone ? `(${u.phone})` : ""}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Etapa do Fluxo:
+                            </label>
+                            <Select 
+                                value={transferStage} 
+                                onValueChange={(val: any) => setTransferStage(val)}
+                            >
+                                <SelectTrigger className="text-xs rounded-xl h-9">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="AGUARDANDO_FINANCEIRO">Aguardando Pagamento (Financeiro)</SelectItem>
+                                    <SelectItem value="TRIAGEM_DP">Triagem e Atendimento (DP)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-700 block mb-1">
+                                Instrução / Recarga (enviada no WhatsApp particular):
+                            </label>
+                            <Textarea 
+                                placeholder="Ex: Recarga já lançada no Conta Azul, favor efetuar o pagamento bancário e anexar o comprovante para conclusão..."
+                                value={transferReason}
+                                onChange={e => setTransferReason(e.target.value)}
+                                rows={3}
+                                className="text-xs rounded-xl"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="pt-2">
+                        <Button variant="outline" onClick={() => setTransferModalOpen(false)} className="rounded-xl text-xs">
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleTransferSubmit} 
+                            disabled={submittingTransfer || !selectedUserId}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs gap-1.5"
+                        >
+                            {submittingTransfer ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                            Transferir e Notificar no PV
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* MODAL DE CONCLUSÃO & DEVOLUTIVA NO GRUPO */}
             <Dialog open={resolveModalOpen} onOpenChange={setResolveModalOpen}>
                 <DialogContent className="sm:max-w-lg rounded-3xl p-6 space-y-4">

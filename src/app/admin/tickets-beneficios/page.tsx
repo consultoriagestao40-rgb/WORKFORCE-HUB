@@ -49,6 +49,7 @@ export default function BenefitTicketsPage() {
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [categoryFilter, setCategoryFilter] = useState("ALL");
+    const [viewMode, setViewMode] = useState<"ACTIVE" | "RESOLVED">("ACTIVE");
 
     // Modais
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
@@ -58,9 +59,13 @@ export default function BenefitTicketsPage() {
     const loadData = async () => {
         setLoading(true);
         try {
+            const effectiveStatus = viewMode === "RESOLVED" 
+                ? "RESOLVED" 
+                : (statusFilter !== "ALL" ? statusFilter : undefined);
+
             const [ticketsRes, typesRes, statusesRes] = await Promise.all([
                 getBenefitTickets({
-                    status: statusFilter,
+                    status: effectiveStatus,
                     category: categoryFilter,
                     search: search.trim() || undefined
                 }),
@@ -68,7 +73,15 @@ export default function BenefitTicketsPage() {
                 getBenefitTicketStatusList()
             ]);
 
-            setTickets(ticketsRes.tickets);
+            // Se estiver na aba ATIVOS e o usuário não filtrou por status específico, esconde os RESOLVED da visualização ativa
+            let displayedTickets = ticketsRes.tickets;
+            if (viewMode === "ACTIVE" && statusFilter === "ALL") {
+                displayedTickets = displayedTickets.filter(t => t.status !== "RESOLVED");
+            } else if (viewMode === "RESOLVED") {
+                displayedTickets = displayedTickets.filter(t => t.status === "RESOLVED");
+            }
+
+            setTickets(displayedTickets);
             setKpis(ticketsRes.kpis);
             setTypes(typesRes);
             setStatusList(statusesRes);
@@ -81,7 +94,7 @@ export default function BenefitTicketsPage() {
 
     useEffect(() => {
         loadData();
-    }, [statusFilter, categoryFilter]);
+    }, [statusFilter, categoryFilter, viewMode]);
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -227,6 +240,39 @@ export default function BenefitTicketsPage() {
                     </div>
                 </div>
             )}
+
+            {/* ABAS: TICKETS ATIVOS vs ATENDIDOS / CONCLUÍDOS */}
+            <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
+                <button
+                    onClick={() => { setViewMode("ACTIVE"); setStatusFilter("ALL"); }}
+                    className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-2 ${
+                        viewMode === "ACTIVE"
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    }`}
+                >
+                    <Clock className="w-3.5 h-3.5" />
+                    Chamados em Aberto / Em Andamento
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${viewMode === "ACTIVE" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                        {tickets.filter(t => t.status !== "RESOLVED").length || (viewMode === "ACTIVE" ? tickets.length : 0)}
+                    </span>
+                </button>
+
+                <button
+                    onClick={() => { setViewMode("RESOLVED"); setStatusFilter("ALL"); }}
+                    className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-2 ${
+                        viewMode === "RESOLVED"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    }`}
+                >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Chamados Atendidos / Histórico
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${viewMode === "RESOLVED" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                        {kpis?.resolvedTickets || 0}
+                    </span>
+                </button>
+            </div>
 
             {/* BARRA DE FILTROS E BUSCA */}
             <div className="p-4 bg-white rounded-3xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { sendZapiRaw } from "@/lib/rh-notifications";
+import { calculateBusinessDueAt } from "@/lib/business-days";
 
 export interface ParsedBenefitRequest {
     employeeName: string | null;
@@ -286,9 +287,10 @@ export async function tryProcessBenefitGroupMessage(params: {
         return { handled: true, replyText };
     }
 
-    // 5. Calcular DueAt com base no SLA
+    // 5. Calcular DueAt com base no SLA em DIAS ÚTEIS (Pula fins de semana e feriados nacionais/municipais)
     const now = new Date();
-    const dueAt = new Date(now.getTime() + detection.slaHours * 60 * 60 * 1000);
+    const cityGuess = clientName || postoName || "Curitiba";
+    const dueAt = await calculateBusinessDueAt(now, detection.slaHours, cityGuess);
 
     // 6. Gerar Número de Ticket Sequencial
     const lastTicket = await (prisma as any).benefitTicket.findFirst({
