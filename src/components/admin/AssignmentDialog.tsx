@@ -84,6 +84,7 @@ export function AssignmentDialog({ postoId, postoRole, postoNotes, activeEmploye
     // Filter logic moved to Combobox component
 
     async function handleSubmit(formData: FormData) {
+        if (loading) return; // Trava para evitar duplo clique ou múltiplos envios
         setError(null);
         setLoading(true);
         try {

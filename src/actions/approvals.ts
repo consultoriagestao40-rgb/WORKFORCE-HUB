@@ -256,6 +256,30 @@ export async function createApprovalRequest(data: {
         initialStatus = ApprovalStatus.PENDENTE_N1;
     }
 
+    // ── TRAVA ANTI-DUPLICIDADE RIGOROSA ────────────────────────────
+    // Impede que múltiplos cliques do usuário gerem várias solicitações repetidas
+    if (data.employeeId && data.type) {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const existingPending = await prisma.approvalRequest.findFirst({
+            where: {
+                employeeId: data.employeeId,
+                type: data.type,
+                status: { in: [ApprovalStatus.PENDENTE_N1, ApprovalStatus.PENDENTE_N2] },
+                createdAt: { gte: fiveMinutesAgo }
+            },
+            orderBy: { createdAt: "desc" }
+        });
+
+        if (existingPending) {
+            console.warn(`[createApprovalRequest] Bloqueada criação duplicada para employeeId=${data.employeeId}, reqId=${existingPending.id}`);
+            return { 
+                success: true, 
+                request: existingPending, 
+                warning: "Já existe uma solicitação idêntica pendente de aprovação aguardando deliberação." 
+            };
+        }
+    }
+
     const request = await prisma.approvalRequest.create({
         data: {
             type: data.type,
