@@ -8,6 +8,7 @@ const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "F5c1b8f27f6b049c98c4
 
 export const DEFAULT_OPERATIONS_GROUP = "120363412937009664-group";
 
+let lastZapiCallTimestamp = 0;
 let zapiCallChain: Promise<any> = Promise.resolve();
 
 /**
