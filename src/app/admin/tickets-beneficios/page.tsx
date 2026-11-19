@@ -332,6 +332,7 @@ export default function BenefitTicketsPage() {
                             <th className="py-3 px-4">Colaborador / CPF</th>
                             <th className="py-3 px-4">Posto / Cliente</th>
                             <th className="py-3 px-4">Tipo / Assunto</th>
+                            <th className="py-3 px-4">Responsável</th>
                             <th className="py-3 px-4 text-center">Status</th>
                             <th className="py-3 px-4 text-center">SLA / Vencimento</th>
                             <th className="py-3 px-4 text-right">Ação</th>
@@ -340,14 +341,14 @@ export default function BenefitTicketsPage() {
                     <tbody className="divide-y divide-slate-100 font-medium">
                         {loading && tickets.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-12 text-slate-400">
+                                <td colSpan={8} className="text-center py-12 text-slate-400">
                                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
                                     Carregando chamados...
                                 </td>
                             </tr>
                         ) : tickets.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-12 text-slate-400">
+                                <td colSpan={8} className="text-center py-12 text-slate-400">
                                     Nenhum chamado de benefícios encontrado com os filtros atuais.
                                 </td>
                             </tr>
@@ -392,6 +393,23 @@ export default function BenefitTicketsPage() {
                                         </span>
                                         <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[200px]" title={t.description || ""}>
                                             {t.description || "Sem detalhes"}
+                                        </div>
+                                    </td>
+
+                                    {/* Responsável Atual / Etapa */}
+                                    <td className="py-3.5 px-4">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px]">
+                                                {(t.assigneeName || "Késia Miranda").slice(0, 1)}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-900 text-xs truncate max-w-[130px]">
+                                                    {t.assigneeName || "Késia Miranda"}
+                                                </div>
+                                                <span className="text-[9px] font-semibold text-indigo-600 uppercase">
+                                                    {t.stage === "AGUARDANDO_FINANCEIRO" ? "Financeiro" : "Coord. DP"}
+                                                </span>
+                                            </div>
                                         </div>
                                     </td>
 
