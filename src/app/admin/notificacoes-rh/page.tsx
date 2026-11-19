@@ -22,7 +22,8 @@ import {
     UserX, 
     FileText, 
     Sparkles,
-    Smartphone
+    Smartphone,
+    Mail
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
